@@ -1,0 +1,5 @@
+{
+  "name": "SISREQ - Sistema de Requerimientos",
+  "description": "Workflow management system for interdepartmental requests with strict role-based progression (Admin, Heads, Analysts).",
+  "requestFramePermissions": []
+}
