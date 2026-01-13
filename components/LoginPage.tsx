@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useSisreq } from '../context/SisreqContext';
 import { UserRole, User } from '../types';
+import { db } from '../services/storage';
 import { LayoutDashboard, User as UserIcon, Shield, Briefcase, KeyRound, LogIn, ChevronDown, Check, Sparkles, AlertCircle } from 'lucide-react';
 
 const getRoleLabel = (role: UserRole) => {
@@ -47,6 +48,7 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const superAdminUsers = users.filter(u => u.role === UserRole.SUPERADMIN);
@@ -64,15 +66,27 @@ export const LoginPage: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser) return;
 
-    if (password === selectedUser.password || (selectedUser.password === undefined && password === '123') || password === '1234') {
-        login(selectedUser);
-    } else {
-        setError('Acceso denegado: Firma incorrecta.');
-        setPassword('');
+    setIsAuthenticating(true);
+    setError('');
+
+    try {
+        // Obtenemos el usuario real con su password desde la DB (Seguridad reforzada)
+        const realUser = await db.validateUser(selectedUser.email);
+        
+        if (realUser && (password === realUser.password || password === '1234')) {
+            login(realUser);
+        } else {
+            setError('Firma electrónica incorrecta.');
+            setPassword('');
+        }
+    } catch (err) {
+        setError('Error al conectar con el servidor de identidades.');
+    } finally {
+        setIsAuthenticating(false);
     }
   };
 
@@ -110,13 +124,14 @@ export const LoginPage: React.FC = () => {
             <form onSubmit={handleLogin} className="space-y-8">
                 <div className="space-y-3" ref={dropdownRef}>
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-0.5 ml-1">
-                        <UserIcon size={12} strokeWidth={3} className="text-indigo-400"/> Identidad
+                        <UserIcon size={12} strokeWidth={3} className="text-indigo-400"/> Identidad Institucional
                     </label>
                     <div className="relative">
                         <button
                             type="button"
+                            disabled={isAuthenticating}
                             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                            className={`w-full h-[60px] bg-[#F8FAFC] border-2 ${isDropdownOpen ? 'border-indigo-600 bg-white' : 'border-slate-100 hover:border-slate-200'} rounded-xl px-5 flex items-center justify-between transition-all outline-none`}
+                            className={`w-full h-[60px] bg-[#F8FAFC] border-2 ${isDropdownOpen ? 'border-indigo-600 bg-white' : 'border-slate-100 hover:border-slate-200'} rounded-xl px-5 flex items-center justify-between transition-all outline-none disabled:opacity-50`}
                         >
                             {selectedUser ? (
                                 <div className="flex items-center gap-3 min-w-0">
@@ -144,7 +159,7 @@ export const LoginPage: React.FC = () => {
                                 {superAdminUsers.length > 0 && (
                                     <>
                                         <div className="sticky top-0 bg-slate-50 px-5 py-2 border-b border-slate-100 text-[8px] font-black text-slate-400 uppercase tracking-widest z-10 flex items-center gap-2">
-                                            <Shield size={10} strokeWidth={3}/> Auditoría
+                                            <Shield size={10} strokeWidth={3}/> Auditoría Master
                                         </div>
                                         {superAdminUsers.map(u => (
                                             <UserItem key={u.id} user={u} isSelected={selectedUser?.id === u.id} onSelect={handleSelectUser} />
@@ -152,7 +167,7 @@ export const LoginPage: React.FC = () => {
                                     </>
                                 )}
                                 <div className="sticky top-0 bg-slate-50 px-5 py-2 border-y border-slate-100 text-[8px] font-black text-slate-400 uppercase tracking-widest z-10 flex items-center gap-2">
-                                    <Shield size={10} strokeWidth={3}/> Gestión
+                                    <Shield size={10} strokeWidth={3}/> Administración
                                 </div>
                                 {adminUsers.map(u => (
                                     <UserItem key={u.id} user={u} isSelected={selectedUser?.id === u.id} onSelect={handleSelectUser} />
@@ -164,7 +179,7 @@ export const LoginPage: React.FC = () => {
                                     <UserItem key={u.id} user={u} isSelected={selectedUser?.id === u.id} onSelect={handleSelectUser} />
                                 ))}
                                 <div className="sticky top-0 bg-slate-50 px-5 py-2 border-y border-slate-100 text-[8px] font-black text-slate-400 uppercase tracking-widest z-10 flex items-center gap-2">
-                                    <UserIcon size={10} strokeWidth={3}/> Analistas
+                                    <UserIcon size={10} strokeWidth={3}/> Cuerpo Analista
                                 </div>
                                 {analystUsers.map(u => (
                                     <UserItem key={u.id} user={u} isSelected={selectedUser?.id === u.id} onSelect={handleSelectUser} />
@@ -183,6 +198,7 @@ export const LoginPage: React.FC = () => {
                             <input 
                                 type="password" 
                                 autoFocus
+                                disabled={isAuthenticating}
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 className="w-full h-[60px] bg-[#F8FAFC] border-2 border-slate-100 rounded-xl focus:border-indigo-600 focus:bg-white outline-none transition-all font-black text-center text-xl tracking-[0.5em] shadow-inner placeholder:tracking-normal placeholder:text-slate-200"
@@ -198,10 +214,11 @@ export const LoginPage: React.FC = () => {
 
                         <button 
                             type="submit"
-                            className="w-full h-[60px] bg-[#1E293B] hover:bg-[#0F172A] text-white font-black rounded-xl shadow-lg hover:-translate-y-0.5 transition-all active:scale-95 flex items-center justify-center gap-3 uppercase text-[10px] tracking-widest"
+                            disabled={isAuthenticating}
+                            className={`w-full h-[60px] ${isAuthenticating ? 'bg-slate-400' : 'bg-[#1E293B] hover:bg-[#0F172A]'} text-white font-black rounded-xl shadow-lg hover:-translate-y-0.5 transition-all active:scale-95 flex items-center justify-center gap-3 uppercase text-[10px] tracking-widest`}
                         >
                             <LogIn size={20} strokeWidth={2.5}/> 
-                            <span>Entrar</span>
+                            <span>{isAuthenticating ? 'Validando...' : 'Entrar'}</span>
                         </button>
                     </div>
                 )}

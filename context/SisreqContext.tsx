@@ -48,27 +48,22 @@ interface SisreqContextType {
 const SisreqContext = createContext<SisreqContextType | undefined>(undefined);
 
 const genUUID = () => {
-    try {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
         return crypto.randomUUID();
-    } catch (e) {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-        });
     }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+    });
 };
 
 const WORKFLOW_MATRIX: TransitionRule[] = [
-  // Flujo Progresivo Estándar
   { from: Status.RECIBIDO, to: Status.DERIVACION, allowedRoles: [UserRole.ADMIN, UserRole.SUPERADMIN] },
   { from: Status.DERIVACION, to: Status.EJECUCION, allowedRoles: [UserRole.HEAD, UserRole.SUPERADMIN, UserRole.ADMIN], requiresAnalyst: true, checkAreaJurisdiction: true },
   { from: Status.EJECUCION, to: Status.FINALIZADO, allowedRoles: [UserRole.ANALYST, UserRole.HEAD, UserRole.SUPERADMIN], checkAreaJurisdiction: true }, 
-
-  // Atajos Administrativos
   { from: Status.RECIBIDO, to: Status.FINALIZADO, allowedRoles: [UserRole.SUPERADMIN] }, 
   { from: Status.DERIVACION, to: Status.FINALIZADO, allowedRoles: [UserRole.SUPERADMIN, UserRole.HEAD], checkAreaJurisdiction: true }, 
-  
-  // Retornos Técnicos
   { from: Status.FINALIZADO, to: Status.RECIBIDO, allowedRoles: [UserRole.SUPERADMIN] },
   { from: Status.EJECUCION, to: Status.RECIBIDO, allowedRoles: [UserRole.HEAD, UserRole.ADMIN, UserRole.SUPERADMIN], checkAreaJurisdiction: true },
   { from: Status.DERIVACION, to: Status.RECIBIDO, allowedRoles: [UserRole.HEAD, UserRole.ADMIN, UserRole.SUPERADMIN], checkAreaJurisdiction: true }
@@ -165,12 +160,19 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     role: activeRole || UserRole.ANALYST
   }), [currentUser, activeRole]);
 
+  /**
+   * Determina si un requerimiento es visible en los tableros de trabajo.
+   * Los requerimientos eliminados se excluyen de los tableros incluso para SuperAdmin,
+   * ya que su acceso debe ser exclusivo desde la vista de Auditoría QA.
+   */
   const canUserSeeRequest = useCallback((req: RequestCard): boolean => {
     if (!currentUser || !activeRole) return false;
     
-    if (req.isDeleted) return activeRole === UserRole.SUPERADMIN;
-
+    // REGLA SOLICITADA: Eliminados NO se ven en tableros, solo en Auditoría.
+    if (req.isDeleted) return false; 
+    
     if (activeRole === UserRole.SUPERADMIN || activeRole === UserRole.ADMIN) return true;
+    
     const isSameArea = req.area === currentUser.area;
     const isOutOfCentral = req.status !== Status.RECIBIDO;
     return isSameArea && isOutOfCentral;
@@ -178,15 +180,18 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const canUserTransition = useCallback((req: RequestCard, target: Status): { allowed: boolean; reason?: string } => {
     if (!currentUser || !activeRole) return { allowed: false, reason: 'Sesión inactiva.' };
-    if (req.isDeleted) return { allowed: false, reason: 'Expediente en archivo de auditoría.' };
+    if (req.isDeleted) return { allowed: false, reason: 'Expediente archivado.' };
     
     const rule = WORKFLOW_MATRIX.find(r => r.from === req.status && r.to === target);
-    if (!rule) return { allowed: false, reason: 'Transición no permitida.' };
-    if (!rule.allowedRoles.includes(activeRole)) return { allowed: false, reason: 'Permisos insuficientes.' };
+    if (!rule) return { allowed: false, reason: 'Flujo no permitido desde el estado actual.' };
+    if (!rule.allowedRoles.includes(activeRole)) return { allowed: false, reason: 'Su rol no tiene permisos para esta transición.' };
+    
     if (rule.checkAreaJurisdiction && ![UserRole.SUPERADMIN, UserRole.ADMIN].includes(activeRole)) {
-        if (req.area !== currentUser.area) return { allowed: false, reason: 'Fuera de jurisdicción.' };
+        if (req.area !== currentUser.area) return { allowed: false, reason: 'El ticket pertenece a otra unidad orgánica.' };
     }
-    if (rule.requiresAnalyst && !req.assignedAnalyst) return { allowed: false, reason: 'Requiere asignación técnica.' };
+    
+    if (rule.requiresAnalyst && !req.assignedAnalyst) return { allowed: false, reason: 'Debe asignar un Responsable Técnico antes de iniciar ejecución.' };
+    
     return { allowed: true };
   }, [currentUser, activeRole]);
 
@@ -214,8 +219,14 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const updateStatus = async (id: string, newStatus: Status) => {
     const req = requests.find(r => r.id === id);
     if (!req) return;
+
+    // SEGURIDAD: Validación de integridad de flujo
+    const check = canUserTransition(req, newStatus);
+    if (!check.allowed) {
+        throw new Error(check.reason);
+    }
+
     const now = new Date().toISOString();
-    
     const finishedAt = newStatus === Status.FINALIZADO ? now : req.finishedAt;
     
     const updated = { 
@@ -234,6 +245,10 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const returnRequest = async (id: string, reason: string) => {
     const req = requests.find(r => r.id === id);
     if (!req) return;
+
+    const check = canUserTransition(req, Status.RECIBIDO);
+    if (!check.allowed) throw new Error(check.reason);
+
     const now = new Date().toISOString();
     const updated = { 
         ...req, 
@@ -246,12 +261,18 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r));
-    addNotification('WARNING', 'Expediente Devuelto', `Un requerimiento ha sido retornado a Central: ${reason}`, id);
+    addNotification('WARNING', 'Expediente Devuelto', `Ticket retornado a Central: ${reason}`, id);
   };
 
   const assignAnalyst = async (id: string, name: string) => {
     const req = requests.find(r => r.id === id);
     if (!req) return;
+
+    // Solo se permite asignar si está en derivación o ejecución
+    if (req.status !== Status.DERIVACION && req.status !== Status.EJECUCION) {
+        throw new Error("El ticket debe estar en fase de DERIVACIÓN para asignar personal.");
+    }
+
     const now = new Date().toISOString();
     const updated = { 
         ...req, 
@@ -262,21 +283,25 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r));
-    addNotification('SUCCESS', 'Analista Asignado', `${name} ha sido asignado. El ticket inicia ejecución.`, id);
+    addNotification('SUCCESS', 'Analista Asignado', `${name} ha sido asignado al ticket.`, id);
   };
 
   const addLog = async (id: string, msg: string) => {
     const req = requests.find(r => r.id === id);
-    if (!req) return;
+    if (!req || req.isDeleted) return;
     const updated = { ...req, lastUpdated: new Date().toISOString(), logs: [...req.logs, createAuditLog(msg)] };
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r));
-    addNotification('INFO', 'Nota Añadida', `Nueva nota técnica en el expediente #${id.split('-')[1].toUpperCase()}`, id);
   };
 
   const updateRequestDetails = async (id: string, title: string, detail: string) => {
     const req = requests.find(r => r.id === id);
-    if (!req) return;
+    if (!req || req.isDeleted) return;
+
+    if (activeRole !== UserRole.ADMIN && activeRole !== UserRole.SUPERADMIN) {
+        throw new Error("Solo personal administrativo puede editar metadatos básicos.");
+    }
+
     const updated = { 
         ...req, 
         title, 
@@ -289,9 +314,12 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const deleteRequest = useCallback(async (id: string) => {
-    const actorName = currentUser?.name || 'Desconocido';
+    if (activeRole !== UserRole.SUPERADMIN) {
+        throw new Error("Acción restringida: Solo el Auditor Master puede archivar expedientes.");
+    }
+
+    const actorName = currentUser?.name || 'Sistema';
     const now = new Date().toISOString();
-    
     await db.deleteRequest(id, actorName);
     
     setRequests(prev => prev.map(r => r.id === id ? {
@@ -302,19 +330,19 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         logs: [...r.logs, createAuditLog(`AUDITORÍA: Registro movido al archivo histórico por orden administrativa.`)]
     } : r));
 
-    addNotification('WARNING', 'Expediente Archivado', `El registro #${id.split('-')[1].toUpperCase()} fue enviado al archivo de auditoría.`);
-  }, [addNotification, currentUser, createAuditLog]);
+    addNotification('WARNING', 'Expediente Archivado', `El registro fue enviado al archivo de auditoría.`);
+  }, [addNotification, currentUser, createAuditLog, activeRole]);
 
   const addUser = async (name: string, email: string, role: UserRole, pass: string, area?: Area) => {
     const newUser: User = { id: genUUID(), name, email, role, area, password: pass, status: 'ACTIVE', joinedAt: new Date().toISOString() };
     await db.saveUser(newUser);
-    setUsers(prev => [...prev, newUser]);
-    addNotification('SUCCESS', 'Usuario Creado', `Nuevo colaborador: ${name} (${role})`);
+    setUsers(prev => [...prev, { ...newUser, password: '***' }]);
+    addNotification('SUCCESS', 'Usuario Creado', `Nuevo colaborador: ${name}`);
   };
 
   const updateUser = async (u: User) => {
     await db.saveUser(u);
-    setUsers(prev => prev.map(o => o.id === u.id ? u : o));
+    setUsers(prev => prev.map(o => o.id === u.id ? { ...u, password: '***' } : o));
     addNotification('INFO', 'Usuario Actualizado', `Perfil de ${u.name} modificado.`);
   };
 
