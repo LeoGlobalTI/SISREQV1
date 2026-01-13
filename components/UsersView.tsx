@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useSisreq } from '../context/SisreqContext';
 import { User, UserRole, UserStatus } from '../types';
 import { User as UserIcon, Edit2, Activity, UserPlus, Calendar, Shield, Briefcase, Mail, Power, ShieldCheck, Database, Key, Hash, MapPin, ShieldAlert } from 'lucide-react';
@@ -9,6 +9,40 @@ export const UsersView: React.FC = () => {
   const { users } = useSisreq();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+
+  // Resizable Columns State
+  const [colWidths, setColWidths] = useState<number[]>([250, 180, 180, 120, 120, 100, 80]);
+  const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
+
+  const handleMouseDown = (index: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    resizingRef.current = {
+      index,
+      startX: e.clientX,
+      startWidth: colWidths[index]
+    };
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'col-resize';
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!resizingRef.current) return;
+    const { index, startX, startWidth } = resizingRef.current;
+    const delta = e.clientX - startX;
+    const newWidths = [...colWidths];
+    newWidths[index] = Math.max(50, startWidth + delta);
+    setColWidths(newWidths);
+  };
+
+  const handleMouseUp = () => {
+    resizingRef.current = null;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'default';
+  };
+
+  const gridTemplate = useMemo(() => colWidths.map(w => `${w}px`).join(' '), [colWidths]);
 
   const stats = useMemo(() => {
     const total = users.length;
@@ -32,6 +66,13 @@ export const UsersView: React.FC = () => {
     setSelectedUser(null);
     setIsModalOpen(true);
   };
+
+  const ResizeHandle = ({ index }: { index: number }) => (
+    <div 
+      onMouseDown={(e) => handleMouseDown(index, e)}
+      className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-indigo-400/50 active:bg-indigo-600 transition-colors z-30"
+    />
+  );
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-8 bg-[#F8FAFC]">
@@ -90,16 +131,37 @@ export const UsersView: React.FC = () => {
         </div>
 
         {/* User Inventory - Institutional List format */}
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col animate-in fade-in duration-500">
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col animate-in fade-in duration-500 min-w-max">
              
              {/* Institutional Table Header */}
-             <div className="grid grid-cols-[2fr_1.5fr_1.5fr_1fr_1fr_100px_80px] gap-4 px-8 py-5 bg-slate-50/80 border-b border-slate-100 text-[8px] font-black text-slate-400 uppercase tracking-[0.15em] items-center">
-                <div className="flex items-center gap-2"><UserIcon size={10} className="text-slate-300"/> Identidad Institucional</div>
-                <div><Shield size={10} className="inline mr-1 text-slate-300"/> Rol</div>
-                <div><MapPin size={10} className="inline mr-1 text-slate-300"/> Jurisdicción</div>
-                <div><Activity size={10} className="inline mr-1 text-slate-300"/> Estado</div>
-                <div><Calendar size={10} className="inline mr-1 text-slate-300"/> Alta</div>
-                <div><Key size={10} className="inline mr-1 text-slate-300"/> Seguridad</div>
+             <div 
+                className="grid gap-4 px-8 py-5 bg-slate-50/80 border-b border-slate-100 text-[8px] font-black text-slate-400 uppercase tracking-[0.15em] items-center sticky top-0 z-10"
+                style={{ gridTemplateColumns: gridTemplate }}
+             >
+                <div className="relative h-full flex items-center">
+                    <UserIcon size={10} className="text-slate-300 mr-2"/> Identidad Institucional
+                    <ResizeHandle index={0} />
+                </div>
+                <div className="relative h-full flex items-center">
+                    <Shield size={10} className="inline mr-1 text-slate-300"/> Rol
+                    <ResizeHandle index={1} />
+                </div>
+                <div className="relative h-full flex items-center">
+                    <MapPin size={10} className="inline mr-1 text-slate-300"/> Jurisdicción
+                    <ResizeHandle index={2} />
+                </div>
+                <div className="relative h-full flex items-center">
+                    <Activity size={10} className="inline mr-1 text-slate-300"/> Estado
+                    <ResizeHandle index={3} />
+                </div>
+                <div className="relative h-full flex items-center">
+                    <Calendar size={10} className="inline mr-1 text-slate-300"/> Alta
+                    <ResizeHandle index={4} />
+                </div>
+                <div className="relative h-full flex items-center">
+                    <Key size={10} className="inline mr-1 text-slate-300"/> Seguridad
+                    <ResizeHandle index={5} />
+                </div>
                 <div className="text-right">Acciones</div>
              </div>
              
@@ -108,7 +170,8 @@ export const UsersView: React.FC = () => {
                 {users.map(user => (
                     <div 
                         key={user.id} 
-                        className="grid grid-cols-[2fr_1.5fr_1.5fr_1fr_1fr_100px_80px] gap-4 px-8 py-4 items-center hover:bg-indigo-50/30 transition-all group"
+                        className="grid gap-4 px-8 py-4 items-center hover:bg-indigo-50/30 transition-all group"
+                        style={{ gridTemplateColumns: gridTemplate }}
                     >
                         {/* Identidad */}
                         <div className="min-w-0">
@@ -131,8 +194,8 @@ export const UsersView: React.FC = () => {
                         </div>
 
                         {/* Rol */}
-                        <div>
-                            <span className={`px-2 py-0.5 rounded-lg text-[7px] font-black border flex items-center gap-1.5 w-fit uppercase tracking-widest shadow-sm ${
+                        <div className="truncate">
+                            <span className={`px-2 py-0.5 rounded-lg text-[7px] font-black border flex items-center gap-1.5 w-fit uppercase tracking-widest shadow-sm truncate ${
                                 user.role === UserRole.SUPERADMIN ? 'bg-slate-900 text-white border-slate-950' :
                                 user.role === UserRole.ADMIN ? 'bg-red-50 text-red-600 border-red-100' :
                                 user.role === UserRole.HEAD ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
@@ -144,33 +207,33 @@ export const UsersView: React.FC = () => {
                         </div>
 
                         {/* Jurisdicción */}
-                        <div>
+                        <div className="truncate">
                             {user.area ? (
-                                <span className="text-[8px] font-black text-indigo-600 bg-indigo-50/50 px-2 py-0.5 rounded-md border border-indigo-100 uppercase tracking-tight">{user.area}</span>
+                                <span className="text-[8px] font-black text-indigo-600 bg-indigo-50/50 px-2 py-0.5 rounded-md border border-indigo-100 uppercase tracking-tight truncate block w-fit">{user.area}</span>
                             ) : (
-                                <span className="text-slate-300 font-black text-[8px] tracking-widest uppercase opacity-50">Global</span>
+                                <span className="text-slate-300 font-black text-[8px] tracking-widest uppercase opacity-50 truncate">Global</span>
                             )}
                         </div>
 
                         {/* Estado */}
-                        <div>
-                            <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border w-fit shadow-sm ${(!user.status || user.status === 'ACTIVE') ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                        <div className="truncate">
+                            <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border w-fit shadow-sm truncate ${(!user.status || user.status === 'ACTIVE') ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
                                 <div className={`w-1 h-1 rounded-full ${(!user.status || user.status === 'ACTIVE') ? 'bg-emerald-500' : 'bg-slate-400'}`}></div>
-                                <span className="text-[7px] font-black uppercase tracking-widest">
+                                <span className="text-[7px] font-black uppercase tracking-widest truncate">
                                     {(!user.status || user.status === 'ACTIVE') ? 'Activo' : 'Inactivo'}
                                 </span>
                             </div>
                         </div>
 
                         {/* Fecha */}
-                        <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-500">
+                        <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-500 truncate">
                             <Calendar size={10} className="text-slate-300"/>
                             {user.joinedAt ? new Date(user.joinedAt).toLocaleDateString() : 'N/A'}
                         </div>
 
                         {/* Seguridad */}
-                        <div>
-                            <div className="flex items-center gap-1 text-slate-300 font-mono text-[9px] bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100 shadow-inner">
+                        <div className="truncate">
+                            <div className="flex items-center gap-1 text-slate-300 font-mono text-[9px] bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100 shadow-inner truncate w-fit">
                                 <Key size={9}/> ••••
                             </div>
                         </div>

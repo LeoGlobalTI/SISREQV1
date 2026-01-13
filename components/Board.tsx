@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useSisreq } from '../context/SisreqContext';
 import { RequestCard } from './RequestCard';
 import { Status, Area, UserRole, Priority } from '../types';
@@ -58,13 +58,46 @@ export const Board: React.FC = () => {
   const [displayMode, setDisplayMode] = useState<DisplayMode>('kanban');
   const [isExporting, setIsExporting] = useState(false);
 
+  // Resizable Columns State
+  const [colWidths, setColWidths] = useState<number[]>([80, 400, 120, 120, 140, 140, 100, 60]);
+  const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
+
+  const handleMouseDown = (index: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    resizingRef.current = {
+      index,
+      startX: e.clientX,
+      startWidth: colWidths[index]
+    };
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'col-resize';
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!resizingRef.current) return;
+    const { index, startX, startWidth } = resizingRef.current;
+    const delta = e.clientX - startX;
+    const newWidths = [...colWidths];
+    newWidths[index] = Math.max(50, startWidth + delta);
+    setColWidths(newWidths);
+  };
+
+  const handleMouseUp = () => {
+    resizingRef.current = null;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'default';
+  };
+
+  const gridTemplate = useMemo(() => colWidths.map(w => `${w}px`).join(' '), [colWidths]);
+
   const filteredRequests = useMemo(() => {
     return requests.filter(req => {
       // 1. Verificación de visibilidad base (rol/área)
       if (!canUserSeeRequest(req)) return false;
 
       // 2. Filtro de 5 días hábiles para Finalizados
-      // Solo ocultamos los que ya están FINALIZADOS y cuya fecha de cierre excede el límite
       if (req.status === Status.FINALIZADO) {
         const dateToCheck = req.finishedAt || req.lastUpdated;
         if (isOlderThan5BusinessDays(dateToCheck)) {
@@ -173,6 +206,13 @@ export const Board: React.FC = () => {
     { title: 'Ejecución', status: Status.EJECUCION, icon: <PlayCircle size={18} strokeWidth={2.5}/>, color: 'bg-amber-500', text: 'text-amber-600', light: 'bg-amber-50' },
     { title: 'Finalizado', status: Status.FINALIZADO, icon: <CheckCircle2 size={18} strokeWidth={2.5}/>, color: 'bg-emerald-600', text: 'text-emerald-600', light: 'bg-emerald-50' }
   ];
+
+  const ResizeHandle = ({ index }: { index: number }) => (
+    <div 
+      onMouseDown={(e) => handleMouseDown(index, e)}
+      className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-indigo-400/50 active:bg-indigo-600 transition-colors z-30"
+    />
+  );
 
   return (
     <div className="flex flex-col h-full relative overflow-hidden">
@@ -327,15 +367,39 @@ export const Board: React.FC = () => {
               </div>
           ) : (
               <div className="h-full overflow-y-auto custom-scrollbar p-8">
-                  <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden flex flex-col min-w-[1000px] animate-view-switch">
-                      <div className="grid grid-cols-[80px_1fr_120px_120px_140px_140px_100px_60px] gap-4 px-8 py-6 bg-slate-50/80 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-[0.15em] items-center">
-                          <div><Hash size={12} className="inline mr-1 text-slate-300"/> ID</div>
-                          <div><FileStack size={12} className="inline mr-1 text-slate-300"/> Expediente Técnico</div>
-                          <div><MapPin size={12} className="inline mr-1 text-slate-300"/> Área</div>
-                          <div><Building2 size={12} className="inline mr-1 text-slate-300"/> Solicitante</div>
-                          <div><GitPullRequest size={12} className="inline mr-1 text-slate-300"/> Fase Actual</div>
-                          <div><User size={12} className="inline mr-1 text-slate-300"/> Responsable</div>
-                          <div><AlertCircle size={12} className="inline mr-1 text-slate-300"/> Urgencia</div>
+                  <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden flex flex-col min-w-max animate-view-switch">
+                      <div 
+                        className="grid gap-4 px-8 py-6 bg-slate-50/80 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-[0.15em] items-center sticky top-0 z-10"
+                        style={{ gridTemplateColumns: gridTemplate }}
+                      >
+                          <div className="relative h-full flex items-center">
+                            <Hash size={12} className="inline mr-1 text-slate-300"/> ID
+                            <ResizeHandle index={0} />
+                          </div>
+                          <div className="relative h-full flex items-center">
+                            <FileStack size={12} className="inline mr-1 text-slate-300"/> Expediente Técnico
+                            <ResizeHandle index={1} />
+                          </div>
+                          <div className="relative h-full flex items-center">
+                            <MapPin size={12} className="inline mr-1 text-slate-300"/> Área
+                            <ResizeHandle index={2} />
+                          </div>
+                          <div className="relative h-full flex items-center">
+                            <Building2 size={12} className="inline mr-1 text-slate-300"/> Solicitante
+                            <ResizeHandle index={3} />
+                          </div>
+                          <div className="relative h-full flex items-center">
+                            <GitPullRequest size={12} className="inline mr-1 text-slate-300"/> Fase Actual
+                            <ResizeHandle index={4} />
+                          </div>
+                          <div className="relative h-full flex items-center">
+                            <User size={12} className="inline mr-1 text-slate-300"/> Responsable
+                            <ResizeHandle index={5} />
+                          </div>
+                          <div className="relative h-full flex items-center">
+                            <AlertCircle size={12} className="inline mr-1 text-slate-300"/> Urgencia
+                            <ResizeHandle index={6} />
+                          </div>
                           <div className="text-right">Detalle</div>
                       </div>
 
@@ -344,10 +408,13 @@ export const Board: React.FC = () => {
                               <div 
                                   key={req.id} 
                                   onClick={() => setSelectedRequestId(req.id)}
-                                  style={{ animationDelay: `${idx * 20}ms` }}
-                                  className="grid grid-cols-[80px_1fr_120px_120px_140px_140px_100px_60px] gap-4 px-8 py-5 items-center hover:bg-indigo-50/30 transition-all group cursor-pointer animate-card-entry"
+                                  style={{ 
+                                    animationDelay: `${idx * 20}ms`,
+                                    gridTemplateColumns: gridTemplate 
+                                  }}
+                                  className="grid gap-4 px-8 py-5 items-center hover:bg-indigo-50/30 transition-all group cursor-pointer animate-card-entry"
                               >
-                                  <div className="text-[10px] font-mono font-black text-slate-400 uppercase group-hover:text-indigo-400 transition-colors">
+                                  <div className="text-[10px] font-mono font-black text-slate-400 uppercase group-hover:text-indigo-400 transition-colors truncate">
                                       #{req.id.split('-')[1]?.toUpperCase()}
                                   </div>
 
@@ -365,8 +432,8 @@ export const Board: React.FC = () => {
                                       </div>
                                   </div>
 
-                                  <div>
-                                      <span className="text-[9px] font-black text-indigo-600 bg-indigo-50/50 px-2.5 py-1 rounded-lg border border-indigo-100 uppercase tracking-tight">
+                                  <div className="truncate">
+                                      <span className="text-[9px] font-black text-indigo-600 bg-indigo-50/50 px-2.5 py-1 rounded-lg border border-indigo-100 uppercase tracking-tight truncate block w-fit">
                                           {req.area}
                                       </span>
                                   </div>
@@ -375,27 +442,27 @@ export const Board: React.FC = () => {
                                       {req.requester}
                                   </div>
 
-                                  <div>
-                                      <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border shadow-sm transition-all ${STATUS_BADGE_COLORS[req.status]}`}>
+                                  <div className="truncate">
+                                      <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border shadow-sm transition-all ${STATUS_BADGE_COLORS[req.status]} truncate block w-fit`}>
                                           {req.status}
                                       </span>
                                   </div>
 
                                   <div className="min-w-0">
                                       {req.assignedAnalyst ? (
-                                          <div className="flex items-center gap-2">
+                                          <div className="flex items-center gap-2 min-w-0">
                                               <div className="w-6 h-6 rounded-lg bg-slate-800 text-white flex items-center justify-center font-black text-[8px] shrink-0 shadow-sm">
                                                   {req.assignedAnalyst.substring(0,2).toUpperCase()}
                                               </div>
                                               <span className="text-[10px] font-black text-slate-700 truncate uppercase tracking-tight">{req.assignedAnalyst.split(' ')[0]}</span>
                                           </div>
                                       ) : (
-                                          <span className="text-[9px] text-slate-300 font-black uppercase italic tracking-tighter">Pendiente</span>
+                                          <span className="text-[9px] text-slate-300 font-black uppercase italic tracking-tighter truncate">Pendiente</span>
                                       )}
                                   </div>
 
-                                  <div>
-                                      <span className={`text-[8px] font-black px-2.5 py-1 rounded-lg border transition-all uppercase tracking-widest shadow-sm ${PRIORITY_STYLES[req.priority]}`}>
+                                  <div className="truncate">
+                                      <span className={`text-[8px] font-black px-2.5 py-1 rounded-lg border transition-all uppercase tracking-widest shadow-sm ${PRIORITY_STYLES[req.priority]} truncate block w-fit`}>
                                           {req.priority}
                                       </span>
                                   </div>
