@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User, RequestCard, Status, Priority, Area, UserRole, ViewMode, TransitionRule, LogEntry } from '../types';
 import { AREA_HEADS } from '../constants';
-import { db } from '../services/storage';
+import { db, DbDiagnostic } from '../services/storage';
 
 interface SisreqContextType {
   currentUser: User | null;
@@ -11,6 +11,7 @@ interface SisreqContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   initError: string | null;
+  dbDiagnostic: DbDiagnostic | null;
   activeRole: UserRole | null;
   viewMode: ViewMode;
   globalFilterArea: Area | 'ALL';
@@ -41,21 +42,23 @@ interface SisreqContextType {
 
 const SisreqContext = createContext<SisreqContextType | undefined>(undefined);
 
-const genId = (p: string) => `${p}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+const genUUID = () => {
+    try {
+        return crypto.randomUUID();
+    } catch (e) {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+};
 
-/**
- * MATRIZ DE SEGURIDAD Y WORKFLOW SISREQ
- */
 const WORKFLOW_MATRIX: TransitionRule[] = [
   { from: Status.RECIBIDO, to: Status.DERIVACION, allowedRoles: [UserRole.ADMIN, UserRole.SUPERADMIN] },
   { from: Status.DERIVACION, to: Status.EJECUCION, allowedRoles: [UserRole.HEAD, UserRole.SUPERADMIN, UserRole.ADMIN], requiresAnalyst: true, checkAreaJurisdiction: true },
-  
-  // Transiciones a Finalizado (Reglas estrictas)
   { from: Status.RECIBIDO, to: Status.FINALIZADO, allowedRoles: [UserRole.SUPERADMIN] }, 
   { from: Status.DERIVACION, to: Status.FINALIZADO, allowedRoles: [UserRole.SUPERADMIN, UserRole.HEAD], checkAreaJurisdiction: true }, 
   { from: Status.EJECUCION, to: Status.FINALIZADO, allowedRoles: [UserRole.ANALYST, UserRole.HEAD, UserRole.SUPERADMIN], checkAreaJurisdiction: true }, 
-
-  // Flujos de Retorno y Ajuste Operativo
   { from: Status.FINALIZADO, to: Status.RECIBIDO, allowedRoles: [UserRole.SUPERADMIN] },
   { from: Status.EJECUCION, to: Status.DERIVACION, allowedRoles: [UserRole.HEAD, UserRole.SUPERADMIN, UserRole.ADMIN], checkAreaJurisdiction: true },
   { from: Status.DERIVACION, to: Status.RECIBIDO, allowedRoles: [UserRole.HEAD, UserRole.ADMIN, UserRole.SUPERADMIN], checkAreaJurisdiction: true },
@@ -71,23 +74,28 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
+  const [dbDiagnostic, setDbDiagnostic] = useState<DbDiagnostic | null>(null);
   const [globalFilterArea, setGlobalFilterArea] = useState<Area | 'ALL'>('ALL');
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
 
   useEffect(() => {
     const initializeSystem = async () => {
       try {
-        await db.init();
-        const [loadedUsers, loadedRequests] = await Promise.all([
-          db.getUsers(),
-          db.getRequests()
-        ]);
-        setUsers(loadedUsers);
-        setRequests(loadedRequests.sort((a, b) => 
-          new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()
-        ));
-      } catch (error) {
-        setInitError("Fallo en la conexión con la base de datos local SISREQ.");
+        const diag = await db.init();
+        setDbDiagnostic(diag);
+        
+        if (diag.status === 'READY') {
+          const [loadedUsers, loadedRequests] = await Promise.all([
+            db.getUsers(),
+            db.getRequests()
+          ]);
+          setUsers(loadedUsers);
+          setRequests(loadedRequests.sort((a, b) => 
+            new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()
+          ));
+        }
+      } catch (error: any) {
+        setInitError(`Error de sistema: ${error.message}`);
       } finally {
         setIsLoading(false);
       }
@@ -107,7 +115,6 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setCurrentUser(null);
     setActiveRole(null);
     setSelectedRequestId(null);
-    setViewMode('work');
   };
 
   const switchHybridRole = () => {
@@ -118,7 +125,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const createAuditLog = useCallback((message: string): LogEntry => ({
-    id: genId('LOG'),
+    id: genUUID(),
     timestamp: new Date().toISOString(),
     message,
     actor: currentUser?.name || 'Sistema',
@@ -135,57 +142,35 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const canUserTransition = useCallback((req: RequestCard, target: Status): { allowed: boolean; reason?: string } => {
     if (!currentUser || !activeRole) return { allowed: false, reason: 'Sesión inactiva.' };
-    if (req.status === target) return { allowed: false, reason: 'Fase operativa redundante.' };
-    
     const rule = WORKFLOW_MATRIX.find(r => r.from === req.status && r.to === target);
-    
-    if (!rule) return { allowed: false, reason: 'Transición no contemplada en la matriz técnica para este estado.' };
-
-    if (!rule.allowedRoles.includes(activeRole)) {
-        return { allowed: false, reason: `Privilegios insuficientes para esta acción (Rol actual: ${activeRole}).` };
-    }
-
+    if (!rule) return { allowed: false, reason: 'Transición no permitida.' };
+    if (!rule.allowedRoles.includes(activeRole)) return { allowed: false, reason: 'Permisos insuficientes.' };
     if (rule.checkAreaJurisdiction && ![UserRole.SUPERADMIN, UserRole.ADMIN].includes(activeRole)) {
-        if (req.area !== currentUser.area) return { allowed: false, reason: 'Jurisdicción ajena a su área operativa.' };
-        if (target === Status.FINALIZADO && activeRole === UserRole.ANALYST) {
-           if (req.assignedAnalyst !== currentUser.name) return { allowed: false, reason: 'Sólo el responsable técnico designado puede cerrar el expediente.' };
-        }
+        if (req.area !== currentUser.area) return { allowed: false, reason: 'Fuera de jurisdicción.' };
     }
-
-    if (rule.requiresAnalyst && !req.assignedAnalyst) {
-        return { allowed: false, reason: 'Falta designación de Responsable Técnico para iniciar ejecución.' };
-    }
-
+    if (rule.requiresAnalyst && !req.assignedAnalyst) return { allowed: false, reason: 'Requiere asignación técnica.' };
     return { allowed: true };
   }, [currentUser, activeRole]);
 
   const isActionable = useCallback((req: RequestCard): boolean => {
     if (!activeRole) return false;
-    if (activeRole === UserRole.SUPERADMIN) return true;
     return Object.values(Status).some(s => s !== req.status && canUserTransition(req, s).allowed);
   }, [activeRole, canUserTransition]);
 
   const addRequest = async (title: string, detail: string, area: Area, priority: Priority, requester: string) => {
     const now = new Date().toISOString();
+    
+    // Si el usuario está operando en rol de Jefatura (Hybrid Admin en modo Jefe o Jefe Nativo),
+    // el requerimiento se auto-deriva para saltar la Bandeja Central.
     const initialStatus = activeRole === UserRole.HEAD ? Status.DERIVACION : Status.RECIBIDO;
-    const auditMessage = activeRole === UserRole.HEAD 
-      ? `SISTEMA: Apertura y auto-derivación técnica a Jefatura de ${area}.`
-      : `SISTEMA: Apertura de registro oficial SISREQ en Bandeja Central.`;
-
+    
     const newReq: RequestCard = {
-      id: genId('REQ'),
-      title: title.trim(),
-      detail: detail.trim(),
-      area,
-      status: initialStatus,
-      priority,
-      requester: requester.trim(),
-      responsibleHead: AREA_HEADS[area],
-      createdAt: now,
-      lastUpdated: now,
-      logs: [createAuditLog(auditMessage)]
+      id: genUUID(),
+      title, detail, area, status: initialStatus, priority, requester,
+      responsibleHead: AREA_HEADS[area], createdAt: now, lastUpdated: now,
+      logs: [createAuditLog(`SISTEMA: Apertura de registro en estado ${initialStatus.toUpperCase()}`)]
     };
-
+    
     await db.saveRequest(newReq);
     setRequests(prev => [newReq, ...prev]);
   };
@@ -193,81 +178,34 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const updateStatus = async (id: string, newStatus: Status) => {
     const req = requests.find(r => r.id === id);
     if (!req) return;
-    const validation = canUserTransition(req, newStatus);
-    if (!validation.allowed) throw new Error(validation.reason);
-
     const now = new Date().toISOString();
-    const updated: RequestCard = {
-      ...req,
-      status: newStatus,
-      lastUpdated: now,
-      finishedAt: newStatus === Status.FINALIZADO ? now : req.finishedAt,
-      assignedAnalyst: newStatus === Status.RECIBIDO ? undefined : req.assignedAnalyst,
-      isReturned: newStatus === Status.RECIBIDO ? true : (newStatus === Status.EJECUCION ? false : req.isReturned),
-      logs: [...req.logs, createAuditLog(`FLUJO: Cambio de fase operativa a [${newStatus.toUpperCase()}]`)]
-    };
+    const updated = { ...req, status: newStatus, lastUpdated: now, logs: [...req.logs, createAuditLog(`FLUJO: Cambio a ${newStatus}`)] };
     await db.saveRequest(updated);
-    setRequests(prev => prev.map(r => r.id === id ? updated : r).sort((a,b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()));
+    setRequests(prev => prev.map(r => r.id === id ? updated : r));
   };
 
   const returnRequest = async (id: string, reason: string) => {
     const req = requests.find(r => r.id === id);
     if (!req) return;
-    
-    // Validamos transición vía matriz
-    const validation = canUserTransition(req, Status.RECIBIDO);
-    if (!validation.allowed) throw new Error(validation.reason);
-
     const now = new Date().toISOString();
-    const updated: RequestCard = {
-      ...req,
-      status: Status.RECIBIDO,
-      isReturned: true,
-      assignedAnalyst: undefined,
-      lastUpdated: now,
-      logs: [...req.logs, createAuditLog(`RETORNO TÉCNICO: ${reason.trim()}`)]
-    };
+    const updated = { ...req, status: Status.RECIBIDO, isReturned: true, assignedAnalyst: undefined, lastUpdated: now, logs: [...req.logs, createAuditLog(`RETORNO: ${reason}`)] };
     await db.saveRequest(updated);
-    setRequests(prev => prev.map(r => r.id === id ? updated : r).sort((a,b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()));
+    setRequests(prev => prev.map(r => r.id === id ? updated : r));
   };
 
-  const assignAnalyst = async (id: string, analystName: string) => {
-    const req = requests.find(r => r.id === id);
-    if (!req) return;
-    
-    // Verificamos permisos del rol activo para asignar (Solo HEAD, ADMIN o SUPERADMIN)
-    if (!activeRole || ![UserRole.HEAD, UserRole.ADMIN, UserRole.SUPERADMIN].includes(activeRole)) {
-        throw new Error("No posee privilegios para realizar asignaciones técnicas.");
-    }
-
-    const now = new Date().toISOString();
-    const updated: RequestCard = {
-      ...req,
-      assignedAnalyst: analystName,
-      status: Status.EJECUCION,
-      lastUpdated: now,
-      logs: [
-          ...req.logs, 
-          createAuditLog(`SISTEMA: ${analystName.toUpperCase()} designado como Responsable Técnico.`),
-          createAuditLog(`FLUJO: Transición automática a fase operativa [EJECUCIÓN] por asignación técnica.`)
-      ]
-    };
-    await db.saveRequest(updated);
-    setRequests(prev => 
-      prev.map(r => r.id === id ? updated : r)
-      .sort((a,b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())
-    );
-  };
-
-  const addLog = async (id: string, message: string) => {
+  const assignAnalyst = async (id: string, name: string) => {
     const req = requests.find(r => r.id === id);
     if (!req) return;
     const now = new Date().toISOString();
-    const updated: RequestCard = {
-      ...req,
-      lastUpdated: now,
-      logs: [...req.logs, createAuditLog(message.trim())]
-    };
+    const updated = { ...req, assignedAnalyst: name, status: Status.EJECUCION, lastUpdated: now, logs: [...req.logs, createAuditLog(`ASIGNACIÓN: ${name}`)] };
+    await db.saveRequest(updated);
+    setRequests(prev => prev.map(r => r.id === id ? updated : r));
+  };
+
+  const addLog = async (id: string, msg: string) => {
+    const req = requests.find(r => r.id === id);
+    if (!req) return;
+    const updated = { ...req, lastUpdated: new Date().toISOString(), logs: [...req.logs, createAuditLog(msg)] };
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r));
   };
@@ -275,28 +213,18 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const updateRequestDetails = async (id: string, title: string, detail: string) => {
     const req = requests.find(r => r.id === id);
     if (!req) return;
-    const now = new Date().toISOString();
-    const updated: RequestCard = {
-      ...req,
-      title: title.trim(),
-      detail: detail.trim(),
-      lastUpdated: now,
-      logs: [...req.logs, createAuditLog('SISTEMA: Actualización manual de metadatos técnicos.')]
-    };
+    const updated = { ...req, title, detail, lastUpdated: new Date().toISOString() };
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r));
   };
 
   const deleteRequest = async (id: string) => {
-    if (activeRole !== UserRole.SUPERADMIN) throw new Error("Acceso restringido a Auditoría Master.");
     await db.deleteRequest(id);
     setRequests(prev => prev.filter(r => r.id !== id));
   };
 
   const addUser = async (name: string, email: string, role: UserRole, pass: string, area?: Area) => {
-    const newUser: User = { 
-      id: genId('U'), name, email, role, area, password: pass, status: 'ACTIVE', joinedAt: new Date().toISOString() 
-    };
+    const newUser: User = { id: genUUID(), name, email, role, area, password: pass, status: 'ACTIVE', joinedAt: new Date().toISOString() };
     await db.saveUser(newUser);
     setUsers(prev => [...prev, newUser]);
   };
@@ -304,12 +232,11 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const updateUser = async (u: User) => {
     await db.saveUser(u);
     setUsers(prev => prev.map(o => o.id === u.id ? u : o));
-    if (currentUser?.id === u.id) setCurrentUser(u);
   };
 
   return (
     <SisreqContext.Provider value={{
-      currentUser, users, requests, isAuthenticated, isLoading, initError, activeRole, viewMode, globalFilterArea, selectedRequestId,
+      currentUser, users, requests, isAuthenticated, isLoading, initError, dbDiagnostic, activeRole, viewMode, globalFilterArea, selectedRequestId,
       login, logout, setActiveRole, switchHybridRole, setViewMode, addUser, updateUser,
       setSelectedRequestId, setGlobalFilterArea, addRequest, updateStatus, returnRequest, assignAnalyst, addLog, updateRequestDetails, deleteRequest,
       canUserTransition, canUserSeeRequest, isActionable
@@ -321,6 +248,6 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
 export const useSisreq = () => {
   const context = useContext(SisreqContext);
-  if (context === undefined) throw new Error('useSisreq debe usarse dentro de SisreqProvider');
+  if (!context) throw new Error('useSisreq debe usarse dentro de SisreqProvider');
   return context;
 };

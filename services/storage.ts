@@ -1,117 +1,139 @@
 
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { RequestCard, User } from '../types';
 import { INITIAL_USERS, INITIAL_REQUESTS } from '../constants';
 
-const DB_NAME = 'SISREQ_DATABASE';
-const DB_VERSION = 1;
+const SUPABASE_URL = 'https://giwyowsqmgwsaliiduqi.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_Owy6oQHM50c9v1tNp1PCPg_TTSNIger';
+
 const STORE_REQUESTS = 'requests';
 const STORE_USERS = 'users';
 
-class DatabaseService {
-    private db: IDBDatabase | null = null;
+export interface DbDiagnostic {
+    status: 'READY' | 'ERROR' | 'SETUP_REQUIRED';
+    message: string;
+    sqlSuggestion?: string;
+    errorDetails?: any;
+}
 
-    public async init(): Promise<void> {
-        return new Promise((resolve, reject) => {
-            const request = indexedDB.open(DB_NAME, DB_VERSION);
-            request.onerror = () => {
-                console.error("IndexedDB error:", request.error);
-                reject(request.error);
-            };
-            request.onupgradeneeded = (event) => {
-                const db = (event.target as IDBOpenDBRequest).result;
-                if (!db.objectStoreNames.contains(STORE_REQUESTS)) db.createObjectStore(STORE_REQUESTS, { keyPath: 'id' });
-                if (!db.objectStoreNames.contains(STORE_USERS)) db.createObjectStore(STORE_USERS, { keyPath: 'id' });
-            };
-            request.onsuccess = async (event) => {
-                this.db = (event.target as IDBOpenDBRequest).result;
-                try {
-                    await this.seedData();
-                    resolve();
-                } catch (err) {
-                    reject(err);
-                }
-            };
-        });
+class DatabaseService {
+    private supabase: SupabaseClient;
+
+    constructor() {
+        this.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+
+    public async init(): Promise<DbDiagnostic> {
+        try {
+            // Validar tabla de usuarios
+            const { error: userError } = await this.supabase
+                .from(STORE_USERS)
+                .select('*', { count: 'exact', head: true });
+
+            if (userError) return this.diagnoseError(userError, STORE_USERS);
+
+            // Validar tabla de requerimientos
+            const { error: reqError } = await this.supabase
+                .from(STORE_REQUESTS)
+                .select('*', { count: 'exact', head: true });
+
+            if (reqError) return this.diagnoseError(reqError, STORE_REQUESTS);
+
+            // Intentar sembrado silencioso si están vacías
+            await this.seedData();
+
+            return { status: 'READY', message: 'Conexión exitosa' };
+        } catch (error: any) {
+            return { status: 'ERROR', message: error.message || 'Fallo de red', errorDetails: error };
+        }
     }
 
     private async seedData() {
-        if (!this.db) return;
-        const userCount = await this.count(STORE_USERS);
-        if (userCount === 0) {
-            const tx = this.db.transaction(STORE_USERS, 'readwrite');
-            const store = tx.objectStore(STORE_USERS);
-            INITIAL_USERS.forEach(user => store.put(user));
-            await new Promise((res, rej) => { 
-                tx.oncomplete = res; 
-                tx.onerror = () => rej(tx.error);
-            });
-        }
-        const reqCount = await this.count(STORE_REQUESTS);
-        if (reqCount === 0) {
-            const tx = this.db.transaction(STORE_REQUESTS, 'readwrite');
-            const store = tx.objectStore(STORE_REQUESTS);
-            INITIAL_REQUESTS.forEach(req => store.put(req));
-            await new Promise((res, rej) => { 
-                tx.oncomplete = res; 
-                tx.onerror = () => rej(tx.error);
-            });
-        }
+        const { count: uCount } = await this.supabase.from(STORE_USERS).select('*', { count: 'exact', head: true });
+        if (uCount === 0) await this.supabase.from(STORE_USERS).insert(INITIAL_USERS);
+
+        const { count: rCount } = await this.supabase.from(STORE_REQUESTS).select('*', { count: 'exact', head: true });
+        if (rCount === 0) await this.supabase.from(STORE_REQUESTS).insert(INITIAL_REQUESTS);
     }
 
-    private count(storeName: string): Promise<number> {
-        return new Promise((resolve, reject) => {
-            if (!this.db) return reject("DB no inicializada.");
-            const tx = this.db.transaction(storeName, 'readonly');
-            const store = tx.objectStore(storeName);
-            const request = store.count();
-            request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error);
-        });
-    }
+    private diagnoseError(error: any, table: string): DbDiagnostic {
+        const msg = error.message || "";
+        const code = error.code || "";
 
-    public async getAll<T>(storeName: string): Promise<T[]> {
-        return new Promise((resolve, reject) => {
-            if (!this.db) return reject("DB no inicializada.");
-            const tx = this.db.transaction(storeName, 'readonly');
-            const store = tx.objectStore(storeName);
-            const request = store.getAll();
-            request.onsuccess = () => resolve(request.result || []);
-            request.onerror = () => reject(request.error);
-        });
-    }
+        const sqlTableUsers = `CREATE TABLE IF NOT EXISTS public.users (
+  id uuid PRIMARY KEY,
+  name text NOT NULL,
+  email text UNIQUE,
+  role text NOT NULL,
+  area text,
+  password text,
+  status text,
+  "joinedAt" timestamp with time zone DEFAULT now()
+);`;
 
-    public async save<T>(storeName: string, item: T): Promise<void> {
-        return new Promise((resolve, reject) => {
-            if (!this.db) return reject("DB no inicializada.");
-            const tx = this.db.transaction(storeName, 'readwrite');
-            const store = tx.objectStore(storeName);
-            const request = store.put(item);
-            
-            tx.oncomplete = () => resolve();
-            tx.onerror = () => {
-                console.error(`Error saving to ${storeName}:`, tx.error);
-                reject(tx.error);
+        const sqlTableRequests = `CREATE TABLE IF NOT EXISTS public.requests (
+  id uuid PRIMARY KEY,
+  title text NOT NULL,
+  detail text,
+  requester text,
+  area text NOT NULL,
+  status text NOT NULL,
+  priority text NOT NULL,
+  "responsibleHead" text,
+  "assignedAnalyst" text,
+  logs jsonb DEFAULT '[]'::jsonb,
+  "createdAt" timestamp with time zone DEFAULT now(),
+  "lastUpdated" timestamp with time zone DEFAULT now(),
+  "finishedAt" timestamp with time zone,
+  "isReturned" boolean DEFAULT false
+);`;
+
+        const sqlRLS = `ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.requests DISABLE ROW LEVEL SECURITY;`;
+
+        if (msg.includes('row-level security policy') || code === '42501') {
+            return {
+                status: 'SETUP_REQUIRED',
+                message: `Bloqueo de Seguridad (RLS) en la tabla '${table}'`,
+                sqlSuggestion: `-- Desactivar RLS para permitir acceso anonimo (Pruebas)\n${sqlRLS}`
             };
-            request.onerror = () => reject(request.error);
-        });
+        }
+
+        if (msg.includes('schema cache') || code === '42P01') {
+            return {
+                status: 'SETUP_REQUIRED',
+                message: `Estructura faltante: Tabla '${table}' no encontrada`,
+                sqlSuggestion: `-- Ejecuta esto para crear las tablas necesarias:\n${sqlTableUsers}\n\n${sqlTableRequests}\n\n${sqlRLS}`
+            };
+        }
+
+        return { status: 'ERROR', message: msg, errorDetails: error };
     }
 
-    public async delete(storeName: string, id: string): Promise<void> {
-        return new Promise((resolve, reject) => {
-            if (!this.db) return reject("DB no inicializada.");
-            const tx = this.db.transaction(storeName, 'readwrite');
-            const store = tx.objectStore(storeName);
-            const request = store.delete(id);
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
-        });
+    public async getRequests(): Promise<RequestCard[]> {
+        const { data, error } = await this.supabase.from(STORE_REQUESTS).select('*').order('lastUpdated', { ascending: false });
+        return error ? [] : (data || []) as RequestCard[];
     }
-    
-    public async getRequests(): Promise<RequestCard[]> { return this.getAll<RequestCard>(STORE_REQUESTS); }
-    public async saveRequest(req: RequestCard): Promise<void> { return this.save(STORE_REQUESTS, req); }
-    public async deleteRequest(id: string): Promise<void> { return this.delete(STORE_REQUESTS, id); }
-    public async getUsers(): Promise<User[]> { return this.getAll<User>(STORE_USERS); }
-    public async saveUser(user: User): Promise<void> { return this.save(STORE_USERS, user); }
+
+    public async saveRequest(req: RequestCard): Promise<void> {
+        const { error } = await this.supabase.from(STORE_REQUESTS).upsert(req);
+        if (error) throw error;
+    }
+
+    public async deleteRequest(id: string): Promise<void> {
+        const { error } = await this.supabase.from(STORE_REQUESTS).delete().eq('id', id);
+        if (error) throw error;
+    }
+
+    public async getUsers(): Promise<User[]> {
+        const { data, error } = await this.supabase.from(STORE_USERS).select('*');
+        return error ? [] : (data || []) as User[];
+    }
+
+    public async saveUser(user: User): Promise<void> {
+        const { error } = await this.supabase.from(STORE_USERS).upsert(user);
+        if (error) throw error;
+    }
 }
 
 export const db = new DatabaseService();
