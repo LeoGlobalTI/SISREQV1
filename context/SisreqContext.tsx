@@ -167,6 +167,10 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const canUserSeeRequest = useCallback((req: RequestCard): boolean => {
     if (!currentUser || !activeRole) return false;
+    
+    // Si el expediente está eliminado, solo es visible en el modo de auditoría SuperAdmin
+    if (req.isDeleted) return false;
+
     if (activeRole === UserRole.SUPERADMIN || activeRole === UserRole.ADMIN) return true;
     const isSameArea = req.area === currentUser.area;
     const isOutOfCentral = req.status !== Status.RECIBIDO;
@@ -175,6 +179,8 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const canUserTransition = useCallback((req: RequestCard, target: Status): { allowed: boolean; reason?: string } => {
     if (!currentUser || !activeRole) return { allowed: false, reason: 'Sesión inactiva.' };
+    if (req.isDeleted) return { allowed: false, reason: 'Expediente en archivo de auditoría.' };
+    
     const rule = WORKFLOW_MATRIX.find(r => r.from === req.status && r.to === target);
     if (!rule) return { allowed: false, reason: 'Transición no permitida.' };
     if (!rule.allowedRoles.includes(activeRole)) return { allowed: false, reason: 'Permisos insuficientes.' };
@@ -186,7 +192,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [currentUser, activeRole]);
 
   const isActionable = useCallback((req: RequestCard): boolean => {
-    if (!activeRole) return false;
+    if (!activeRole || req.isDeleted) return false;
     return Object.values(Status).some(s => s !== req.status && canUserTransition(req, s).allowed);
   }, [activeRole, canUserTransition]);
 
@@ -265,10 +271,23 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const deleteRequest = useCallback(async (id: string) => {
-    await db.deleteRequest(id);
-    setRequests(prev => prev.filter(r => r.id !== id));
-    addNotification('WARNING', 'Expediente Eliminado', `El registro #${id.split('-')[1].toUpperCase()} fue purgado del sistema.`);
-  }, [addNotification]);
+    const actorName = currentUser?.name || 'Desconocido';
+    const now = new Date().toISOString();
+    
+    // Realizamos borrado lógico en BD
+    await db.deleteRequest(id, actorName);
+    
+    // Actualizamos estado local
+    setRequests(prev => prev.map(r => r.id === id ? {
+        ...r,
+        isDeleted: true,
+        deletedAt: now,
+        deletedBy: actorName,
+        logs: [...r.logs, createAuditLog(`AUDITORÍA: Expediente removido del flujo operativo por orden de ${actorName}`)]
+    } : r));
+
+    addNotification('WARNING', 'Expediente Archivado', `El registro #${id.split('-')[1].toUpperCase()} fue enviado al archivo de auditoría.`);
+  }, [addNotification, currentUser, createAuditLog]);
 
   const addUser = async (name: string, email: string, role: UserRole, pass: string, area?: Area) => {
     const newUser: User = { id: genUUID(), name, email, role, area, password: pass, status: 'ACTIVE', joinedAt: new Date().toISOString() };

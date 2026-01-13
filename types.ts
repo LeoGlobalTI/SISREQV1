@@ -75,6 +75,10 @@ export interface RequestCard {
   lastUpdated: string;
   finishedAt?: string;
   isReturned?: boolean; 
+  // Auditoría de Eliminación
+  isDeleted?: boolean;
+  deletedAt?: string;
+  deletedBy?: string;
 }
 
 export interface TransitionRule {

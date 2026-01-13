@@ -81,7 +81,10 @@ class DatabaseService {
   "createdAt" timestamp with time zone DEFAULT now(),
   "lastUpdated" timestamp with time zone DEFAULT now(),
   "finishedAt" timestamp with time zone,
-  "isReturned" boolean DEFAULT false
+  "isReturned" boolean DEFAULT false,
+  "isDeleted" boolean DEFAULT false,
+  "deletedAt" timestamp with time zone,
+  "deletedBy" text
 );`;
 
         const sqlRLS = `ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
@@ -116,19 +119,21 @@ ALTER TABLE public.requests DISABLE ROW LEVEL SECURITY;`;
         if (error) throw error;
     }
 
-    public async deleteRequest(id: string): Promise<void> {
-        console.log(`DB_DELETE_START: Intentando eliminar ${id}`);
-        const { error, status } = await this.supabase
+    public async deleteRequest(id: string, deletedBy: string): Promise<void> {
+        // En lugar de borrar de la tabla, actualizamos el registro con los datos de auditoría
+        const { error } = await this.supabase
             .from(STORE_REQUESTS)
-            .delete()
+            .update({ 
+                isDeleted: true, 
+                deletedAt: new Date().toISOString(),
+                deletedBy: deletedBy
+            })
             .eq('id', id);
         
         if (error) {
-            console.error("DB_DELETE_ERROR:", error);
-            throw new Error(error.message || `Error ${status} al eliminar en base de datos.`);
+            console.error("DB_SOFT_DELETE_ERROR:", error);
+            throw new Error(error.message || `Error al marcar como eliminado.`);
         }
-        
-        console.log(`DB_DELETE_SUCCESS: ID ${id} eliminado correctamente.`);
     }
 
     public async getUsers(): Promise<User[]> {
