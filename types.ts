@@ -41,6 +41,16 @@ export interface Notification {
   requestId?: string;
 }
 
+export interface NotificationSettings {
+  enabled: boolean;
+  sounds: boolean;
+  newRequests: boolean;
+  statusChanges: boolean;
+  returns: boolean;
+  assignments: boolean;
+  auditAlerts: boolean;
+}
+
 export interface User {
   id: string;
   name: string;

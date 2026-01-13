@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { User, RequestCard, Status, Priority, Area, UserRole, ViewMode, TransitionRule, LogEntry, Notification, NotificationType } from '../types';
+import { User, RequestCard, Status, Priority, Area, UserRole, ViewMode, TransitionRule, LogEntry, Notification, NotificationType, NotificationSettings } from '../types';
 import { AREA_HEADS } from '../constants';
 import { db, DbDiagnostic } from '../services/storage';
 
@@ -9,6 +9,7 @@ interface SisreqContextType {
   users: User[];
   requests: RequestCard[];
   notifications: Notification[];
+  notificationSettings: NotificationSettings;
   isAuthenticated: boolean;
   isLoading: boolean;
   initError: string | null;
@@ -37,6 +38,7 @@ interface SisreqContextType {
   deleteRequest: (id: string) => Promise<void>;
   
   addNotification: (type: NotificationType, title: string, message: string, requestId?: string) => void;
+  updateNotificationSettings: (settings: Partial<NotificationSettings>) => void;
   markNotificationAsRead: (id: string) => void;
   clearNotifications: () => void;
   
@@ -46,6 +48,16 @@ interface SisreqContextType {
 }
 
 const SisreqContext = createContext<SisreqContextType | undefined>(undefined);
+
+const DEFAULT_SETTINGS: NotificationSettings = {
+  enabled: true,
+  sounds: true,
+  newRequests: true,
+  statusChanges: true,
+  returns: true,
+  assignments: true,
+  auditAlerts: true
+};
 
 const genUUID = () => {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -73,6 +85,10 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [users, setUsers] = useState<User[]>([]);
   const [requests, setRequests] = useState<RequestCard[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(() => {
+    const saved = localStorage.getItem('sisreq_notification_settings');
+    return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+  });
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeRole, setActiveRole] = useState<UserRole | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('work');
@@ -108,7 +124,23 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     initializeSystem();
   }, []);
 
+  const updateNotificationSettings = useCallback((newSettings: Partial<NotificationSettings>) => {
+    setNotificationSettings(prev => {
+        const updated = { ...prev, ...newSettings };
+        localStorage.setItem('sisreq_notification_settings', JSON.stringify(updated));
+        return updated;
+    });
+  }, []);
+
   const addNotification = useCallback((type: NotificationType, title: string, message: string, requestId?: string) => {
+    if (!notificationSettings.enabled) return;
+
+    // Lógica de filtrado por ajustes
+    if (type === 'SUCCESS' && !notificationSettings.newRequests && title.includes('Nuevo')) return;
+    if (type === 'PROCESS' && !notificationSettings.statusChanges && title.includes('Estado')) return;
+    if (type === 'WARNING' && !notificationSettings.returns && title.includes('Devuelto')) return;
+    if (type === 'WARNING' && !notificationSettings.auditAlerts && title.includes('Archivado')) return;
+
     const newNotif: Notification = {
       id: genUUID(),
       type,
@@ -119,7 +151,14 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       requestId
     };
     setNotifications(prev => [newNotif, ...prev].slice(0, 50));
-  }, []);
+
+    // Simulación de sonido si está habilitado
+    if (notificationSettings.sounds) {
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+        audio.volume = 0.2;
+        audio.play().catch(() => {}); // Ignorar errores de autoplay del navegador
+    }
+  }, [notificationSettings]);
 
   const markNotificationAsRead = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
@@ -160,19 +199,10 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     role: activeRole || UserRole.ANALYST
   }), [currentUser, activeRole]);
 
-  /**
-   * Determina si un requerimiento es visible en los tableros de trabajo.
-   * Los requerimientos eliminados se excluyen de los tableros incluso para SuperAdmin,
-   * ya que su acceso debe ser exclusivo desde la vista de Auditoría QA.
-   */
   const canUserSeeRequest = useCallback((req: RequestCard): boolean => {
     if (!currentUser || !activeRole) return false;
-    
-    // REGLA SOLICITADA: Eliminados NO se ven en tableros, solo en Auditoría.
     if (req.isDeleted) return false; 
-    
     if (activeRole === UserRole.SUPERADMIN || activeRole === UserRole.ADMIN) return true;
-    
     const isSameArea = req.area === currentUser.area;
     const isOutOfCentral = req.status !== Status.RECIBIDO;
     return isSameArea && isOutOfCentral;
@@ -181,17 +211,13 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const canUserTransition = useCallback((req: RequestCard, target: Status): { allowed: boolean; reason?: string } => {
     if (!currentUser || !activeRole) return { allowed: false, reason: 'Sesión inactiva.' };
     if (req.isDeleted) return { allowed: false, reason: 'Expediente archivado.' };
-    
     const rule = WORKFLOW_MATRIX.find(r => r.from === req.status && r.to === target);
     if (!rule) return { allowed: false, reason: 'Flujo no permitido desde el estado actual.' };
     if (!rule.allowedRoles.includes(activeRole)) return { allowed: false, reason: 'Su rol no tiene permisos para esta transición.' };
-    
     if (rule.checkAreaJurisdiction && ![UserRole.SUPERADMIN, UserRole.ADMIN].includes(activeRole)) {
         if (req.area !== currentUser.area) return { allowed: false, reason: 'El ticket pertenece a otra unidad orgánica.' };
     }
-    
     if (rule.requiresAnalyst && !req.assignedAnalyst) return { allowed: false, reason: 'Debe asignar un Responsable Técnico antes de iniciar ejecución.' };
-    
     return { allowed: true };
   }, [currentUser, activeRole]);
 
@@ -203,14 +229,12 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const addRequest = async (title: string, detail: string, area: Area, priority: Priority, requester: string) => {
     const now = new Date().toISOString();
     const initialStatus = (activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN) ? Status.RECIBIDO : Status.DERIVACION;
-    
     const newReq: RequestCard = {
       id: genUUID(),
       title, detail, area, status: initialStatus, priority, requester,
       responsibleHead: AREA_HEADS[area], createdAt: now, lastUpdated: now,
       logs: [createAuditLog(`SISTEMA: Apertura de registro en estado ${initialStatus.toUpperCase()}`)]
     };
-    
     await db.saveRequest(newReq);
     setRequests(prev => [newReq, ...prev]);
     addNotification('SUCCESS', 'Nuevo Expediente', `Se ha registrado el ticket: ${title}`, newReq.id);
@@ -219,24 +243,11 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const updateStatus = async (id: string, newStatus: Status) => {
     const req = requests.find(r => r.id === id);
     if (!req) return;
-
-    // SEGURIDAD: Validación de integridad de flujo
     const check = canUserTransition(req, newStatus);
-    if (!check.allowed) {
-        throw new Error(check.reason);
-    }
-
+    if (!check.allowed) throw new Error(check.reason);
     const now = new Date().toISOString();
     const finishedAt = newStatus === Status.FINALIZADO ? now : req.finishedAt;
-    
-    const updated = { 
-      ...req, 
-      status: newStatus, 
-      lastUpdated: now, 
-      finishedAt: finishedAt,
-      logs: [...req.logs, createAuditLog(`FLUJO: Cambio de fase operativa a ${newStatus.toUpperCase()}`)] 
-    };
-    
+    const updated = { ...req, status: newStatus, lastUpdated: now, finishedAt: finishedAt, logs: [...req.logs, createAuditLog(`FLUJO: Cambio de fase operativa a ${newStatus.toUpperCase()}`)] };
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r));
     addNotification('PROCESS', 'Estado Actualizado', `Expediente #${id.split('-')[1].toUpperCase()} ahora en ${newStatus}`, id);
@@ -245,20 +256,10 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const returnRequest = async (id: string, reason: string) => {
     const req = requests.find(r => r.id === id);
     if (!req) return;
-
     const check = canUserTransition(req, Status.RECIBIDO);
     if (!check.allowed) throw new Error(check.reason);
-
     const now = new Date().toISOString();
-    const updated = { 
-        ...req, 
-        status: Status.RECIBIDO, 
-        isReturned: true, 
-        assignedAnalyst: undefined, 
-        lastUpdated: now, 
-        finishedAt: undefined, 
-        logs: [...req.logs, createAuditLog(`RETORNO: ${reason}`)] 
-    };
+    const updated = { ...req, status: Status.RECIBIDO, isReturned: true, assignedAnalyst: undefined, lastUpdated: now, finishedAt: undefined, logs: [...req.logs, createAuditLog(`RETORNO: ${reason}`)] };
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r));
     addNotification('WARNING', 'Expediente Devuelto', `Ticket retornado a Central: ${reason}`, id);
@@ -267,20 +268,9 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const assignAnalyst = async (id: string, name: string) => {
     const req = requests.find(r => r.id === id);
     if (!req) return;
-
-    // Solo se permite asignar si está en derivación o ejecución
-    if (req.status !== Status.DERIVACION && req.status !== Status.EJECUCION) {
-        throw new Error("El ticket debe estar en fase de DERIVACIÓN para asignar personal.");
-    }
-
+    if (req.status !== Status.DERIVACION && req.status !== Status.EJECUCION) throw new Error("El ticket debe estar en fase de DERIVACIÓN para asignar personal.");
     const now = new Date().toISOString();
-    const updated = { 
-        ...req, 
-        assignedAnalyst: name, 
-        status: Status.EJECUCION, 
-        lastUpdated: now, 
-        logs: [...req.logs, createAuditLog(`ASIGNACIÓN: Designación de Responsable Técnico: ${name.toUpperCase()}`)] 
-    };
+    const updated = { ...req, assignedAnalyst: name, status: Status.EJECUCION, lastUpdated: now, logs: [...req.logs, createAuditLog(`ASIGNACIÓN: Designación de Responsable Técnico: ${name.toUpperCase()}`)] };
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r));
     addNotification('SUCCESS', 'Analista Asignado', `${name} ha sido asignado al ticket.`, id);
@@ -297,39 +287,18 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const updateRequestDetails = async (id: string, title: string, detail: string) => {
     const req = requests.find(r => r.id === id);
     if (!req || req.isDeleted) return;
-
-    if (activeRole !== UserRole.ADMIN && activeRole !== UserRole.SUPERADMIN) {
-        throw new Error("Solo personal administrativo puede editar metadatos básicos.");
-    }
-
-    const updated = { 
-        ...req, 
-        title, 
-        detail, 
-        lastUpdated: new Date().toISOString(),
-        logs: [...req.logs, createAuditLog(`EDICIÓN: Actualización de metadatos (Título/Alcance)`)]
-    };
+    if (activeRole !== UserRole.ADMIN && activeRole !== UserRole.SUPERADMIN) throw new Error("Solo personal administrativo puede editar metadatos básicos.");
+    const updated = { ...req, title, detail, lastUpdated: new Date().toISOString(), logs: [...req.logs, createAuditLog(`EDICIÓN: Actualización de metadatos (Título/Alcance)`)] };
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r));
   };
 
   const deleteRequest = useCallback(async (id: string) => {
-    if (activeRole !== UserRole.SUPERADMIN) {
-        throw new Error("Acción restringida: Solo el Auditor Master puede archivar expedientes.");
-    }
-
+    if (activeRole !== UserRole.SUPERADMIN) throw new Error("Acción restringida: Solo el Auditor Master puede archivar expedientes.");
     const actorName = currentUser?.name || 'Sistema';
     const now = new Date().toISOString();
     await db.deleteRequest(id, actorName);
-    
-    setRequests(prev => prev.map(r => r.id === id ? {
-        ...r,
-        isDeleted: true,
-        deletedAt: now,
-        deletedBy: actorName,
-        logs: [...r.logs, createAuditLog(`AUDITORÍA: Registro movido al archivo histórico por orden administrativa.`)]
-    } : r));
-
+    setRequests(prev => prev.map(r => r.id === id ? { ...r, isDeleted: true, deletedAt: now, deletedBy: actorName, logs: [...r.logs, createAuditLog(`AUDITORÍA: Registro movido al archivo histórico por orden administrativa.`)] } : r));
     addNotification('WARNING', 'Expediente Archivado', `El registro fue enviado al archivo de auditoría.`);
   }, [addNotification, currentUser, createAuditLog, activeRole]);
 
@@ -348,10 +317,10 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   return (
     <SisreqContext.Provider value={{
-      currentUser, users, requests, notifications, isAuthenticated, isLoading, initError, dbDiagnostic, activeRole, viewMode, globalFilterArea, selectedRequestId,
+      currentUser, users, requests, notifications, notificationSettings, isAuthenticated, isLoading, initError, dbDiagnostic, activeRole, viewMode, globalFilterArea, selectedRequestId,
       login, logout, setActiveRole, switchHybridRole, setViewMode, addUser, updateUser,
       setSelectedRequestId, setGlobalFilterArea, addRequest, updateStatus, returnRequest, assignAnalyst, addLog, updateRequestDetails, deleteRequest,
-      addNotification, markNotificationAsRead, clearNotifications,
+      addNotification, updateNotificationSettings, markNotificationAsRead, clearNotifications,
       canUserTransition, canUserSeeRequest, isActionable
     }}>
       {children}
