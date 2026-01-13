@@ -45,7 +45,8 @@ export const RequestDetailModal: React.FC = () => {
         log.message.startsWith('FLUJO:') || 
         log.message.startsWith('RETORNO TÉCNICO:') || 
         log.message.startsWith('NOTA TÉCNICA:') ||
-        log.message.startsWith('SISTEMA:')
+        log.message.startsWith('SISTEMA:') ||
+        log.message.startsWith('ASIGNACIÓN')
     );
   }, [data]);
 
@@ -103,16 +104,10 @@ export const RequestDetailModal: React.FC = () => {
     setIsDeleting(true);
     
     try {
-      // Capturamos el ID de forma local antes de llamar a la función de borrado
       const idToDelete = data.id;
-      console.log(`UI_DELETE_INIT: Iniciando borrado de ${idToDelete}`);
-      
       await deleteRequest(idToDelete);
-      
-      // Cerramos el modal solo después de que el contexto haya actualizado el estado
       setSelectedRequestId(null);
     } catch (e: any) {
-      console.error("UI_DELETE_ERROR:", e);
       setActionError(`Error de Sistema: ${e.message || 'No se pudo eliminar el registro.'}`);
       setIsDeleting(false);
     }
@@ -158,12 +153,13 @@ export const RequestDetailModal: React.FC = () => {
   };
 
   const canDeriveUI = canUserTransition(data, Status.DERIVACION).allowed;
-  const canExecuteUI = canUserTransition(data, Status.EJECUCION).allowed;
   const canFinalizeUI = canUserTransition(data, Status.FINALIZADO).allowed;
   const canEditUI = (activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN) && !isFinalized;
   const showReturnButton = canUserTransition(data, Status.RECIBIDO).allowed && !isFinalized;
+  
+  // El botón "ASIGNAR" solo debe verse en estado DERIVACION.
+  const canAssignUI = (activeRole === UserRole.HEAD || activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN) && data.status === Status.DERIVACION;
 
-  // Validación de Rol Master para Eliminación (SuperAdmin o Auditoría)
   const isSuperAdmin = currentUser.role === UserRole.SUPERADMIN || activeRole === UserRole.SUPERADMIN;
 
   return (
@@ -240,7 +236,7 @@ export const RequestDetailModal: React.FC = () => {
                     <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-0.5">RESPONSABLE DESIGNADO</p>
                     <p className={`text-sm font-black uppercase tracking-tight ${data.assignedAnalyst ? 'text-slate-900' : 'text-slate-400 italic'}`}>{data.assignedAnalyst || 'Pendiente de asignación'}</p>
                 </div>
-                {(activeRole === UserRole.HEAD || activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN) && data.status === Status.DERIVACION && (
+                {canAssignUI && (
                     <div className="relative">
                         <button onClick={() => setShowAnalystSelect(!showAnalystSelect)} className="bg-white border border-indigo-200 text-indigo-600 px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center gap-2">
                            <User size={12}/> ASIGNAR
@@ -321,7 +317,6 @@ export const RequestDetailModal: React.FC = () => {
                 <div className="flex-1 flex gap-2">
                     {showReturnButton && !showReturnInput && <button onClick={() => setShowReturnInput(true)} className="flex-1 px-4 h-11 bg-white border border-red-200 text-[9px] font-black text-red-600 rounded-xl uppercase flex items-center justify-center gap-2 hover:bg-red-50 transition-colors"><RotateCcw size={14}/> RETORNAR A CENTRAL</button>}
                     {canDeriveUI && <button onClick={() => handleTransition(Status.DERIVACION)} className="flex-1 h-11 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg flex items-center justify-center gap-2 hover:bg-indigo-700 px-3 transition-all"><UserCheck size={14}/> DERIVAR A UNIDAD</button>}
-                    {canExecuteUI && <button onClick={() => handleTransition(Status.EJECUCION)} className="flex-1 h-11 bg-amber-500 text-white rounded-xl text-[9px] font-black uppercase shadow-lg flex items-center justify-center gap-2 hover:bg-amber-600 px-3 transition-all"><PlayCircle size={14}/> INICIAR EJECUCIÓN</button>}
                     {canFinalizeUI && <button onClick={() => handleTransition(Status.FINALIZADO)} className="flex-1 h-11 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg flex items-center justify-center gap-2 hover:bg-emerald-700 px-3 transition-all"><ShieldCheck size={14}/> CERRAR EXPEDIENTE</button>}
                 </div>
             </div>

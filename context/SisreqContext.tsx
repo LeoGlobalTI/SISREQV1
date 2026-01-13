@@ -59,15 +59,19 @@ const genUUID = () => {
 };
 
 const WORKFLOW_MATRIX: TransitionRule[] = [
+  // Flujo Progresivo Estándar
   { from: Status.RECIBIDO, to: Status.DERIVACION, allowedRoles: [UserRole.ADMIN, UserRole.SUPERADMIN] },
   { from: Status.DERIVACION, to: Status.EJECUCION, allowedRoles: [UserRole.HEAD, UserRole.SUPERADMIN, UserRole.ADMIN], requiresAnalyst: true, checkAreaJurisdiction: true },
+  { from: Status.EJECUCION, to: Status.FINALIZADO, allowedRoles: [UserRole.ANALYST, UserRole.HEAD, UserRole.SUPERADMIN], checkAreaJurisdiction: true }, 
+
+  // Atajos Administrativos
   { from: Status.RECIBIDO, to: Status.FINALIZADO, allowedRoles: [UserRole.SUPERADMIN] }, 
   { from: Status.DERIVACION, to: Status.FINALIZADO, allowedRoles: [UserRole.SUPERADMIN, UserRole.HEAD], checkAreaJurisdiction: true }, 
-  { from: Status.EJECUCION, to: Status.FINALIZADO, allowedRoles: [UserRole.ANALYST, UserRole.HEAD, UserRole.SUPERADMIN], checkAreaJurisdiction: true }, 
+  
+  // Retornos Técnicos
   { from: Status.FINALIZADO, to: Status.RECIBIDO, allowedRoles: [UserRole.SUPERADMIN] },
-  { from: Status.EJECUCION, to: Status.DERIVACION, allowedRoles: [UserRole.HEAD, UserRole.SUPERADMIN, UserRole.ADMIN], checkAreaJurisdiction: true },
-  { from: Status.DERIVACION, to: Status.RECIBIDO, allowedRoles: [UserRole.HEAD, UserRole.ADMIN, UserRole.SUPERADMIN], checkAreaJurisdiction: true },
-  { from: Status.EJECUCION, to: Status.RECIBIDO, allowedRoles: [UserRole.HEAD, UserRole.ADMIN, UserRole.SUPERADMIN], checkAreaJurisdiction: true }
+  { from: Status.EJECUCION, to: Status.RECIBIDO, allowedRoles: [UserRole.HEAD, UserRole.ADMIN, UserRole.SUPERADMIN], checkAreaJurisdiction: true },
+  { from: Status.DERIVACION, to: Status.RECIBIDO, allowedRoles: [UserRole.HEAD, UserRole.ADMIN, UserRole.SUPERADMIN], checkAreaJurisdiction: true }
 ];
 
 export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -188,7 +192,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const addRequest = async (title: string, detail: string, area: Area, priority: Priority, requester: string) => {
     const now = new Date().toISOString();
-    const initialStatus = activeRole === UserRole.HEAD ? Status.DERIVACION : Status.RECIBIDO;
+    const initialStatus = (activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN) ? Status.RECIBIDO : Status.DERIVACION;
     
     const newReq: RequestCard = {
       id: genUUID(),
@@ -206,7 +210,18 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const req = requests.find(r => r.id === id);
     if (!req) return;
     const now = new Date().toISOString();
-    const updated = { ...req, status: newStatus, lastUpdated: now, logs: [...req.logs, createAuditLog(`FLUJO: Cambio a ${newStatus}`)] };
+    
+    // Si el estado es FINALIZADO, registramos la fecha exacta para el filtro de 5 días hábiles
+    const finishedAt = newStatus === Status.FINALIZADO ? now : req.finishedAt;
+    
+    const updated = { 
+      ...req, 
+      status: newStatus, 
+      lastUpdated: now, 
+      finishedAt: finishedAt,
+      logs: [...req.logs, createAuditLog(`FLUJO: Cambio a ${newStatus}`)] 
+    };
+    
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r));
     addNotification('PROCESS', 'Estado Actualizado', `Expediente #${id.split('-')[1].toUpperCase()} ahora en ${newStatus}`, id);
@@ -216,7 +231,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const req = requests.find(r => r.id === id);
     if (!req) return;
     const now = new Date().toISOString();
-    const updated = { ...req, status: Status.RECIBIDO, isReturned: true, assignedAnalyst: undefined, lastUpdated: now, logs: [...req.logs, createAuditLog(`RETORNO: ${reason}`)] };
+    const updated = { ...req, status: Status.RECIBIDO, isReturned: true, assignedAnalyst: undefined, lastUpdated: now, finishedAt: undefined, logs: [...req.logs, createAuditLog(`RETORNO: ${reason}`)] };
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r));
     addNotification('WARNING', 'Expediente Devuelto', `Un requerimiento ha sido retornado a Central: ${reason}`, id);
@@ -226,10 +241,10 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const req = requests.find(r => r.id === id);
     if (!req) return;
     const now = new Date().toISOString();
-    const updated = { ...req, assignedAnalyst: name, status: Status.EJECUCION, lastUpdated: now, logs: [...req.logs, createAuditLog(`ASIGNACIÓN: ${name}`)] };
+    const updated = { ...req, assignedAnalyst: name, status: Status.EJECUCION, lastUpdated: now, logs: [...req.logs, createAuditLog(`ASIGNACIÓN Y EJECUCIÓN: ${name}`)] };
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r));
-    addNotification('SUCCESS', 'Analista Asignado', `${name} ha sido asignado al requerimiento.`, id);
+    addNotification('SUCCESS', 'Analista Asignado', `${name} ha sido asignado. El ticket inicia ejecución.`, id);
   };
 
   const addLog = async (id: string, msg: string) => {

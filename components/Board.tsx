@@ -15,6 +15,32 @@ import autoTable from 'jspdf-autotable';
 
 type DisplayMode = 'kanban' | 'list';
 
+/**
+ * Calcula si una fecha es mayor a 5 días hábiles respecto a hoy.
+ */
+const isOlderThan5BusinessDays = (dateStr: string): boolean => {
+  const finishedDate = new Date(dateStr);
+  const now = new Date();
+  
+  if (finishedDate > now) return false;
+
+  let businessDaysCount = 0;
+  let current = new Date(finishedDate);
+
+  // Avanzamos día a día hasta llegar a hoy
+  while (current < now) {
+    current.setDate(current.getDate() + 1);
+    
+    // Si el día actual que estamos evaluando no es sábado (6) ni domingo (0)
+    const dayOfWeek = current.getDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      businessDaysCount++;
+    }
+  }
+
+  return businessDaysCount > 5;
+};
+
 export const Board: React.FC = () => {
   const { 
     requests, 
@@ -34,8 +60,19 @@ export const Board: React.FC = () => {
 
   const filteredRequests = useMemo(() => {
     return requests.filter(req => {
+      // 1. Verificación de visibilidad base (rol/área)
       if (!canUserSeeRequest(req)) return false;
 
+      // 2. Filtro de 5 días hábiles para Finalizados
+      // Solo ocultamos los que ya están FINALIZADOS y cuya fecha de cierre excede el límite
+      if (req.status === Status.FINALIZADO) {
+        const dateToCheck = req.finishedAt || req.lastUpdated;
+        if (isOlderThan5BusinessDays(dateToCheck)) {
+          return false;
+        }
+      }
+
+      // 3. Búsqueda por texto
       const term = searchTerm.toLowerCase();
       const matchesSearch = searchTerm === '' || 
           req.title.toLowerCase().includes(term) ||
@@ -43,7 +80,9 @@ export const Board: React.FC = () => {
           req.requester.toLowerCase().includes(term) ||
           (req.assignedAnalyst && req.assignedAnalyst.toLowerCase().includes(term));
 
+      // 4. Filtro global de área (Admin/Superadmin)
       const matchesArea = globalFilterArea === 'ALL' || req.area === globalFilterArea;
+      
       return matchesSearch && matchesArea;
     });
   }, [requests, searchTerm, globalFilterArea, canUserSeeRequest]);
@@ -224,7 +263,7 @@ export const Board: React.FC = () => {
           </div>
       </div>
 
-      {/* Main Board Container with Layout Transition */}
+      {/* Main Board Container */}
       <div 
         key={`${displayMode}-${globalFilterArea}`} 
         className="flex-1 overflow-hidden bg-[#F8FAFC] animate-view-switch"
