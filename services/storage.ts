@@ -87,9 +87,24 @@ class DatabaseService {
   "deletedBy" text
 );`;
 
+        const sqlMigrationRequests = `ALTER TABLE public.requests 
+ADD COLUMN IF NOT EXISTS "isDeleted" boolean DEFAULT false,
+ADD COLUMN IF NOT EXISTS "deletedAt" timestamp with time zone,
+ADD COLUMN IF NOT EXISTS "deletedBy" text;`;
+
         const sqlRLS = `ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.requests DISABLE ROW LEVEL SECURITY;`;
 
+        // Caso 1: Columna no existe (Error 42703) - Común al actualizar versiones
+        if (code === '42703' || msg.includes('column') && msg.includes('does not exist')) {
+            return {
+                status: 'SETUP_REQUIRED',
+                message: `Estructura desactualizada en la tabla '${table}'`,
+                sqlSuggestion: `-- Ejecuta esto para añadir las columnas faltantes:\n${sqlMigrationRequests}`
+            };
+        }
+
+        // Caso 2: RLS Bloqueado
         if (msg.includes('row-level security policy') || code === '42501') {
             return {
                 status: 'SETUP_REQUIRED',
@@ -98,6 +113,7 @@ ALTER TABLE public.requests DISABLE ROW LEVEL SECURITY;`;
             };
         }
 
+        // Caso 3: Tabla no existe
         if (msg.includes('schema cache') || code === '42P01') {
             return {
                 status: 'SETUP_REQUIRED',
@@ -120,7 +136,6 @@ ALTER TABLE public.requests DISABLE ROW LEVEL SECURITY;`;
     }
 
     public async deleteRequest(id: string, deletedBy: string): Promise<void> {
-        // En lugar de borrar de la tabla, actualizamos el registro con los datos de auditoría
         const { error } = await this.supabase
             .from(STORE_REQUESTS)
             .update({ 
@@ -132,7 +147,7 @@ ALTER TABLE public.requests DISABLE ROW LEVEL SECURITY;`;
         
         if (error) {
             console.error("DB_SOFT_DELETE_ERROR:", error);
-            throw new Error(error.message || `Error al marcar como eliminado.`);
+            throw error;
         }
     }
 
