@@ -7,7 +7,7 @@ import {
     Search, Inbox, GitPullRequest, PlayCircle, CheckCircle2, 
     ChevronDown, LayoutGrid, ShieldAlert, FileStack, List, 
     Table, Clock, User, Building2, MapPin, AlertCircle, Eye,
-    Hash, FileDown, FilterX
+    Hash, FileDown, FilterX, FileSpreadsheet
 } from 'lucide-react';
 import { PRIORITY_STYLES, STATUS_BADGE_COLORS } from '../constants';
 import { jsPDF } from 'jspdf';
@@ -94,10 +94,14 @@ export const Board: React.FC = () => {
 
   const filteredRequests = useMemo(() => {
     return requests.filter(req => {
-      // 1. Verificación de visibilidad base (rol/área)
+      // 1. REGLA DE ARCHIVO: Si el requerimiento está eliminado/archivado, NO se muestra en el tablero
+      // independientemente de los permisos de visibilidad base.
+      if (req.isDeleted) return false;
+
+      // 2. Verificación de visibilidad base (rol/área)
       if (!canUserSeeRequest(req)) return false;
 
-      // 2. Filtro de 5 días hábiles para Finalizados
+      // 3. Filtro de 5 días hábiles para Finalizados (Limpieza de tablero operativo)
       if (req.status === Status.FINALIZADO) {
         const dateToCheck = req.finishedAt || req.lastUpdated;
         if (isOlderThan5BusinessDays(dateToCheck)) {
@@ -105,7 +109,7 @@ export const Board: React.FC = () => {
         }
       }
 
-      // 3. Búsqueda por texto
+      // 4. Búsqueda por texto
       const term = searchTerm.toLowerCase();
       const matchesSearch = searchTerm === '' || 
           req.title.toLowerCase().includes(term) ||
@@ -113,7 +117,7 @@ export const Board: React.FC = () => {
           req.requester.toLowerCase().includes(term) ||
           (req.assignedAnalyst && req.assignedAnalyst.toLowerCase().includes(term));
 
-      // 4. Filtro global de área (Admin/Superadmin)
+      // 5. Filtro global de área (Admin/Superadmin)
       const matchesArea = globalFilterArea === 'ALL' || req.area === globalFilterArea;
       
       return matchesSearch && matchesArea;
@@ -200,6 +204,36 @@ export const Board: React.FC = () => {
     }
   };
 
+  const handleExportCSV = () => {
+    const headers = ['ID', 'TITULO', 'AREA', 'SOLICITANTE', 'ESTADO', 'RESPONSABLE', 'PRIORIDAD', 'CREADO', 'ULTIMA_ACTUALIZACION'];
+    const rows = filteredRequests.map(req => [
+      req.id.split('-')[1].toUpperCase(),
+      `"${req.title.replace(/"/g, '""')}"`,
+      `"${req.area.replace(/"/g, '""')}"`,
+      `"${req.requester.replace(/"/g, '""')}"`,
+      `"${req.status.replace(/"/g, '""')}"`,
+      `"${(req.assignedAnalyst || 'PENDIENTE').replace(/"/g, '""')}"`,
+      `"${req.priority.replace(/"/g, '""')}"`,
+      `"${new Date(req.createdAt).toLocaleString()}"`,
+      `"${new Date(req.lastUpdated).toLocaleString()}"`
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `SISREQ_EXPORT_${new Date().getTime()}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const COLUMNS = [
     { title: 'Bandeja Central', status: Status.RECIBIDO, icon: <Inbox size={18} strokeWidth={2.5}/>, color: 'bg-indigo-600', text: 'text-indigo-600', light: 'bg-indigo-50' },
     { title: 'Derivación', status: Status.DERIVACION, icon: <GitPullRequest size={18} strokeWidth={2.5}/>, color: 'bg-orange-500', text: 'text-orange-600', light: 'bg-orange-50' },
@@ -258,15 +292,26 @@ export const Board: React.FC = () => {
              </div>
 
              <div className="flex gap-2">
-                <button 
-                  onClick={handleExportPDF}
-                  disabled={isExporting}
-                  className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95 disabled:opacity-50"
-                  title="Exportar Vista Actual a PDF"
-                >
-                  <FileDown size={18} strokeWidth={2.5} className={isExporting ? 'animate-bounce' : ''} />
-                  {isExporting ? 'PDF' : 'PDF'}
-                </button>
+                <div className="flex bg-slate-800 p-1 rounded-2xl border border-slate-700 shadow-lg">
+                    <button 
+                      onClick={handleExportPDF}
+                      disabled={isExporting}
+                      className="px-4 py-2 hover:bg-slate-700 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all text-white disabled:opacity-50"
+                      title="Exportar a PDF"
+                    >
+                      <FileDown size={18} strokeWidth={2.5} className={isExporting ? 'animate-bounce' : ''} />
+                      PDF
+                    </button>
+                    <div className="w-px bg-slate-600 h-4 self-center mx-1"></div>
+                    <button 
+                      onClick={handleExportCSV}
+                      className="px-4 py-2 hover:bg-slate-700 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all text-white"
+                      title="Exportar a CSV"
+                    >
+                      <FileSpreadsheet size={18} strokeWidth={2.5} />
+                      CSV
+                    </button>
+                </div>
 
                 <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
                     <button 

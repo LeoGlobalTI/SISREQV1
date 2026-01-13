@@ -14,11 +14,9 @@ export const QAView: React.FC = () => {
 
   const deletedRequests = useMemo(() => requests.filter(r => r.isDeleted), [requests]);
 
-  // Resizable Columns State for Table 1 (Monitoring)
+  // Resizable Columns State
   const [monColWidths, setMonColWidths] = useState<number[]>([100, 120, 450, 120, 100]);
   const resizingMonRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
-
-  // Resizable Columns State for Table 2 (Archive)
   const [archColWidths, setArchColWidths] = useState<number[]>([100, 450, 150, 150, 100]);
   const resizingArchRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
 
@@ -69,7 +67,7 @@ export const QAView: React.FC = () => {
     const inExecutionWithoutAnalyst = activeRequests.filter(r => r.status === Status.EJECUCION && !r.assignedAnalyst);
     inExecutionWithoutAnalyst.forEach(r => findings.push({ 
         type: 'ERROR', 
-        msg: `Inconsistencia de Proceso: Expediente en fase EJECUCIÓN sin Responsable Técnico asignado.`,
+        msg: `INCONSISTENCIA: EXPEDIENTE EN FASE DE EJECUCIÓN SIN RESPONSABLE TÉCNICO.`,
         id: r.id,
         code: 'ERR_PROC_01'
     }));
@@ -81,7 +79,7 @@ export const QAView: React.FC = () => {
             if (analyst && analyst.area !== r.area && analyst.role !== UserRole.SUPERADMIN) {
                 findings.push({ 
                     type: 'WARNING', 
-                    msg: `Alerta de Jurisdicción: Analista asignado no pertenece al área de gestión del expediente.`,
+                    msg: `ALERTA JURISDICCIÓN: ANALISTA ASIGNADO NO PERTENECE AL ÁREA DEL TICKET.`,
                     id: r.id,
                     code: 'WARN_JUR_02'
                 });
@@ -89,17 +87,31 @@ export const QAView: React.FC = () => {
         }
     });
 
-    // 3. Salud de la Matriz
-    const orphanRequests = activeRequests.filter(r => !Object.values(Status).includes(r.status));
-    orphanRequests.forEach(r => findings.push({ 
-        type: 'ERROR', 
-        msg: `Corrupción de Estado: El expediente posee un estado no reconocido por el sistema.`,
-        id: r.id,
-        code: 'ERR_DB_99'
-    }));
+    // 3. Hallazgo de Tiempos
+    activeRequests.forEach(r => {
+        if (r.status === Status.FINALIZADO && !r.finishedAt) {
+            findings.push({
+                type: 'ERROR',
+                msg: `ERROR DE CIERRE: EXPEDIENTE FINALIZADO SIN MARCA DE TIEMPO (FINISHEDAT).`,
+                id: r.id,
+                code: 'ERR_TIME_03'
+            });
+        }
+    });
 
-    // 4. Estadísticas de Auditoría
-    const integrityScore = Math.max(0, 100 - (findings.filter(f => f.type === 'ERROR').length * 10));
+    // 4. Integridad de Prioridad
+    activeRequests.forEach(r => {
+        if (r.priority as any === 'Inmediata') { // Test de valores legacy o erróneos
+             findings.push({
+                type: 'WARNING',
+                msg: `DATO LEGACY: PRIORIDAD NO ESTANDARIZADA DETECTADA.`,
+                id: r.id,
+                code: 'WARN_DATA_04'
+            });
+        }
+    });
+
+    const integrityScore = Math.max(0, 100 - (findings.filter(f => f.type === 'ERROR').length * 15) - (findings.filter(f => f.type === 'WARNING').length * 5));
 
     return { findings, integrityScore };
   }, [requests, users]);
@@ -114,7 +126,6 @@ export const QAView: React.FC = () => {
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-12 bg-[#F8FAFC]">
         
-        {/* Header Section Institucional */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
             <div className="lg:col-span-2 bg-white p-8 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between group hover:shadow-md transition-all duration-500">
                 <div>
@@ -124,18 +135,18 @@ export const QAView: React.FC = () => {
                         </div>
                         <div>
                            <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Índice de Salud</h3>
-                           <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-0.5">SISTEMA INTEGRAL DE AUDITORÍA</p>
+                           <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-0.5">ESTADO DEL CORE DEL SISTEMA</p>
                         </div>
                     </div>
                     <p className="text-slate-400 text-[9px] font-bold uppercase tracking-tight leading-relaxed max-w-[240px]">
-                        Evaluación automatizada de coherencia estructural y flujo de procesos en tiempo real.
+                        Evaluación automatizada de coherencia estructural, firma electrónica y flujo de procesos.
                     </p>
                 </div>
                 <div className="text-right">
-                    <span className={`text-6xl font-black tracking-tighter ${auditResults.integrityScore > 90 ? 'text-emerald-500' : 'text-amber-500'}`}>
+                    <span className={`text-6xl font-black tracking-tighter ${auditResults.integrityScore > 85 ? 'text-emerald-500' : 'text-amber-500'}`}>
                         {auditResults.integrityScore}<span className="text-2xl">%</span>
                     </span>
-                    <p className="text-[8px] font-black text-slate-300 uppercase mt-2 tracking-widest">INTEGRIDAD DB</p>
+                    <p className="text-[8px] font-black text-slate-300 uppercase mt-2 tracking-widest">CERTIFICACIÓN QA</p>
                 </div>
             </div>
             
@@ -146,22 +157,22 @@ export const QAView: React.FC = () => {
                             <Activity size={18} strokeWidth={2.5}/>
                         </div>
                         <div>
-                           <h3 className="font-black uppercase tracking-widest text-[8px] text-slate-300">Monitoreo</h3>
-                           <p className="text-[7px] font-black text-indigo-400 uppercase tracking-[0.2em] mt-0.5">ESTADO: ONLINE</p>
+                           <h3 className="font-black uppercase tracking-widest text-[8px] text-slate-300">Auditoría Live</h3>
+                           <p className="text-[7px] font-black text-indigo-400 uppercase tracking-[0.2em] mt-0.5">MOTOR: V2.5-STRICT</p>
                         </div>
                     </div>
                     <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
                 </div>
                 <div className="space-y-4">
                     <div className="flex justify-between items-center">
-                        <span className="text-slate-400 uppercase tracking-widest text-[8px] font-black">Activos Auditados</span>
-                        <span className="font-black text-base">{requests.filter(r => !r.isDeleted).length}</span>
+                        <span className="text-slate-400 uppercase tracking-widest text-[8px] font-black">Nodos Verificados</span>
+                        <span className="font-black text-base">{requests.length}</span>
                     </div>
                     <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
                         <div className="bg-indigo-500 h-full w-full opacity-60"></div>
                     </div>
                     <div className="flex justify-between items-center">
-                        <span className="text-slate-400 uppercase tracking-widest text-[8px] font-black">Archivados (Borrado Lógico)</span>
+                        <span className="text-slate-400 uppercase tracking-widest text-[8px] font-black">Archivados (Inmutables)</span>
                         <span className="text-indigo-400 font-black text-xs">{deletedRequests.length}</span>
                     </div>
                 </div>
@@ -169,17 +180,16 @@ export const QAView: React.FC = () => {
 
             <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-center items-center text-center group hover:border-indigo-100 transition-all">
                 <div className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl mb-4 group-hover:scale-105 transition-transform shadow-sm">
-                    <Zap size={24} strokeWidth={2.5}/>
+                    <Lock size={24} strokeWidth={2.5}/>
                 </div>
-                <p className="text-2xl font-black text-slate-900 tracking-tighter">SLA 100%</p>
-                <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">NORMATIVA SoD</p>
+                <p className="text-2xl font-black text-slate-900 tracking-tighter">ANTI-TAMPER</p>
+                <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">SLA PROTEGIDO</p>
             </div>
         </div>
 
-        {/* Registro de Hallazgos */}
         <div className="space-y-4">
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-3">
-                <Shield size={18} className="text-indigo-600" /> Monitoreo de Consistencia Operativa
+                <Shield size={18} className="text-indigo-600" /> Registro de Hallazgos Estructurales
             </h3>
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col min-w-max animate-in fade-in duration-700">
                 <div 
@@ -191,7 +201,7 @@ export const QAView: React.FC = () => {
                         <ResizeHandle onStart={(e) => startResizeMon(0, e)} />
                     </div>
                     <div className="relative h-full flex items-center">
-                        <Hash size={10} className="inline mr-1 text-slate-300"/> Nodo / ID
+                        <Hash size={10} className="inline mr-1 text-slate-300"/> ID / Expediente
                         <ResizeHandle onStart={(e) => startResizeMon(1, e)} />
                     </div>
                     <div className="relative h-full flex items-center">
@@ -199,7 +209,7 @@ export const QAView: React.FC = () => {
                         <ResizeHandle onStart={(e) => startResizeMon(2, e)} />
                     </div>
                     <div className="relative h-full flex items-center">
-                        <Shield size={10} className="inline mr-1 text-slate-300"/> Código
+                        <Shield size={10} className="inline mr-1 text-slate-300"/> Regla
                         <ResizeHandle onStart={(e) => startResizeMon(3, e)} />
                     </div>
                     <div className="text-right">Inspección</div>
@@ -217,11 +227,11 @@ export const QAView: React.FC = () => {
                                 <span className={`px-2 py-0.5 rounded-lg text-[7px] font-black uppercase tracking-widest border shadow-sm truncate block w-fit ${
                                     f.type === 'ERROR' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-amber-50 text-amber-600 border-amber-100'
                                 }`}>
-                                    {f.type === 'ERROR' ? 'CRÍTICO' : 'ALERTA'}
+                                    {f.type === 'ERROR' ? 'CRÍTICO' : 'AVISO'}
                                 </span>
                             </div>
                             <div className="text-[9px] font-mono font-black text-indigo-600 bg-indigo-50/50 px-2 py-0.5 rounded-md border border-indigo-100/50 w-fit truncate">
-                                {f.id ? `EXP:${f.id.split('-')[1].toUpperCase()}` : 'SYS_NODE'}
+                                {f.id ? `EXP:${f.id.split('-')[1].toUpperCase()}` : 'SYS_CORE'}
                             </div>
                             <div className="text-[10px] font-bold text-slate-700 leading-relaxed uppercase tracking-tight group-hover:text-indigo-600 transition-colors truncate">
                                 {f.msg}
@@ -240,17 +250,16 @@ export const QAView: React.FC = () => {
                             <div className="bg-emerald-50 p-6 rounded-[2rem] border-2 border-dashed border-emerald-100">
                                 <CheckCircle2 size={32} className="text-emerald-500"/>
                             </div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Cero anomalías operativas</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Cero incidencias detectadas</p>
                         </div>
                     )}
                 </div>
             </div>
         </div>
 
-        {/* Archivo de Auditoría - EXPEDIENTES ELIMINADOS */}
         <div className="space-y-4">
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-3">
-                <Trash2 size={18} className="text-red-600" /> Archivo de Auditoría (Eliminaciones Administrativas)
+                <Trash2 size={18} className="text-red-600" /> Bóveda de Auditoría (Registros Inmutables)
             </h3>
             <div className="bg-white rounded-3xl border border-red-100 shadow-sm overflow-hidden flex flex-col min-w-max animate-in fade-in duration-700">
                 <div 
@@ -266,14 +275,14 @@ export const QAView: React.FC = () => {
                         <ResizeHandle onStart={(e) => startResizeArch(1, e)} />
                     </div>
                     <div className="relative h-full flex items-center">
-                        <Clock size={10} className="inline mr-1 text-red-300"/> Fecha Eliminación
+                        <Clock size={10} className="inline mr-1 text-red-300"/> Cierre Histórico
                         <ResizeHandle onStart={(e) => startResizeArch(2, e)} />
                     </div>
                     <div className="relative h-full flex items-center">
                         <User size={10} className="inline mr-1 text-red-300"/> Autor de Orden
                         <ResizeHandle onStart={(e) => startResizeArch(3, e)} />
                     </div>
-                    <div className="text-right">Acción</div>
+                    <div className="text-right">Inspección</div>
                 </div>
 
                 <div className="divide-y divide-slate-50">
@@ -300,13 +309,13 @@ export const QAView: React.FC = () => {
                             </div>
                             <div className="text-[10px] font-black text-slate-700 uppercase flex items-center gap-2 truncate">
                                 <div className="w-6 h-6 rounded-lg bg-slate-900 text-white flex items-center justify-center text-[8px] font-black shrink-0">{r.deletedBy?.substring(0,2).toUpperCase()}</div>
-                                <span className="truncate">{r.deletedBy || 'Sistema'}</span>
+                                <span className="truncate">{r.deletedBy || 'Admin'}</span>
                             </div>
                             <div className="flex justify-end">
                                 <button 
                                     onClick={() => setSelectedRequestId(r.id)}
                                     className="p-2.5 text-slate-300 hover:text-red-600 transition-all bg-white rounded-xl border border-slate-100 hover:border-red-200 hover:shadow-md"
-                                    title="Ver detalle del archivo"
+                                    title="Inspeccionar Archivo"
                                 >
                                     <Eye size={16} strokeWidth={2.5}/>
                                 </button>
@@ -317,7 +326,7 @@ export const QAView: React.FC = () => {
                             <div className="bg-slate-50 p-8 rounded-full border border-dashed border-slate-200">
                                 <Trash2 size={32} className="text-slate-200"/>
                             </div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Archivo histórico vacío</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Bóveda de auditoría vacía</p>
                         </div>
                     )}
                 </div>

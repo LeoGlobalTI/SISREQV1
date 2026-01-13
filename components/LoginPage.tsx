@@ -2,7 +2,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useSisreq } from '../context/SisreqContext';
 import { UserRole, User } from '../types';
-import { db } from '../services/storage';
 import { LayoutDashboard, User as UserIcon, Shield, Briefcase, KeyRound, LogIn, ChevronDown, Check, Sparkles, AlertCircle } from 'lucide-react';
 
 const getRoleLabel = (role: UserRole) => {
@@ -74,17 +73,15 @@ export const LoginPage: React.FC = () => {
     setError('');
 
     try {
-        // Obtenemos el usuario real con su password desde la DB (Seguridad reforzada)
-        const realUser = await db.validateUser(selectedUser.email);
+        // Auditoría: Se envía email y pass para validación interna
+        const success = await login(selectedUser.email, password);
         
-        if (realUser && (password === realUser.password || password === '1234')) {
-            login(realUser);
-        } else {
-            setError('Firma electrónica incorrecta.');
+        if (!success) {
+            setError('Firma electrónica no válida para este perfil.');
             setPassword('');
         }
     } catch (err) {
-        setError('Error al conectar con el servidor de identidades.');
+        setError('Servicio de identidades no disponible.');
     } finally {
         setIsAuthenticating(false);
     }
@@ -218,7 +215,7 @@ export const LoginPage: React.FC = () => {
                             className={`w-full h-[60px] ${isAuthenticating ? 'bg-slate-400' : 'bg-[#1E293B] hover:bg-[#0F172A]'} text-white font-black rounded-xl shadow-lg hover:-translate-y-0.5 transition-all active:scale-95 flex items-center justify-center gap-3 uppercase text-[10px] tracking-widest`}
                         >
                             <LogIn size={20} strokeWidth={2.5}/> 
-                            <span>{isAuthenticating ? 'Validando...' : 'Entrar'}</span>
+                            <span>{isAuthenticating ? 'Verificando...' : 'Acceder al Sistema'}</span>
                         </button>
                     </div>
                 )}
@@ -226,7 +223,7 @@ export const LoginPage: React.FC = () => {
             
             <div className="mt-10 text-center">
                 <div className="inline-block px-5 py-2.5 bg-[#F8FAFC] rounded-full text-[9px] font-bold text-slate-400 uppercase tracking-widest border border-slate-100">
-                    Modo demo: <span className="text-indigo-600">123</span>
+                    Demo: <span className="text-indigo-600">123</span>
                 </div>
             </div>
         </div>
