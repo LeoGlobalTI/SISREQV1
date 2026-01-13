@@ -18,7 +18,8 @@ import {
   FileCheck,
   BadgeDollarSign,
   Globe,
-  Hash
+  Hash,
+  Sparkles
 } from 'lucide-react';
 
 interface Props {
@@ -28,11 +29,11 @@ interface Props {
 }
 
 const AREA_CONFIG = {
-  [Area.CONTABILIDAD]: { icon: <Calculator size={18} />, desc: 'Balances y Facturas' },
-  [Area.RRHH]: { icon: <Users size={18} />, desc: 'Personal y Beneficios' },
-  [Area.ACREDITACION]: { icon: <FileCheck size={18} />, desc: 'Certificaciones' },
-  [Area.FINANZAS]: { icon: <BadgeDollarSign size={18} />, desc: 'Presupuestos y Flujos' },
-  'NONE': { icon: <Globe size={18} />, desc: 'Acceso Centralizado / Auditoría' }
+  [Area.CONTABILIDAD]: { icon: <Calculator size={16} />, desc: 'Balances y Facturas' },
+  [Area.RRHH]: { icon: <Users size={16} />, desc: 'Personal y Beneficios' },
+  [Area.ACREDITACION]: { icon: <FileCheck size={16} />, desc: 'Certificaciones' },
+  [Area.FINANZAS]: { icon: <BadgeDollarSign size={16} />, desc: 'Presupuestos y Flujos' },
+  'NONE': { icon: <Globe size={16} />, desc: 'Acceso Central / Auditoría' }
 };
 
 export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) => {
@@ -103,61 +104,68 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
   const isEditMode = !!userToEdit;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={onClose} />
-      
-      <div className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in fade-in zoom-in-95 duration-300 flex flex-col max-h-[94vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div 
+        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity animate-in fade-in duration-300" 
+        onClick={onClose} 
+      />
+
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden animate-in fade-in zoom-in-95 duration-300 border border-slate-200 border-t-8 border-indigo-600 flex flex-col max-h-[90vh]">
         
-        {/* HEADER SECTION */}
-        <div className="px-8 py-7 flex justify-between items-center shrink-0">
-          <div className="flex items-center gap-4">
-             <div className="bg-[#1E293B] p-3.5 rounded-2xl text-white shadow-xl shadow-slate-200/50 shrink-0">
-                <UserPlus size={24} strokeWidth={2.5}/>
+        {/* Header - Matching NewRequestModal */}
+        <div className="bg-indigo-50/30 border-b border-slate-100 px-6 py-4 flex justify-between items-center shrink-0">
+          <div className="flex items-center gap-3">
+             <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-md shrink-0">
+                <Sparkles size={18} strokeWidth={2.5}/>
              </div>
              <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                    <span className="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-[#ECFDF5] text-[#10B981] border border-[#D1FAE5]">
+                <div className="flex items-center gap-2 mb-0.5">
+                    <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700">
                         {isEditMode ? 'MODIFICAR PERFIL' : 'NUEVA ALTA'}
                     </span>
-                    <span className="flex items-center gap-1 text-[9px] text-slate-400 font-black tracking-widest bg-slate-50 px-2 py-1 rounded-md border border-slate-100 uppercase">
-                        # IDENTITY-MANAGER
+                    <span className="text-[9px] text-slate-400 font-mono font-bold tracking-tighter bg-white px-1.5 py-0.5 rounded border border-slate-100">
+                        <Hash size={9}/>IDENTITY-MANAGER
                     </span>
                 </div>
-                <h2 className="text-2xl font-black text-[#1E293B] tracking-tight">{isEditMode ? 'Editar Colaborador' : 'Crear Colaborador'}</h2>
+                <h2 className="text-lg font-bold text-slate-900 leading-tight">
+                    {isEditMode ? 'Editar Colaborador' : 'Crear Colaborador'}
+                </h2>
              </div>
           </div>
-          <button onClick={onClose} className="text-slate-300 hover:text-slate-900 transition-colors p-2">
-            <X size={28} />
+          <button 
+            onClick={onClose} 
+            className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-full transition-all"
+          >
+            <X size={20} />
           </button>
         </div>
 
-        {/* FORM BODY */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar bg-white px-8 pb-8 pt-2">
-          <form id="user-form" onSubmit={handleSubmit} className="space-y-9">
+        {/* Form Body - Matching NewRequestModal Padding */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar bg-white">
+          <form id="user-form" onSubmit={handleSubmit} className="p-6 space-y-6">
             
-            {/* NAME & EMAIL GRID */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2.5">
-                        <UserIcon size={14} className="text-slate-400" /> NOMBRE COMPLETO
+                <div className="space-y-2">
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <UserIcon size={12} className="text-indigo-500" /> Nombre Completo
                     </label>
                     <input 
                         required 
                         autoFocus
-                        className="w-full bg-[#F8FAFC] border-2 border-[#F1F5F9] text-[#1E293B] text-sm rounded-2xl px-5 py-5 focus:outline-none focus:border-[#1E293B] transition-all font-bold placeholder:text-slate-300" 
+                        className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:border-indigo-500 transition-all font-semibold placeholder:text-slate-300" 
                         value={name} 
                         onChange={e => setName(e.target.value)} 
                         placeholder="Nombre y Apellido..." 
                     />
                 </div>
-                <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2.5">
-                        <Mail size={14} className="text-slate-400" /> E-MAIL INSTITUCIONAL
+                <div className="space-y-2">
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <Mail size={12} className="text-indigo-500" /> Email Institucional
                     </label>
                     <input 
                         required 
                         type="email" 
-                        className="w-full bg-[#F8FAFC] border-2 border-[#F1F5F9] text-[#1E293B] text-sm rounded-2xl px-5 py-5 focus:outline-none focus:border-[#1E293B] transition-all font-bold placeholder:text-slate-300" 
+                        className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:border-indigo-500 transition-all font-semibold placeholder:text-slate-300" 
                         value={email} 
                         onChange={e => setEmail(e.target.value)} 
                         placeholder="usuario@institucion.cl" 
@@ -165,18 +173,17 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
                 </div>
             </div>
 
-            {/* ROLE TOGGLE SELECTOR */}
-            <div className="space-y-4">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2.5">
-                    <Shield size={14} className="text-slate-400" /> NIVEL DE PRIVILEGIOS OPERATIVOS
+            <div className="space-y-3">
+                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <Shield size={12} className="text-indigo-500" /> Nivel de Privilegios
                 </label>
-                <div className="flex bg-[#F1F5F9] p-1.5 rounded-[1.5rem] gap-1 border border-slate-100">
+                <div className="flex bg-slate-100 p-1.5 rounded-xl gap-1 border border-slate-200/50">
                     {Object.values(UserRole).map(r => (
                         <button 
                             key={r}
                             type="button" 
                             onClick={() => handleRoleChange(r)} 
-                            className={`flex-1 py-4 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${role === r ? 'bg-[#1E293B] text-white shadow-xl' : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
+                            className={`flex-1 py-2 text-[9px] font-bold uppercase tracking-widest rounded-lg transition-all ${role === r ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
                         >
                             {r}
                         </button>
@@ -184,29 +191,28 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
                 </div>
             </div>
 
-            {/* AREA SELECTOR CARDS */}
-            <div className="space-y-4">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2.5">
-                    <Building size={14} className="text-slate-400" /> UNIDAD ORGÁNICA / ADSCRIPCIÓN
+            <div className="space-y-3">
+                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <Building size={12} className="text-indigo-500" /> Unidad Orgánica / Adscripción
                 </label>
-                <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 transition-all duration-300 ${role === UserRole.SUPERADMIN ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
+                <div className={`grid grid-cols-1 md:grid-cols-2 gap-2 transition-all duration-300 ${role === UserRole.SUPERADMIN ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
                     {(role === UserRole.ADMIN || role === UserRole.SUPERADMIN) && (
                         <button
                             type="button"
                             onClick={() => setArea('NONE')}
                             className={`
-                                relative flex items-center gap-4 p-5 rounded-3xl border-2 text-left transition-all duration-300 group
+                                flex items-center gap-3 p-2 rounded-xl border text-left transition-all
                                 ${area === 'NONE' 
-                                ? 'border-indigo-600 bg-white shadow-lg ring-4 ring-indigo-500/5' 
-                                : 'border-[#F1F5F9] bg-[#F8FAFC] hover:border-slate-200'}
+                                    ? 'border-indigo-600 bg-indigo-50 shadow-sm' 
+                                    : 'border-slate-100 bg-slate-50/50 hover:bg-slate-50'}
                             `}
                         >
-                            <div className={`p-3 rounded-2xl transition-all ${area === 'NONE' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-300 border border-slate-100'}`}>
+                            <div className={`p-1.5 rounded-lg transition-all ${area === 'NONE' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-300 border border-slate-100'}`}>
                                 {AREA_CONFIG.NONE.icon}
                             </div>
                             <div className="min-w-0">
-                                <div className={`text-sm font-black tracking-tight ${area === 'NONE' ? 'text-indigo-900' : 'text-slate-700'}`}>Acceso Transversal</div>
-                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{AREA_CONFIG.NONE.desc}</div>
+                                <div className={`text-[12px] font-bold truncate ${area === 'NONE' ? 'text-indigo-900' : 'text-slate-700'}`}>Acceso Central</div>
+                                <div className="text-[8px] text-slate-500 font-medium truncate">{AREA_CONFIG.NONE.desc}</div>
                             </div>
                         </button>
                     )}
@@ -219,18 +225,18 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
                                 type="button"
                                 onClick={() => setArea(a)}
                                 className={`
-                                    relative flex items-center gap-4 p-5 rounded-3xl border-2 text-left transition-all duration-300 group
+                                    flex items-center gap-3 p-2 rounded-xl border text-left transition-all
                                     ${isSelected 
-                                    ? 'border-indigo-600 bg-white shadow-lg ring-4 ring-indigo-500/5' 
-                                    : 'border-[#F1F5F9] bg-[#F8FAFC] hover:border-slate-200'}
+                                        ? 'border-indigo-600 bg-indigo-50 shadow-sm' 
+                                        : 'border-slate-100 bg-slate-50/50 hover:bg-slate-50'}
                                 `}
                             >
-                                <div className={`p-3 rounded-2xl transition-all ${isSelected ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-300 border border-slate-100'}`}>
+                                <div className={`p-1.5 rounded-lg transition-all ${isSelected ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-300 border border-slate-100'}`}>
                                     {config.icon}
                                 </div>
                                 <div className="min-w-0">
-                                    <div className={`text-sm font-black tracking-tight ${isSelected ? 'text-indigo-900' : 'text-slate-700'}`}>{a}</div>
-                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{config.desc}</div>
+                                    <div className={`text-[12px] font-bold truncate ${isSelected ? 'text-indigo-900' : 'text-slate-700'}`}>{a}</div>
+                                    <div className="text-[8px] text-slate-500 font-medium truncate">{config.desc}</div>
                                 </div>
                             </button>
                         );
@@ -238,15 +244,14 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
                 </div>
             </div>
 
-            {/* PASSWORD & STATUS GRID */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t border-slate-100">
-                <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2.5">
-                        <Lock size={14} className="text-slate-400" /> CONTRASEÑA DE SISTEMA
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
+                <div className="space-y-2">
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <Lock size={12} className="text-indigo-500" /> Firma Electrónica
                     </label>
                     <input 
                         type="password" 
-                        className="w-full bg-[#F8FAFC] border-2 border-[#F1F5F9] text-[#1E293B] text-sm rounded-2xl px-5 py-5 focus:outline-none focus:border-[#1E293B] transition-all font-black tracking-widest placeholder:text-slate-300" 
+                        className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:border-indigo-500 transition-all font-black tracking-widest" 
                         value={password} 
                         onChange={e => setPassword(e.target.value)} 
                         placeholder={isEditMode ? "••••••••" : "••••"} 
@@ -254,22 +259,22 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
                 </div>
 
                 {isEditMode && (
-                    <div className="space-y-4">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2.5">
-                            <Power size={14} className="text-slate-400" /> ESTADO DE CUENTA
+                    <div className="space-y-3">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <Power size={12} className="text-indigo-500" /> Estado Cuenta
                         </label>
-                        <div className="flex bg-[#F1F5F9] p-1.5 rounded-[1.5rem] gap-1.5 border border-slate-100">
+                        <div className="flex bg-slate-100 p-1 rounded-xl gap-1 border border-slate-200/50">
                             <button 
                                 type="button" 
                                 onClick={() => setStatus('ACTIVE')} 
-                                className={`flex-1 py-4 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${status === 'ACTIVE' ? 'bg-[#10B981] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 hover:bg-white'}`}
+                                className={`flex-1 py-2 text-[9px] font-bold uppercase tracking-widest rounded-lg transition-all ${status === 'ACTIVE' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
                             >
                                 Activo
                             </button>
                             <button 
                                 type="button" 
                                 onClick={() => setStatus('INACTIVE')} 
-                                className={`flex-1 py-4 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${status === 'INACTIVE' ? 'bg-slate-400 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 hover:bg-white'}`}
+                                className={`flex-1 py-2 text-[9px] font-bold uppercase tracking-widest rounded-lg transition-all ${status === 'INACTIVE' ? 'bg-slate-400 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
                             >
                                 Inactivo
                             </button>
@@ -280,22 +285,21 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
           </form>
         </div>
 
-        {/* FOOTER ACTIONS */}
-        <div className="bg-white border-t border-slate-100 px-10 py-8 flex items-center justify-between gap-4 shrink-0">
-            <button 
-                type="button" 
-                onClick={onClose} 
-                className="px-6 py-4 text-slate-400 font-black text-[11px] uppercase tracking-widest hover:text-slate-900 transition-colors"
+        {/* Footer - Matching NewRequestModal */}
+        <div className="bg-slate-50 border-t border-slate-100 p-5 flex items-center justify-between gap-4 shrink-0">
+            <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-slate-400 font-bold text-[10px] uppercase tracking-widest hover:text-slate-600 transition-all"
             >
-                CANCELAR
+                Cancelar
             </button>
-            <button 
+            <button
                 form="user-form"
-                type="submit" 
-                className="bg-[#1E293B] hover:bg-[#0F172A] text-white py-5 px-10 rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-2xl shadow-slate-300 flex items-center gap-3 transition-all active:scale-95"
+                type="submit"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-8 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-indigo-100 flex items-center gap-2 transition-all active:scale-95"
             >
-                <ShieldCheck size={18} strokeWidth={2.5} /> 
-                {isEditMode ? 'GUARDAR CAMBIOS' : 'CONFIRMAR ALTA'}
+                <Save size={14} strokeWidth={3} /> {isEditMode ? 'Guardar Cambios' : 'Confirmar Alta'}
             </button>
         </div>
       </div>

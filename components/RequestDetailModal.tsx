@@ -7,7 +7,7 @@ import {
     X, User, Building, Clock, Save, Send, 
     RotateCcw, CheckCircle2, Hash, PlayCircle, Trash2,
     ShieldAlert, UserCheck, History, ClipboardList, PenTool,
-    ShieldCheck, MapPin, Loader2
+    ShieldCheck, MapPin, Loader2, Info, FileStack, Archive
 } from 'lucide-react';
 
 export const RequestDetailModal: React.FC = () => {
@@ -39,15 +39,10 @@ export const RequestDetailModal: React.FC = () => {
 
   const data = useMemo(() => requests.find(r => r.id === selectedRequestId), [requests, selectedRequestId]);
 
-  const filteredLogs = useMemo(() => {
+  // Se muestran todos los logs sin excepción para trazabilidad total
+  const allLogs = useMemo(() => {
     if (!data) return [];
-    return data.logs.filter(log => 
-        log.message.startsWith('FLUJO:') || 
-        log.message.startsWith('RETORNO TÉCNICO:') || 
-        log.message.startsWith('NOTA TÉCNICA:') ||
-        log.message.startsWith('SISTEMA:') ||
-        log.message.startsWith('ASIGNACIÓN')
-    );
+    return [...data.logs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [data]);
 
   const availableAssignees = useMemo(() => {
@@ -85,6 +80,7 @@ export const RequestDetailModal: React.FC = () => {
   };
 
   const isFinalized = data.status === Status.FINALIZADO;
+  const isArchived = !!data.isDeleted;
 
   const handleTransition = async (targetStatus: Status) => {
     setActionError(null);
@@ -147,25 +143,33 @@ export const RequestDetailModal: React.FC = () => {
 
   const handleAddComment = async () => {
     if (newComment.trim()) {
-        await addLog(data.id, `NOTA TÉCNICA: ${newComment.trim()}`);
+        await addLog(data.id, `NOTA: ${newComment.trim()}`);
         setNewComment('');
     }
   };
 
-  const canDeriveUI = canUserTransition(data, Status.DERIVACION).allowed;
-  const canFinalizeUI = canUserTransition(data, Status.FINALIZADO).allowed;
-  const canEditUI = (activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN) && !isFinalized;
-  const showReturnButton = canUserTransition(data, Status.RECIBIDO).allowed && !isFinalized;
-  
-  // El botón "ASIGNAR" solo debe verse en estado DERIVACION.
-  const canAssignUI = (activeRole === UserRole.HEAD || activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN) && data.status === Status.DERIVACION;
+  const canDeriveUI = !isArchived && canUserTransition(data, Status.DERIVACION).allowed;
+  const canFinalizeUI = !isArchived && canUserTransition(data, Status.FINALIZADO).allowed;
+  const canEditUI = !isArchived && (activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN) && !isFinalized;
+  const showReturnButton = !isArchived && canUserTransition(data, Status.RECIBIDO).allowed && !isFinalized;
+  const canAssignUI = !isArchived && (activeRole === UserRole.HEAD || activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN) && data.status === Status.DERIVACION;
 
   const isSuperAdmin = currentUser.role === UserRole.SUPERADMIN || activeRole === UserRole.SUPERADMIN;
+
+  const getLogStyle = (msg: string) => {
+    if (msg.startsWith('SISTEMA:')) return { bg: 'bg-indigo-50/50', border: 'border-indigo-100', text: 'text-indigo-600', icon: 'S' };
+    if (msg.startsWith('FLUJO:')) return { bg: 'bg-emerald-50/50', border: 'border-emerald-100', text: 'text-emerald-600', icon: 'F' };
+    if (msg.startsWith('RETORNO:')) return { bg: 'bg-red-50/50', border: 'border-red-100', text: 'text-red-600', icon: 'R' };
+    if (msg.startsWith('AUDITORÍA:')) return { bg: 'bg-slate-900', border: 'border-slate-800', text: 'text-white', icon: 'A' };
+    if (msg.startsWith('EDICIÓN:')) return { bg: 'bg-amber-50/50', border: 'border-amber-100', text: 'text-amber-600', icon: 'E' };
+    if (msg.startsWith('ASIGNACIÓN:')) return { bg: 'bg-blue-50/50', border: 'border-blue-100', text: 'text-blue-600', icon: 'D' };
+    return { bg: 'bg-slate-50', border: 'border-slate-100', text: 'text-slate-600', icon: 'N' };
+  };
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={handleClose}></div>
-      <div className={`relative bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-300 border border-slate-200 border-t-8 ${isFinalized ? 'border-emerald-600' : 'border-slate-900'}`}>
+      <div className={`relative bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-300 border border-slate-200 border-t-8 ${isArchived ? 'border-slate-900' : isFinalized ? 'border-emerald-600' : 'border-indigo-600'}`}>
         
         {isDeleting && (
             <div className="absolute inset-0 z-[70] bg-white/80 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 animate-in fade-in">
@@ -176,13 +180,13 @@ export const RequestDetailModal: React.FC = () => {
 
         <div className="px-6 py-4 flex justify-between items-center shrink-0 bg-slate-50 border-b border-slate-100">
           <div className="flex items-center gap-3 min-w-0">
-             <div className={`p-2 rounded-xl text-white shrink-0 shadow-md ${isFinalized ? 'bg-emerald-600' : 'bg-slate-900'}`}>
-                {isFinalized ? <CheckCircle2 size={18} strokeWidth={2.5}/> : <ClipboardList size={18} strokeWidth={2.5} />}
+             <div className={`p-2 rounded-xl text-white shrink-0 shadow-md ${isArchived ? 'bg-slate-900' : isFinalized ? 'bg-emerald-600' : 'bg-indigo-600'}`}>
+                {isArchived ? <Archive size={18} strokeWidth={2.5}/> : isFinalized ? <CheckCircle2 size={18} strokeWidth={2.5}/> : <ClipboardList size={18} strokeWidth={2.5} />}
              </div>
              <div className="min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest shadow-sm ring-1 ring-black/5 ${STATUS_BADGE_COLORS[data.status]}`}>
-                        {data.status.toUpperCase()}
+                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest shadow-sm ring-1 ring-black/5 ${isArchived ? 'bg-slate-900 text-white' : STATUS_BADGE_COLORS[data.status]}`}>
+                        {isArchived ? 'ARCHIVADO' : data.status.toUpperCase()}
                     </span>
                     <span className="text-[9px] text-slate-400 font-mono font-black bg-white px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1 uppercase">
                         #{data.id.split('-')[1]?.toUpperCase() || 'SYS'}
@@ -199,6 +203,19 @@ export const RequestDetailModal: React.FC = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-white custom-scrollbar">
+            
+            {isArchived && (
+                <div className="bg-red-50 border-2 border-dashed border-red-200 p-4 rounded-2xl flex items-center gap-4 animate-in slide-in-from-top-2">
+                    <ShieldAlert size={24} className="text-red-600 shrink-0" />
+                    <div>
+                        <p className="text-[10px] font-black text-red-700 uppercase tracking-widest">EXPEDIENTE EN ARCHIVO DE AUDITORÍA</p>
+                        <p className="text-[9px] text-red-600 font-bold italic">
+                            Archivado por {data.deletedBy} el {new Date(data.deletedAt!).toLocaleString()}
+                        </p>
+                    </div>
+                </div>
+            )}
+
             <div className="space-y-3">
                 <div className="flex items-center justify-between">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><PenTool size={12} className="text-indigo-600"/> ALCANCE TÉCNICO</label>
@@ -269,58 +286,75 @@ export const RequestDetailModal: React.FC = () => {
             </div>
 
             <div className="space-y-4 pt-4 border-t border-slate-100">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><History size={14} className="text-slate-900"/> LOG DE SEGUIMIENTO</label>
-                <div className="flex gap-2">
-                    <input value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="AÑADIR COMENTARIO TÉCNICO..." className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 text-[10px] font-black uppercase outline-none focus:border-indigo-600 shadow-inner" onKeyPress={e => e.key === 'Enter' && handleAddComment()} />
-                    <button onClick={handleAddComment} disabled={!newComment.trim()} className="bg-slate-900 text-white p-2.5 rounded-xl disabled:opacity-20 hover:bg-black transition-all shadow-md"><Send size={14}/></button>
-                </div>
-                <div className="space-y-3 pl-4 border-l-2 border-slate-100 ml-2 max-h-60 overflow-y-auto custom-scrollbar">
-                    {filteredLogs.length > 0 ? [...filteredLogs].reverse().map(log => (
-                        <div key={log.id} className="relative py-1">
-                            <div className="absolute -left-[21px] top-3 w-2.5 h-2.5 rounded-full bg-white border-2 border-slate-200"></div>
-                            <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                                <div className="flex justify-between items-center mb-1">
-                                    <span className="text-[9px] font-black text-slate-900 uppercase">{log.actor} <span className="text-slate-300 ml-1">[{log.role}]</span></span>
-                                    <span className="text-[8px] text-slate-400 font-mono">{new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                                </div>
-                                <p className="text-[10px] text-slate-600 font-bold uppercase leading-tight">{log.message}</p>
-                            </div>
-                        </div>
-                    )) : <p className="text-[10px] text-center text-slate-300 uppercase tracking-widest py-4">Sin actividad registrada</p>}
-                </div>
-            </div>
-        </div>
-
-        <div className="bg-slate-50 border-t border-slate-100 px-6 py-5 flex flex-col gap-4">
-            {actionError && <div className="bg-red-50 p-2.5 rounded-lg text-red-600 text-[8px] font-black uppercase text-center border border-red-100 flex items-center justify-center gap-2 animate-bounce"><ShieldAlert size={12}/> {actionError}</div>}
-            
-            {showReturnInput && (
-                <div className="flex items-center gap-2 bg-red-50 p-2 rounded-xl border border-red-100 animate-in slide-in-from-bottom-2">
-                    <input autoFocus value={returnReason} onChange={e => setReturnReason(e.target.value)} placeholder="JUSTIFICACIÓN TÉCNICA O MOTIVO DE DEVOLUCIÓN..." className="flex-1 bg-white border border-red-200 px-3 py-2.5 rounded-lg text-[9px] font-black text-red-900 uppercase outline-none shadow-inner" />
-                    <button onClick={handleReturnSubmit} className="bg-red-600 text-white px-4 py-2.5 rounded-lg text-[9px] font-black uppercase shadow-lg">RETORNAR</button>
-                    <button onClick={() => setShowReturnInput(false)} className="p-1 text-red-400"><X size={20}/></button>
-                </div>
-            )}
-
-            <div className="flex items-center gap-3">
-                {isSuperAdmin && (
-                    <button 
-                        onClick={handleDeleteRequest}
-                        disabled={isDeleting}
-                        className={`h-11 w-11 flex items-center justify-center rounded-xl transition-all shadow-sm group border
-                        ${isDeleting ? 'bg-slate-100 border-slate-200 text-slate-300 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50 bg-white border-slate-200'}`}
-                        title="Eliminar Expediente (SuperAdmin)"
-                    >
-                        {isDeleting ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} className="group-hover:scale-110 transition-transform"/>}
-                    </button>
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><History size={14} className="text-slate-900"/> LOG DE SEGUIMIENTO (TRAZABILIDAD TOTAL)</label>
+                
+                {!isArchived && (
+                    <div className="flex gap-2">
+                        <input value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="AÑADIR COMENTARIO TÉCNICO..." className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 text-[10px] font-black uppercase outline-none focus:border-indigo-600 shadow-inner" onKeyPress={e => e.key === 'Enter' && handleAddComment()} />
+                        <button onClick={handleAddComment} disabled={!newComment.trim()} className="bg-slate-900 text-white p-2.5 rounded-xl disabled:opacity-20 hover:bg-black transition-all shadow-md"><Send size={14}/></button>
+                    </div>
                 )}
-                <div className="flex-1 flex gap-2">
-                    {showReturnButton && !showReturnInput && <button onClick={() => setShowReturnInput(true)} className="flex-1 px-4 h-11 bg-white border border-red-200 text-[9px] font-black text-red-600 rounded-xl uppercase flex items-center justify-center gap-2 hover:bg-red-50 transition-colors"><RotateCcw size={14}/> RETORNAR A CENTRAL</button>}
-                    {canDeriveUI && <button onClick={() => handleTransition(Status.DERIVACION)} className="flex-1 h-11 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg flex items-center justify-center gap-2 hover:bg-indigo-700 px-3 transition-all"><UserCheck size={14}/> DERIVAR A UNIDAD</button>}
-                    {canFinalizeUI && <button onClick={() => handleTransition(Status.FINALIZADO)} className="flex-1 h-11 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg flex items-center justify-center gap-2 hover:bg-emerald-700 px-3 transition-all"><ShieldCheck size={14}/> CERRAR EXPEDIENTE</button>}
+
+                <div className="space-y-3 pl-4 border-l-2 border-slate-100 ml-2 max-h-80 overflow-y-auto custom-scrollbar pt-2">
+                    {allLogs.length > 0 ? allLogs.map(log => {
+                        const style = getLogStyle(log.message);
+                        return (
+                            <div key={log.id} className="relative py-1">
+                                <div className={`absolute -left-[22px] top-3.5 w-3 h-3 rounded-full bg-white border-2 flex items-center justify-center text-[5px] font-black ${style.border} ${style.text}`}>
+                                    {style.icon}
+                                </div>
+                                <div className={`p-3 rounded-xl border transition-all ${style.bg} ${style.border}`}>
+                                    <div className="flex justify-between items-center mb-1">
+                                        <span className={`text-[9px] font-black uppercase ${log.message.startsWith('AUDITORÍA:') ? 'text-indigo-300' : 'text-slate-900'}`}>
+                                            {log.actor} <span className="opacity-40 ml-1">[{log.role}]</span>
+                                        </span>
+                                        <span className={`text-[8px] font-mono ${log.message.startsWith('AUDITORÍA:') ? 'text-slate-400' : 'text-slate-400'}`}>
+                                            {new Date(log.timestamp).toLocaleString([], {day:'2-digit', month:'2-digit', hour: '2-digit', minute:'2-digit'})}
+                                        </span>
+                                    </div>
+                                    <p className={`text-[10px] font-bold uppercase leading-tight ${log.message.startsWith('AUDITORÍA:') ? 'text-white' : 'text-slate-600'}`}>
+                                        {log.message}
+                                    </p>
+                                </div>
+                            </div>
+                        );
+                    }) : <p className="text-[10px] text-center text-slate-300 uppercase tracking-widest py-4">Sin actividad registrada</p>}
                 </div>
             </div>
         </div>
+
+        {!isArchived && (
+            <div className="bg-slate-50 border-t border-slate-100 px-6 py-5 flex flex-col gap-4">
+                {actionError && <div className="bg-red-50 p-2.5 rounded-lg text-red-600 text-[8px] font-black uppercase text-center border border-red-100 flex items-center justify-center gap-2 animate-bounce"><ShieldAlert size={12}/> {actionError}</div>}
+                
+                {showReturnInput && (
+                    <div className="flex items-center gap-2 bg-red-50 p-2 rounded-xl border border-red-100 animate-in slide-in-from-bottom-2">
+                        <input autoFocus value={returnReason} onChange={e => setReturnReason(e.target.value)} placeholder="JUSTIFICACIÓN TÉCNICA O MOTIVO DE DEVOLUCIÓN..." className="flex-1 bg-white border border-red-200 px-3 py-2.5 rounded-lg text-[9px] font-black text-red-900 uppercase outline-none shadow-inner" />
+                        <button onClick={handleReturnSubmit} className="bg-red-600 text-white px-4 py-2.5 rounded-lg text-[9px] font-black uppercase shadow-lg">RETORNAR</button>
+                        <button onClick={() => setShowReturnInput(false)} className="p-1 text-red-400"><X size={20}/></button>
+                    </div>
+                )}
+
+                <div className="flex items-center gap-3">
+                    {isSuperAdmin && (
+                        <button 
+                            onClick={handleDeleteRequest}
+                            disabled={isDeleting}
+                            className={`h-11 w-11 flex items-center justify-center rounded-xl transition-all shadow-sm group border
+                            ${isDeleting ? 'bg-slate-100 border-slate-200 text-slate-300 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50 bg-white border-slate-200'}`}
+                            title="Eliminar Expediente (SuperAdmin)"
+                        >
+                            {isDeleting ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} className="group-hover:scale-110 transition-transform"/>}
+                        </button>
+                    )}
+                    <div className="flex-1 flex gap-2">
+                        {showReturnButton && !showReturnInput && <button onClick={() => setShowReturnInput(true)} className="flex-1 px-4 h-11 bg-white border border-red-200 text-[9px] font-black text-red-600 rounded-xl uppercase flex items-center justify-center gap-2 hover:bg-red-50 transition-colors"><RotateCcw size={14}/> RETORNAR A CENTRAL</button>}
+                        {canDeriveUI && <button onClick={() => handleTransition(Status.DERIVACION)} className="flex-1 h-11 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg flex items-center justify-center gap-2 hover:bg-indigo-700 px-3 transition-all"><UserCheck size={14}/> DERIVAR A UNIDAD</button>}
+                        {canFinalizeUI && <button onClick={() => handleTransition(Status.FINALIZADO)} className="flex-1 h-11 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg flex items-center justify-center gap-2 hover:bg-emerald-700 px-3 transition-all"><ShieldCheck size={14}/> CERRAR EXPEDIENTE</button>}
+                    </div>
+                </div>
+            </div>
+        )}
       </div>
     </div>
   );

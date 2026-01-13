@@ -137,7 +137,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setActiveRole(user.role);
     setIsAuthenticated(true);
     setGlobalFilterArea(user.role === UserRole.ADMIN || user.role === UserRole.SUPERADMIN ? 'ALL' : (user.area as Area));
-    addNotification('INFO', 'Sessión Iniciada', `Bienvenido(a), ${user.name}. Modo ${user.role} activo.`);
+    addNotification('INFO', 'Sesión Iniciada', `Bienvenido(a), ${user.name}. Modo ${user.role} activo.`);
   };
 
   const logout = () => {
@@ -168,8 +168,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const canUserSeeRequest = useCallback((req: RequestCard): boolean => {
     if (!currentUser || !activeRole) return false;
     
-    // Si el expediente está eliminado, solo es visible en el modo de auditoría SuperAdmin
-    if (req.isDeleted) return false;
+    if (req.isDeleted) return activeRole === UserRole.SUPERADMIN;
 
     if (activeRole === UserRole.SUPERADMIN || activeRole === UserRole.ADMIN) return true;
     const isSameArea = req.area === currentUser.area;
@@ -217,7 +216,6 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!req) return;
     const now = new Date().toISOString();
     
-    // Si el estado es FINALIZADO, registramos la fecha exacta para el filtro de 5 días hábiles
     const finishedAt = newStatus === Status.FINALIZADO ? now : req.finishedAt;
     
     const updated = { 
@@ -225,7 +223,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       status: newStatus, 
       lastUpdated: now, 
       finishedAt: finishedAt,
-      logs: [...req.logs, createAuditLog(`FLUJO: Cambio a ${newStatus}`)] 
+      logs: [...req.logs, createAuditLog(`FLUJO: Cambio de fase operativa a ${newStatus.toUpperCase()}`)] 
     };
     
     await db.saveRequest(updated);
@@ -237,7 +235,15 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const req = requests.find(r => r.id === id);
     if (!req) return;
     const now = new Date().toISOString();
-    const updated = { ...req, status: Status.RECIBIDO, isReturned: true, assignedAnalyst: undefined, lastUpdated: now, finishedAt: undefined, logs: [...req.logs, createAuditLog(`RETORNO: ${reason}`)] };
+    const updated = { 
+        ...req, 
+        status: Status.RECIBIDO, 
+        isReturned: true, 
+        assignedAnalyst: undefined, 
+        lastUpdated: now, 
+        finishedAt: undefined, 
+        logs: [...req.logs, createAuditLog(`RETORNO: ${reason}`)] 
+    };
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r));
     addNotification('WARNING', 'Expediente Devuelto', `Un requerimiento ha sido retornado a Central: ${reason}`, id);
@@ -247,7 +253,13 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const req = requests.find(r => r.id === id);
     if (!req) return;
     const now = new Date().toISOString();
-    const updated = { ...req, assignedAnalyst: name, status: Status.EJECUCION, lastUpdated: now, logs: [...req.logs, createAuditLog(`ASIGNACIÓN Y EJECUCIÓN: ${name}`)] };
+    const updated = { 
+        ...req, 
+        assignedAnalyst: name, 
+        status: Status.EJECUCION, 
+        lastUpdated: now, 
+        logs: [...req.logs, createAuditLog(`ASIGNACIÓN: Designación de Responsable Técnico: ${name.toUpperCase()}`)] 
+    };
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r));
     addNotification('SUCCESS', 'Analista Asignado', `${name} ha sido asignado. El ticket inicia ejecución.`, id);
@@ -265,7 +277,13 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const updateRequestDetails = async (id: string, title: string, detail: string) => {
     const req = requests.find(r => r.id === id);
     if (!req) return;
-    const updated = { ...req, title, detail, lastUpdated: new Date().toISOString() };
+    const updated = { 
+        ...req, 
+        title, 
+        detail, 
+        lastUpdated: new Date().toISOString(),
+        logs: [...req.logs, createAuditLog(`EDICIÓN: Actualización de metadatos (Título/Alcance)`)]
+    };
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r));
   };
@@ -274,16 +292,14 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const actorName = currentUser?.name || 'Desconocido';
     const now = new Date().toISOString();
     
-    // Realizamos borrado lógico en BD
     await db.deleteRequest(id, actorName);
     
-    // Actualizamos estado local
     setRequests(prev => prev.map(r => r.id === id ? {
         ...r,
         isDeleted: true,
         deletedAt: now,
         deletedBy: actorName,
-        logs: [...r.logs, createAuditLog(`AUDITORÍA: Expediente removido del flujo operativo por orden de ${actorName}`)]
+        logs: [...r.logs, createAuditLog(`AUDITORÍA: Registro movido al archivo histórico por orden administrativa.`)]
     } : r));
 
     addNotification('WARNING', 'Expediente Archivado', `El registro #${id.split('-')[1].toUpperCase()} fue enviado al archivo de auditoría.`);
