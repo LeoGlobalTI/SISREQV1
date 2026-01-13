@@ -51,7 +51,7 @@ const SisreqContext = createContext<SisreqContextType | undefined>(undefined);
 
 const DEFAULT_SETTINGS: NotificationSettings = {
   enabled: true,
-  sounds: true,
+  sounds: false, // Notificaciones sonoras deshabilitadas por defecto
   newRequests: true,
   statusChanges: true,
   returns: true,
