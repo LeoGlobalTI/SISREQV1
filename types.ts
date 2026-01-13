@@ -29,6 +29,18 @@ export enum Priority {
 export type UserStatus = 'ACTIVE' | 'INACTIVE';
 export type ViewMode = 'work' | 'superadmin';
 
+export type NotificationType = 'INFO' | 'SUCCESS' | 'WARNING' | 'PROCESS';
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  timestamp: string;
+  isRead: boolean;
+  requestId?: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -65,10 +77,6 @@ export interface RequestCard {
   isReturned?: boolean; 
 }
 
-/**
- * Matriz de Transición de Estados (Ingeniería de Procesos)
- * Define las reglas de negocio para el flujo de trabajo SISREQ.
- */
 export interface TransitionRule {
   from: Status;
   to: Status;

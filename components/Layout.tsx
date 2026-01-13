@@ -5,6 +5,7 @@ import { UserRole, Area } from '../types';
 import { LayoutDashboard, Plus, Briefcase, LogOut, Shield, ArrowLeftRight } from 'lucide-react';
 import { NewRequestModal } from './NewRequestModal';
 import { RequestDetailModal } from './RequestDetailModal';
+import { NotificationBell } from './NotificationBell';
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser, logout, viewMode, setViewMode, activeRole, switchHybridRole, setSelectedRequestId } = useSisreq();
@@ -98,21 +99,25 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
             <div className="h-8 w-px bg-slate-200 mx-1"></div>
 
-            <div className="flex items-center gap-4">
-                <div className="flex flex-col items-end">
-                    <span className="text-sm font-black text-slate-800 leading-none mb-1.5">{currentUser.name}</span>
-                    {getRoleBadge()}
+            <div className="flex items-center gap-2">
+                <NotificationBell />
+                
+                <div className="flex items-center gap-4 ml-3 border-l border-slate-100 pl-4">
+                    <div className="flex flex-col items-end">
+                        <span className="text-sm font-black text-slate-800 leading-none mb-1.5">{currentUser.name}</span>
+                        {getRoleBadge()}
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 border border-white shadow-sm flex items-center justify-center font-black text-xs text-slate-600 shrink-0 ring-4 ring-slate-50">
+                        {getInitials(currentUser.name)}
+                    </div>
+                    <button 
+                        onClick={logout} 
+                        className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all" 
+                        title="Cerrar Sesión"
+                    >
+                        <LogOut size={20} />
+                    </button>
                 </div>
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 border border-white shadow-sm flex items-center justify-center font-black text-xs text-slate-600 shrink-0 ring-4 ring-slate-50">
-                    {getInitials(currentUser.name)}
-                </div>
-                <button 
-                    onClick={logout} 
-                    className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all" 
-                    title="Cerrar Sesión"
-                >
-                    <LogOut size={20} />
-                </button>
             </div>
         </div>
       </header>

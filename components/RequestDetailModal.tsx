@@ -7,7 +7,7 @@ import {
     X, User, Building, Clock, Save, Send, 
     RotateCcw, CheckCircle2, Hash, PlayCircle, Trash2,
     ShieldAlert, UserCheck, History, ClipboardList, PenTool,
-    ShieldCheck, MapPin
+    ShieldCheck, MapPin, Loader2
 } from 'lucide-react';
 
 export const RequestDetailModal: React.FC = () => {
@@ -35,6 +35,7 @@ export const RequestDetailModal: React.FC = () => {
   const [editDetail, setEditDetail] = useState('');
   const [newComment, setNewComment] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const data = useMemo(() => requests.find(r => r.id === selectedRequestId), [requests, selectedRequestId]);
 
@@ -71,12 +72,17 @@ export const RequestDetailModal: React.FC = () => {
         setNewComment('');
         setActionError(null);
         setReturnReason('');
+        setIsDeleting(false);
      }
   }, [selectedRequestId, data]);
 
   if (!selectedRequestId || !data || !currentUser) return null;
 
-  const handleClose = () => setSelectedRequestId(null);
+  const handleClose = () => {
+    if (isDeleting) return; 
+    setSelectedRequestId(null);
+  };
+
   const isFinalized = data.status === Status.FINALIZADO;
 
   const handleTransition = async (targetStatus: Status) => {
@@ -86,6 +92,29 @@ export const RequestDetailModal: React.FC = () => {
         handleClose();
     } catch (e: any) {
         setActionError(e.message);
+    }
+  };
+
+  const handleDeleteRequest = async () => {
+    const confirmation = confirm('¿ELIMINAR ESTE EXPEDIENTE DE FORMA PERMANENTE? Esta acción no se puede deshacer.');
+    if (!confirmation) return;
+
+    setActionError(null);
+    setIsDeleting(true);
+    
+    try {
+      // Capturamos el ID de forma local antes de llamar a la función de borrado
+      const idToDelete = data.id;
+      console.log(`UI_DELETE_INIT: Iniciando borrado de ${idToDelete}`);
+      
+      await deleteRequest(idToDelete);
+      
+      // Cerramos el modal solo después de que el contexto haya actualizado el estado
+      setSelectedRequestId(null);
+    } catch (e: any) {
+      console.error("UI_DELETE_ERROR:", e);
+      setActionError(`Error de Sistema: ${e.message || 'No se pudo eliminar el registro.'}`);
+      setIsDeleting(false);
     }
   };
 
@@ -128,20 +157,27 @@ export const RequestDetailModal: React.FC = () => {
     }
   };
 
-  // Sincronización estricta con matriz de permisos
   const canDeriveUI = canUserTransition(data, Status.DERIVACION).allowed;
   const canExecuteUI = canUserTransition(data, Status.EJECUCION).allowed;
   const canFinalizeUI = canUserTransition(data, Status.FINALIZADO).allowed;
   const canEditUI = (activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN) && !isFinalized;
-  
-  // El botón de retorno debe validar contra la función returnRequest que a su vez usa canUserTransition(..., RECIBIDO)
   const showReturnButton = canUserTransition(data, Status.RECIBIDO).allowed && !isFinalized;
+
+  // Validación de Rol Master para Eliminación (SuperAdmin o Auditoría)
+  const isSuperAdmin = currentUser.role === UserRole.SUPERADMIN || activeRole === UserRole.SUPERADMIN;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={handleClose}></div>
       <div className={`relative bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-300 border border-slate-200 border-t-8 ${isFinalized ? 'border-emerald-600' : 'border-slate-900'}`}>
         
+        {isDeleting && (
+            <div className="absolute inset-0 z-[70] bg-white/80 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 animate-in fade-in">
+                <Loader2 size={40} className="text-red-600 animate-spin" />
+                <p className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">Eliminando Expediente...</p>
+            </div>
+        )}
+
         <div className="px-6 py-4 flex justify-between items-center shrink-0 bg-slate-50 border-b border-slate-100">
           <div className="flex items-center gap-3 min-w-0">
              <div className={`p-2 rounded-xl text-white shrink-0 shadow-md ${isFinalized ? 'bg-emerald-600' : 'bg-slate-900'}`}>
@@ -271,7 +307,17 @@ export const RequestDetailModal: React.FC = () => {
             )}
 
             <div className="flex items-center gap-3">
-                {activeRole === UserRole.SUPERADMIN && <button onClick={() => { if(confirm('¿ELIMINAR ESTE EXPEDIENTE DE FORMA PERMANENTE?')) { deleteRequest(data.id); handleClose(); }}} className="h-11 w-11 flex items-center justify-center text-slate-400 hover:text-red-600 bg-white border border-slate-200 rounded-xl transition-all shadow-sm"><Trash2 size={18}/></button>}
+                {isSuperAdmin && (
+                    <button 
+                        onClick={handleDeleteRequest}
+                        disabled={isDeleting}
+                        className={`h-11 w-11 flex items-center justify-center rounded-xl transition-all shadow-sm group border
+                        ${isDeleting ? 'bg-slate-100 border-slate-200 text-slate-300 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50 bg-white border-slate-200'}`}
+                        title="Eliminar Expediente (SuperAdmin)"
+                    >
+                        {isDeleting ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} className="group-hover:scale-110 transition-transform"/>}
+                    </button>
+                )}
                 <div className="flex-1 flex gap-2">
                     {showReturnButton && !showReturnInput && <button onClick={() => setShowReturnInput(true)} className="flex-1 px-4 h-11 bg-white border border-red-200 text-[9px] font-black text-red-600 rounded-xl uppercase flex items-center justify-center gap-2 hover:bg-red-50 transition-colors"><RotateCcw size={14}/> RETORNAR A CENTRAL</button>}
                     {canDeriveUI && <button onClick={() => handleTransition(Status.DERIVACION)} className="flex-1 h-11 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg flex items-center justify-center gap-2 hover:bg-indigo-700 px-3 transition-all"><UserCheck size={14}/> DERIVAR A UNIDAD</button>}

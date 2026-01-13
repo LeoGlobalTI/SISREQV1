@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { User, RequestCard, Status, Priority, Area, UserRole, ViewMode, TransitionRule, LogEntry } from '../types';
+import { User, RequestCard, Status, Priority, Area, UserRole, ViewMode, TransitionRule, LogEntry, Notification, NotificationType } from '../types';
 import { AREA_HEADS } from '../constants';
 import { db, DbDiagnostic } from '../services/storage';
 
@@ -8,6 +8,7 @@ interface SisreqContextType {
   currentUser: User | null;
   users: User[];
   requests: RequestCard[];
+  notifications: Notification[];
   isAuthenticated: boolean;
   isLoading: boolean;
   initError: string | null;
@@ -34,6 +35,10 @@ interface SisreqContextType {
   addLog: (id: string, message: string) => Promise<void>;
   updateRequestDetails: (id: string, title: string, detail: string) => Promise<void>;
   deleteRequest: (id: string) => Promise<void>;
+  
+  addNotification: (type: NotificationType, title: string, message: string, requestId?: string) => void;
+  markNotificationAsRead: (id: string) => void;
+  clearNotifications: () => void;
   
   canUserTransition: (request: RequestCard, targetStatus: Status) => { allowed: boolean; reason?: string };
   canUserSeeRequest: (request: RequestCard) => boolean;
@@ -68,6 +73,7 @@ const WORKFLOW_MATRIX: TransitionRule[] = [
 export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [requests, setRequests] = useState<RequestCard[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeRole, setActiveRole] = useState<UserRole | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('work');
@@ -103,11 +109,31 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     initializeSystem();
   }, []);
 
+  const addNotification = useCallback((type: NotificationType, title: string, message: string, requestId?: string) => {
+    const newNotif: Notification = {
+      id: genUUID(),
+      type,
+      title,
+      message,
+      timestamp: new Date().toISOString(),
+      isRead: false,
+      requestId
+    };
+    setNotifications(prev => [newNotif, ...prev].slice(0, 50));
+  }, []);
+
+  const markNotificationAsRead = (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+  };
+
+  const clearNotifications = () => setNotifications([]);
+
   const login = (user: User) => {
     setCurrentUser(user);
     setActiveRole(user.role);
     setIsAuthenticated(true);
     setGlobalFilterArea(user.role === UserRole.ADMIN || user.role === UserRole.SUPERADMIN ? 'ALL' : (user.area as Area));
+    addNotification('INFO', 'Sessión Iniciada', `Bienvenido(a), ${user.name}. Modo ${user.role} activo.`);
   };
 
   const logout = () => {
@@ -115,13 +141,16 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setCurrentUser(null);
     setActiveRole(null);
     setSelectedRequestId(null);
+    setNotifications([]);
   };
 
   const switchHybridRole = () => {
     if (!currentUser || currentUser.role !== UserRole.ADMIN || !currentUser.area) return;
     const isNowHead = activeRole === UserRole.ADMIN;
-    setActiveRole(isNowHead ? UserRole.HEAD : UserRole.ADMIN);
+    const newRole = isNowHead ? UserRole.HEAD : UserRole.ADMIN;
+    setActiveRole(newRole);
     setGlobalFilterArea(isNowHead ? (currentUser.area as Area) : 'ALL');
+    addNotification('PROCESS', 'Cambio de Rol', `Perfil alternado a: ${newRole === UserRole.ADMIN ? 'Administrador Central' : 'Jefatura ' + currentUser.area}`);
   };
 
   const createAuditLog = useCallback((message: string): LogEntry => ({
@@ -159,9 +188,6 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const addRequest = async (title: string, detail: string, area: Area, priority: Priority, requester: string) => {
     const now = new Date().toISOString();
-    
-    // Si el usuario está operando en rol de Jefatura (Hybrid Admin en modo Jefe o Jefe Nativo),
-    // el requerimiento se auto-deriva para saltar la Bandeja Central.
     const initialStatus = activeRole === UserRole.HEAD ? Status.DERIVACION : Status.RECIBIDO;
     
     const newReq: RequestCard = {
@@ -173,6 +199,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     await db.saveRequest(newReq);
     setRequests(prev => [newReq, ...prev]);
+    addNotification('SUCCESS', 'Nuevo Expediente', `Se ha registrado el ticket: ${title}`, newReq.id);
   };
 
   const updateStatus = async (id: string, newStatus: Status) => {
@@ -182,6 +209,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const updated = { ...req, status: newStatus, lastUpdated: now, logs: [...req.logs, createAuditLog(`FLUJO: Cambio a ${newStatus}`)] };
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r));
+    addNotification('PROCESS', 'Estado Actualizado', `Expediente #${id.split('-')[1].toUpperCase()} ahora en ${newStatus}`, id);
   };
 
   const returnRequest = async (id: string, reason: string) => {
@@ -191,6 +219,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const updated = { ...req, status: Status.RECIBIDO, isReturned: true, assignedAnalyst: undefined, lastUpdated: now, logs: [...req.logs, createAuditLog(`RETORNO: ${reason}`)] };
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r));
+    addNotification('WARNING', 'Expediente Devuelto', `Un requerimiento ha sido retornado a Central: ${reason}`, id);
   };
 
   const assignAnalyst = async (id: string, name: string) => {
@@ -200,6 +229,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const updated = { ...req, assignedAnalyst: name, status: Status.EJECUCION, lastUpdated: now, logs: [...req.logs, createAuditLog(`ASIGNACIÓN: ${name}`)] };
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r));
+    addNotification('SUCCESS', 'Analista Asignado', `${name} ha sido asignado al requerimiento.`, id);
   };
 
   const addLog = async (id: string, msg: string) => {
@@ -208,6 +238,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const updated = { ...req, lastUpdated: new Date().toISOString(), logs: [...req.logs, createAuditLog(msg)] };
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r));
+    addNotification('INFO', 'Nota Añadida', `Nueva nota técnica en el expediente #${id.split('-')[1].toUpperCase()}`, id);
   };
 
   const updateRequestDetails = async (id: string, title: string, detail: string) => {
@@ -218,27 +249,31 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setRequests(prev => prev.map(r => r.id === id ? updated : r));
   };
 
-  const deleteRequest = async (id: string) => {
+  const deleteRequest = useCallback(async (id: string) => {
     await db.deleteRequest(id);
     setRequests(prev => prev.filter(r => r.id !== id));
-  };
+    addNotification('WARNING', 'Expediente Eliminado', `El registro #${id.split('-')[1].toUpperCase()} fue purgado del sistema.`);
+  }, [addNotification]);
 
   const addUser = async (name: string, email: string, role: UserRole, pass: string, area?: Area) => {
     const newUser: User = { id: genUUID(), name, email, role, area, password: pass, status: 'ACTIVE', joinedAt: new Date().toISOString() };
     await db.saveUser(newUser);
     setUsers(prev => [...prev, newUser]);
+    addNotification('SUCCESS', 'Usuario Creado', `Nuevo colaborador: ${name} (${role})`);
   };
 
   const updateUser = async (u: User) => {
     await db.saveUser(u);
     setUsers(prev => prev.map(o => o.id === u.id ? u : o));
+    addNotification('INFO', 'Usuario Actualizado', `Perfil de ${u.name} modificado.`);
   };
 
   return (
     <SisreqContext.Provider value={{
-      currentUser, users, requests, isAuthenticated, isLoading, initError, dbDiagnostic, activeRole, viewMode, globalFilterArea, selectedRequestId,
+      currentUser, users, requests, notifications, isAuthenticated, isLoading, initError, dbDiagnostic, activeRole, viewMode, globalFilterArea, selectedRequestId,
       login, logout, setActiveRole, switchHybridRole, setViewMode, addUser, updateUser,
       setSelectedRequestId, setGlobalFilterArea, addRequest, updateStatus, returnRequest, assignAnalyst, addLog, updateRequestDetails, deleteRequest,
+      addNotification, markNotificationAsRead, clearNotifications,
       canUserTransition, canUserSeeRequest, isActionable
     }}>
       {children}

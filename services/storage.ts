@@ -25,23 +25,19 @@ class DatabaseService {
 
     public async init(): Promise<DbDiagnostic> {
         try {
-            // Validar tabla de usuarios
             const { error: userError } = await this.supabase
                 .from(STORE_USERS)
                 .select('*', { count: 'exact', head: true });
 
             if (userError) return this.diagnoseError(userError, STORE_USERS);
 
-            // Validar tabla de requerimientos
             const { error: reqError } = await this.supabase
                 .from(STORE_REQUESTS)
                 .select('*', { count: 'exact', head: true });
 
             if (reqError) return this.diagnoseError(reqError, STORE_REQUESTS);
 
-            // Intentar sembrado silencioso si están vacías
             await this.seedData();
-
             return { status: 'READY', message: 'Conexión exitosa' };
         } catch (error: any) {
             return { status: 'ERROR', message: error.message || 'Fallo de red', errorDetails: error };
@@ -121,8 +117,18 @@ ALTER TABLE public.requests DISABLE ROW LEVEL SECURITY;`;
     }
 
     public async deleteRequest(id: string): Promise<void> {
-        const { error } = await this.supabase.from(STORE_REQUESTS).delete().eq('id', id);
-        if (error) throw error;
+        console.log(`DB_DELETE_START: Intentando eliminar ${id}`);
+        const { error, status } = await this.supabase
+            .from(STORE_REQUESTS)
+            .delete()
+            .eq('id', id);
+        
+        if (error) {
+            console.error("DB_DELETE_ERROR:", error);
+            throw new Error(error.message || `Error ${status} al eliminar en base de datos.`);
+        }
+        
+        console.log(`DB_DELETE_SUCCESS: ID ${id} eliminado correctamente.`);
     }
 
     public async getUsers(): Promise<User[]> {
