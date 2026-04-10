@@ -79,11 +79,11 @@ export interface RequestCard {
   status: Status;
   priority: Priority;
   responsibleHead: string; 
-  assignedAnalyst?: string; 
+  assignedAnalyst?: string | null; 
   logs: LogEntry[];
   createdAt: string;
   lastUpdated: string;
-  finishedAt?: string;
+  finishedAt?: string | null;
   isReturned?: boolean; 
   // Auditoría de Eliminación
   isDeleted?: boolean;

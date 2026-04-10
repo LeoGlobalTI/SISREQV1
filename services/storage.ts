@@ -1,6 +1,6 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { RequestCard, User } from '../types';
+import { RequestCard, User, Status } from '../types';
 import { INITIAL_USERS, INITIAL_REQUESTS } from '../constants';
 
 const SUPABASE_URL = 'https://giwyowsqmgwsaliiduqi.supabase.co';
@@ -143,7 +143,7 @@ CREATE POLICY "Public Write" ON public.users FOR ALL USING (true);`;
                 isDeleted: true, 
                 deletedAt: new Date().toISOString(),
                 deletedBy: deletedBy,
-                status: 'ARCHIVADO'
+                status: Status.FINALIZADO
             })
             .eq('id', id);
         
@@ -176,6 +176,20 @@ CREATE POLICY "Public Write" ON public.users FOR ALL USING (true);`;
     public async saveUser(user: User): Promise<void> {
         const { error } = await this.supabase.from(STORE_USERS).upsert(user);
         if (error) throw new Error(`DB_USER_UPDATE_ERROR: ${error.message}`);
+    }
+
+    public async getRequestById(id: string): Promise<RequestCard | null> {
+        const { data, error } = await this.supabase.from(STORE_REQUESTS).select('*').eq('id', id).single();
+        return error ? null : data as RequestCard;
+    }
+
+    public subscribeToRequests(callback: () => void) {
+        const channel = this.supabase.channel('public:requests')
+            .on('postgres_changes', { event: '*', schema: 'public', table: STORE_REQUESTS }, () => {
+                callback();
+            })
+            .subscribe();
+        return () => { this.supabase.removeChannel(channel); };
     }
 }
 

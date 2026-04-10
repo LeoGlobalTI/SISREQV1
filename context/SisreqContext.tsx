@@ -128,6 +128,26 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     initializeSystem();
   }, [loadData]);
 
+  useEffect(() => {
+    if (dbDiagnostic?.status !== 'READY') return;
+    
+    // Sincronización en tiempo real vía Supabase
+    const unsubscribe = db.subscribeToRequests(() => {
+        loadData();
+    });
+
+    // Fallback de Polling (cada 10 segundos) para garantizar la operatividad de múltiples usuarios
+    // en caso de que la tabla no tenga habilitado 'replica identity full' en la BD remota.
+    const interval = setInterval(() => {
+        loadData();
+    }, 10000);
+
+    return () => {
+        unsubscribe();
+        clearInterval(interval);
+    };
+  }, [dbDiagnostic, loadData]);
+
   const updateNotificationSettings = useCallback((newSettings: Partial<NotificationSettings>) => {
     setNotificationSettings(prev => {
         const updated = { ...prev, ...newSettings };
@@ -259,16 +279,20 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const updateStatus = async (id: string, newStatus: Status) => {
-    const req = requests.find(r => r.id === id);
-    if (!req) return;
+    const localReq = requests.find(r => r.id === id);
+    if (!localReq) return;
+    const req = await db.getRequestById(id) || localReq;
+    
     const check = canUserTransition(req, newStatus);
     if (!check.allowed) throw new Error(check.reason);
     
     const now = new Date().toISOString();
-    const finishedAt = newStatus === Status.FINALIZADO ? now : req.finishedAt;
+    const finishedAt = newStatus === Status.FINALIZADO ? now : (req.status === Status.FINALIZADO ? null : req.finishedAt);
+    const isReturned = newStatus !== Status.RECIBIDO ? false : req.isReturned;
     const updated = { 
         ...req, 
         status: newStatus, 
+        isReturned,
         lastUpdated: now, 
         finishedAt: finishedAt, 
         logs: [...req.logs, createAuditLog(`TRANSICIÓN: Cambio de fase operativa a ${newStatus}`)] 
@@ -279,8 +303,10 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const returnRequest = async (id: string, reason: string) => {
-    const req = requests.find(r => r.id === id);
-    if (!req) return;
+    const localReq = requests.find(r => r.id === id);
+    if (!localReq) return;
+    const req = await db.getRequestById(id) || localReq;
+    
     const check = canUserTransition(req, Status.RECIBIDO);
     if (!check.allowed) throw new Error(check.reason);
     
@@ -289,9 +315,9 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         ...req, 
         status: Status.RECIBIDO, 
         isReturned: true, 
-        assignedAnalyst: undefined, 
+        assignedAnalyst: null, 
         lastUpdated: now, 
-        finishedAt: undefined, 
+        finishedAt: null, 
         logs: [...req.logs, createAuditLog(`DEVOLUCIÓN: Retornado a Central. Motivo: ${reason}`)] 
     };
     await db.saveRequest(updated);
@@ -300,12 +326,16 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const assignAnalyst = async (id: string, name: string) => {
-    const req = requests.find(r => r.id === id);
-    if (!req) return;
+    if (activeRole !== UserRole.HEAD && activeRole !== UserRole.ADMIN && activeRole !== UserRole.SUPERADMIN) {
+        throw new Error("Privilegios insuficientes para asignar personal.");
+    }
+    const localReq = requests.find(r => r.id === id);
+    if (!localReq) return;
+    const req = await db.getRequestById(id) || localReq;
     
     // Bloqueo de asignación si no está en la fase correcta
     if (req.status !== Status.DERIVACION && req.status !== Status.EJECUCION) 
-        throw new Error("Acción denegada: El expediente debe estar en fase de DERIVACIÓN.");
+        throw new Error("Acción denegada: El expediente debe estar en fase de DERIVACIÓN o EJECUCIÓN.");
         
     const now = new Date().toISOString();
     const updated = { 
@@ -321,8 +351,13 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const addLog = async (id: string, msg: string) => {
-    const req = requests.find(r => r.id === id);
-    if (!req || req.isDeleted) return;
+    const localReq = requests.find(r => r.id === id);
+    if (!localReq || localReq.isDeleted) return;
+    const req = await db.getRequestById(id) || localReq;
+    
+    if (!canUserSeeRequest(req)) {
+        throw new Error("No tiene jurisdicción para comentar en este expediente.");
+    }
     
     // Auditoría: Bloqueo de comentarios en tickets finalizados (solo lectura)
     if (req.status === Status.FINALIZADO && activeRole !== UserRole.SUPERADMIN)
@@ -334,8 +369,9 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const updateRequestDetails = async (id: string, title: string, detail: string) => {
-    const req = requests.find(r => r.id === id);
-    if (!req || req.isDeleted) return;
+    const localReq = requests.find(r => r.id === id);
+    if (!localReq || localReq.isDeleted) return;
+    const req = await db.getRequestById(id) || localReq;
     
     if (activeRole !== UserRole.ADMIN && activeRole !== UserRole.SUPERADMIN) 
         throw new Error("Privilegios insuficientes para editar metadatos.");
@@ -374,6 +410,9 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [addNotification, currentUser, createAuditLog, activeRole]);
 
   const addUser = async (name: string, email: string, role: UserRole, pass: string, area?: Area) => {
+    if ((role === UserRole.HEAD || role === UserRole.ANALYST) && !area) {
+        throw new Error("El área es obligatoria para Jefaturas y Analistas.");
+    }
     const newUser: User = { id: genUUID(), name, email, role, area, password: pass, status: 'ACTIVE', joinedAt: new Date().toISOString() };
     await db.saveUser(newUser);
     await loadData();
