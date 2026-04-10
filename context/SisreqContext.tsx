@@ -86,8 +86,13 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [requests, setRequests] = useState<RequestCard[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(() => {
-    const saved = localStorage.getItem('sisreq_notification_settings');
-    return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+    try {
+        const saved = localStorage.getItem('sisreq_notification_settings');
+        return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+    } catch (e) {
+        console.warn("localStorage no está disponible (modo incógnito/privado). Usando configuración por defecto.");
+        return DEFAULT_SETTINGS;
+    }
   });
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeRole, setActiveRole] = useState<UserRole | null>(null);
@@ -151,7 +156,11 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const updateNotificationSettings = useCallback((newSettings: Partial<NotificationSettings>) => {
     setNotificationSettings(prev => {
         const updated = { ...prev, ...newSettings };
-        localStorage.setItem('sisreq_notification_settings', JSON.stringify(updated));
+        try {
+            localStorage.setItem('sisreq_notification_settings', JSON.stringify(updated));
+        } catch (e) {
+            console.warn("No se pudo guardar la configuración en localStorage.");
+        }
         return updated;
     });
   }, []);
