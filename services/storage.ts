@@ -183,10 +183,10 @@ CREATE POLICY "Public Write" ON public.users FOR ALL USING (true);`;
         return error ? null : data as RequestCard;
     }
 
-    public subscribeToRequests(callback: () => void) {
+    public subscribeToRequests(callback: (payload: any) => void) {
         const channel = this.supabase.channel('public:requests')
-            .on('postgres_changes', { event: '*', schema: 'public', table: STORE_REQUESTS }, () => {
-                callback();
+            .on('postgres_changes', { event: '*', schema: 'public', table: STORE_REQUESTS }, (payload) => {
+                callback(payload);
             })
             .subscribe();
         return () => { this.supabase.removeChannel(channel); };

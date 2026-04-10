@@ -136,16 +136,24 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     if (dbDiagnostic?.status !== 'READY') return;
     
-    // Sincronización en tiempo real vía Supabase
-    const unsubscribe = db.subscribeToRequests(() => {
-        loadData();
+    // Sincronización en tiempo real vía Supabase (Actualización Incremental O(1))
+    const unsubscribe = db.subscribeToRequests((payload) => {
+        if (payload.eventType === 'INSERT') {
+            setRequests(prev => {
+                if (prev.find(r => r.id === payload.new.id)) return prev;
+                return [...prev, payload.new as RequestCard];
+            });
+        } else if (payload.eventType === 'UPDATE') {
+            setRequests(prev => prev.map(r => r.id === payload.new.id ? payload.new as RequestCard : r));
+        } else if (payload.eventType === 'DELETE') {
+            setRequests(prev => prev.filter(r => r.id !== payload.old.id));
+        }
     });
 
-    // Fallback de Polling (cada 10 segundos) para garantizar la operatividad de múltiples usuarios
-    // en caso de que la tabla no tenga habilitado 'replica identity full' en la BD remota.
+    // Fallback de Polling (reducido a cada 60 segundos para no saturar la red)
     const interval = setInterval(() => {
         loadData();
-    }, 10000);
+    }, 60000);
 
     return () => {
         unsubscribe();
