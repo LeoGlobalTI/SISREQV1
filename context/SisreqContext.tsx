@@ -94,14 +94,47 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return DEFAULT_SETTINGS;
     }
   });
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [activeRole, setActiveRole] = useState<UserRole | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    try {
+        const saved = localStorage.getItem('sisreq_session_user');
+        return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+        return null;
+    }
+  });
+  const [activeRole, setActiveRole] = useState<UserRole | null>(() => {
+    try {
+        const saved = localStorage.getItem('sisreq_session_role');
+        return saved ? JSON.parse(saved) as UserRole : null;
+    } catch (e) {
+        return null;
+    }
+  });
   const [viewMode, setViewMode] = useState<ViewMode>('work');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    try {
+        return localStorage.getItem('sisreq_session_user') !== null;
+    } catch (e) {
+        return false;
+    }
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
   const [dbDiagnostic, setDbDiagnostic] = useState<DbDiagnostic | null>(null);
-  const [globalFilterArea, setGlobalFilterArea] = useState<Area | 'ALL'>('ALL');
+  const [globalFilterArea, setGlobalFilterArea] = useState<Area | 'ALL'>(() => {
+    try {
+        const savedUser = localStorage.getItem('sisreq_session_user');
+        if (savedUser) {
+            const user = JSON.parse(savedUser) as User;
+            const savedRole = localStorage.getItem('sisreq_session_role');
+            const role = savedRole ? JSON.parse(savedRole) as UserRole : user.role;
+            return role === UserRole.ADMIN || role === UserRole.SUPERADMIN ? 'ALL' : (user.area as Area);
+        }
+        return 'ALL';
+    } catch (e) {
+        return 'ALL';
+    }
+  });
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -207,6 +240,15 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             setCurrentUser(user);
             setActiveRole(user.role);
             setIsAuthenticated(true);
+            
+            // Persistencia de sesión
+            try {
+                localStorage.setItem('sisreq_session_user', JSON.stringify(user));
+                localStorage.setItem('sisreq_session_role', JSON.stringify(user.role));
+            } catch (e) {
+                console.warn("No se pudo persistir la sesión en localStorage.");
+            }
+
             setGlobalFilterArea(user.role === UserRole.ADMIN || user.role === UserRole.SUPERADMIN ? 'ALL' : (user.area as Area));
             addNotification('INFO', 'Acceso Concedido', `Bienvenido(a), ${user.name}. Modo ${user.role} activo.`);
             return true;
@@ -224,6 +266,14 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setActiveRole(null);
     setSelectedRequestId(null);
     setNotifications([]);
+    
+    // Limpieza de sesión
+    try {
+        localStorage.removeItem('sisreq_session_user');
+        localStorage.removeItem('sisreq_session_role');
+    } catch (e) {
+        console.warn("No se pudo limpiar la sesión de localStorage.");
+    }
   };
 
   const switchHybridRole = () => {

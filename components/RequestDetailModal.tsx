@@ -262,9 +262,9 @@ export const RequestDetailModal: React.FC = () => {
                             <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-slate-200 shadow-2xl rounded-2xl p-2 z-[70] animate-in slide-in-from-top-2">
                                 <div className="px-3 py-1.5 text-[8px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-1">Personal del Área {data.area}</div>
                                 <div className="max-h-48 overflow-y-auto custom-scrollbar">
-                                    {availableAssignees.length > 0 ? availableAssignees.map(u => (
+                                    {availableAssignees.length > 0 ? availableAssignees.map((u, idx) => (
                                         <button 
-                                            key={u.id} 
+                                            key={u.id || `assignee-${idx}`} 
                                             onClick={() => handleAssignAnalyst(u.name)} 
                                             className="w-full text-left px-3 py-2.5 hover:bg-indigo-50 rounded-xl transition-colors group/item"
                                         >
@@ -296,10 +296,10 @@ export const RequestDetailModal: React.FC = () => {
                 )}
 
                 <div className="space-y-3 pl-4 border-l-2 border-slate-100 ml-2 max-h-80 overflow-y-auto custom-scrollbar pt-2">
-                    {allLogs.length > 0 ? allLogs.map(log => {
+                    {allLogs.length > 0 ? allLogs.map((log, idx) => {
                         const style = getLogStyle(log.message);
                         return (
-                            <div key={log.id} className="relative py-1">
+                            <div key={log.id || `log-${idx}`} className="relative py-1">
                                 <div className={`absolute -left-[22px] top-3.5 w-3 h-3 rounded-full bg-white border-2 flex items-center justify-center text-[5px] font-black ${style.border} ${style.text}`}>
                                     {style.icon}
                                 </div>
