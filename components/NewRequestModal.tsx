@@ -15,18 +15,18 @@ interface Props {
 }
 
 const AREA_CONFIG = {
-  [Area.CONTABILIDAD]: { icon: <Calculator size={16} />, color: 'indigo', desc: 'Balances y Facturas' },
-  [Area.RRHH]: { icon: <Users size={16} />, color: 'emerald', desc: 'Personal y Beneficios' },
-  [Area.ACREDITACION]: { icon: <FileCheck size={16} />, color: 'blue', desc: 'Certificaciones' },
-  [Area.FINANZAS]: { icon: <BadgeDollarSign size={16} />, color: 'amber', desc: 'Presupuestos y Flujos' },
+  ['Contabilidad']: { icon: <Calculator size={16} />, color: 'indigo', desc: 'Balances y Facturas' },
+  ['RRHH']: { icon: <Users size={16} />, color: 'emerald', desc: 'Personal y Beneficios' },
+  ['Acreditación']: { icon: <FileCheck size={16} />, color: 'blue', desc: 'Certificaciones' },
+  ['Finanzas']: { icon: <BadgeDollarSign size={16} />, color: 'amber', desc: 'Presupuestos y Flujos' },
 };
 
 export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
-  const { addRequest, currentUser, activeRole } = useSisreq();
+  const { addRequest, currentUser, activeRole, organizationAreas } = useSisreq();
   const [title, setTitle] = useState('');
   const [detail, setDetail] = useState('');
   const [requester, setRequester] = useState('');
-  const [area, setArea] = useState<Area>(Area.CONTABILIDAD);
+  const [area, setArea] = useState<Area>('Contabilidad');
   const [priority, setPriority] = useState<Priority>(Priority.MEDIUM);
 
   // Efecto para auto-seleccionar el área si el usuario es Jefatura
@@ -137,8 +137,8 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
                         <Building size={12} className="text-indigo-500" /> Área Gestión
                     </label>
                     <div className="grid grid-cols-1 gap-1.5">
-                        {(Object.values(Area)).map((a) => {
-                            const config = AREA_CONFIG[a];
+                        {organizationAreas.map((a) => {
+                            const config = (AREA_CONFIG as any)[a] || { icon: <Building size={16} />, color: 'slate', desc: 'Área Organizacional' };
                             const isSelected = area === a;
                             const isDisabled = isHeadSelection && currentUser?.area !== a;
                             

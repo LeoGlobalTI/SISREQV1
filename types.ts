@@ -6,11 +6,13 @@ export enum UserRole {
   ANALYST = 'ANALYST'       // Cuerpo Técnico: Ejecución y Resolución
 }
 
-export enum Area {
-  CONTABILIDAD = 'Contabilidad',
-  RRHH = 'RRHH',
-  ACREDITACION = 'Acreditación',
-  FINANZAS = 'Finanzas'
+export type Area = string;
+
+export interface AreaInfo {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt?: string;
 }
 
 export enum Status {

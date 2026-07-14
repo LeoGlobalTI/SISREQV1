@@ -29,15 +29,15 @@ interface Props {
 }
 
 const AREA_CONFIG = {
-  [Area.CONTABILIDAD]: { icon: <Calculator size={16} />, desc: 'Balances y Facturas' },
-  [Area.RRHH]: { icon: <Users size={16} />, desc: 'Personal y Beneficios' },
-  [Area.ACREDITACION]: { icon: <FileCheck size={16} />, desc: 'Certificaciones' },
-  [Area.FINANZAS]: { icon: <BadgeDollarSign size={16} />, desc: 'Presupuestos y Flujos' },
+  ['Contabilidad']: { icon: <Calculator size={16} />, desc: 'Balances y Facturas' },
+  ['RRHH']: { icon: <Users size={16} />, desc: 'Personal y Beneficios' },
+  ['Acreditación']: { icon: <FileCheck size={16} />, desc: 'Certificaciones' },
+  ['Finanzas']: { icon: <BadgeDollarSign size={16} />, desc: 'Presupuestos y Flujos' },
   'NONE': { icon: <Globe size={16} />, desc: 'Acceso Central / Auditoría' }
 };
 
 export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) => {
-  const { addUser, updateUser } = useSisreq();
+  const { addUser, updateUser, organizationAreas } = useSisreq();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<UserRole>(UserRole.ANALYST);
@@ -58,7 +58,7 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
             setName('');
             setEmail('');
             setRole(UserRole.ANALYST);
-            setArea(Area.CONTABILIDAD);
+            setArea('Contabilidad');
             setStatus('ACTIVE');
             setPassword('');
         }
@@ -72,7 +72,7 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
     if (newRole === UserRole.SUPERADMIN) {
         setArea('NONE');
     } else if (isAreaMandatory && area === 'NONE') {
-        setArea(Area.CONTABILIDAD);
+        setArea('Contabilidad');
     }
   };
 
@@ -216,8 +216,8 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
                             </div>
                         </button>
                     )}
-                    {Object.values(Area).map((a) => {
-                        const config = AREA_CONFIG[a];
+                    {organizationAreas.map((a) => {
+                        const config = (AREA_CONFIG as any)[a] || { icon: <Building size={16} />, desc: 'Área Organizacional' };
                         const isSelected = area === a;
                         return (
                             <button

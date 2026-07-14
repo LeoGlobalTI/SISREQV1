@@ -49,7 +49,8 @@ export const Board: React.FC = () => {
     setGlobalFilterArea, 
     activeRole, 
     canUserSeeRequest, 
-    setSelectedRequestId 
+    setSelectedRequestId,
+    organizationAreas
   } = useSisreq();
   
   const [dragOverColumn, setDragOverColumn] = useState<Status | null>(null);
@@ -340,7 +341,7 @@ export const Board: React.FC = () => {
                         className="pl-12 pr-10 h-[48px] text-[10px] font-black bg-slate-50 border border-slate-200 rounded-2xl appearance-none cursor-pointer outline-none focus:border-indigo-600 transition-all uppercase tracking-widest text-slate-700 shadow-inner"
                     >
                         <option value="ALL">JURISDICCIÓN GLOBAL</option>
-                        {Object.values(Area).map(a => <option key={a} value={a}>{a.toUpperCase()}</option>)}
+                        {organizationAreas.map(a => <option key={a} value={a}>{a.toUpperCase()}</option>)}
                     </select>
                     <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
                 </div>

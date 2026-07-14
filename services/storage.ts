@@ -178,6 +178,12 @@ CREATE POLICY "Public Write" ON public.users FOR ALL USING (true);`;
         if (error) throw new Error(`DB_USER_UPDATE_ERROR: ${error.message}`);
     }
 
+    public async deleteUser(id: string): Promise<void> {
+        const { error, data } = await this.supabase.from(STORE_USERS).delete().eq('id', id).select();
+        console.log("Supabase deleteUser result:", error, data);
+        if (error) throw new Error(`DB_USER_DELETE_ERROR: ${error.message}`);
+    }
+
     public async getRequestById(id: string): Promise<RequestCard | null> {
         const { data, error } = await this.supabase.from(STORE_REQUESTS).select('*').eq('id', id).single();
         return error ? null : data as RequestCard;

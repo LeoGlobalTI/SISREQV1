@@ -18,6 +18,7 @@ interface SisreqContextType {
   viewMode: ViewMode;
   globalFilterArea: Area | 'ALL';
   selectedRequestId: string | null;
+  organizationAreas: string[];
   
   login: (email: string, pass: string) => Promise<boolean>;
   logout: () => void;
@@ -26,6 +27,11 @@ interface SisreqContextType {
   setViewMode: (mode: ViewMode) => void;
   addUser: (name: string, email: string, role: UserRole, password: string, area?: Area) => Promise<void>;
   updateUser: (updatedUser: User) => Promise<void>;
+  deleteUser: (id: string) => Promise<void>;
+  
+  addOrganizationArea: (areaName: string) => void;
+  updateOrganizationArea: (oldName: string, newName: string) => void;
+  deleteOrganizationArea: (areaName: string) => void;
   
   setSelectedRequestId: (id: string | null) => void;
   setGlobalFilterArea: (area: Area | 'ALL') => void;
@@ -136,6 +142,41 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   });
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  
+  const [organizationAreas, setOrganizationAreas] = useState<string[]>(() => {
+    try {
+        const saved = localStorage.getItem('sisreq_organization_areas');
+        return saved ? JSON.parse(saved) : ['Contabilidad', 'RRHH', 'Acreditación', 'Finanzas'];
+    } catch (e) {
+        return ['Contabilidad', 'RRHH', 'Acreditación', 'Finanzas'];
+    }
+  });
+
+  const saveAreas = (newAreas: string[]) => {
+      setOrganizationAreas(newAreas);
+      try {
+          localStorage.setItem('sisreq_organization_areas', JSON.stringify(newAreas));
+      } catch (e) {
+          console.warn("No se pudieron guardar las áreas.");
+      }
+  };
+
+  const addOrganizationArea = (areaName: string) => {
+      if (!organizationAreas.includes(areaName)) {
+          saveAreas([...organizationAreas, areaName]);
+          addNotification('SUCCESS', 'Área Creada', `El área ${areaName} fue registrada en la organización.`);
+      }
+  };
+
+  const updateOrganizationArea = (oldName: string, newName: string) => {
+      saveAreas(organizationAreas.map(a => a === oldName ? newName : a));
+      addNotification('INFO', 'Área Actualizada', `El área ${oldName} ahora es ${newName}.`);
+  };
+
+  const deleteOrganizationArea = (areaName: string) => {
+      saveAreas(organizationAreas.filter(a => a !== areaName));
+      addNotification('WARNING', 'Área Eliminada', `El área ${areaName} fue eliminada de la organización.`);
+  };
 
   const loadData = useCallback(async () => {
       const [loadedUsers, loadedRequests] = await Promise.all([
@@ -492,10 +533,27 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     addNotification('INFO', 'Perfil Actualizado', `Usuario ${u.name} modificado.`);
   };
 
+  const deleteUser = async (id: string) => {
+    if (activeRole !== UserRole.SUPERADMIN) {
+        throw new Error("Solo el Administrador Maestro puede eliminar usuarios.");
+    }
+    if (id === currentUser?.id) {
+        throw new Error("Acción denegada: No puede eliminar su propia cuenta estando en sesión.");
+    }
+    try {
+        await db.deleteUser(id);
+        await loadData();
+        addNotification('WARNING', 'Usuario Eliminado', `El usuario ha sido eliminado del sistema.`);
+    } catch (e: any) {
+        throw e;
+    }
+  };
+
   return (
     <SisreqContext.Provider value={{
-      currentUser, users, requests, notifications, notificationSettings, isAuthenticated, isLoading, initError, dbDiagnostic, activeRole, viewMode, globalFilterArea, selectedRequestId,
-      login, logout, setActiveRole, switchHybridRole, setViewMode, addUser, updateUser,
+      currentUser, users, requests, notifications, notificationSettings, isAuthenticated, isLoading, initError, dbDiagnostic, activeRole, viewMode, globalFilterArea, selectedRequestId, organizationAreas,
+      login, logout, setActiveRole, switchHybridRole, setViewMode, addUser, updateUser, deleteUser,
+      addOrganizationArea, updateOrganizationArea, deleteOrganizationArea,
       setSelectedRequestId, setGlobalFilterArea, addRequest, updateStatus, returnRequest, assignAnalyst, addLog, updateRequestDetails, deleteRequest,
       addNotification, updateNotificationSettings, markNotificationAsRead, clearNotifications,
       canUserTransition, canUserSeeRequest, isActionable

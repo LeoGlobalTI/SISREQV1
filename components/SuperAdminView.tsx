@@ -4,9 +4,10 @@ import { ReportsView } from './ReportsView';
 import { UsersView } from './UsersView';
 import { QAView } from './QAView';
 import { DocumentationView } from './DocumentationView';
-import { BarChart3, Users, ShieldCheck, TerminalSquare, BookOpen } from 'lucide-react';
+import { AreasView } from './AreasView';
+import { BarChart3, Users, ShieldCheck, TerminalSquare, BookOpen, Building } from 'lucide-react';
 
-type Tab = 'reports' | 'users' | 'qa' | 'docs';
+type Tab = 'reports' | 'users' | 'qa' | 'docs' | 'areas';
 
 export const SuperAdminView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('reports');
@@ -42,6 +43,16 @@ export const SuperAdminView: React.FC = () => {
                         }`}
                     >
                         <BarChart3 size={16} strokeWidth={2.5}/> Reportes
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('areas')}
+                        className={`flex items-center gap-2.5 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                            activeTab === 'areas'
+                            ? 'bg-white text-indigo-600 shadow-lg ring-1 ring-black/5'
+                            : 'text-slate-400 hover:text-slate-600'
+                        }`}
+                    >
+                        <Building size={16} strokeWidth={2.5}/> Unidades
                     </button>
                     <button
                         onClick={() => setActiveTab('users')}
@@ -80,6 +91,7 @@ export const SuperAdminView: React.FC = () => {
         {/* Content Area */}
         <div className="flex-1 overflow-hidden flex flex-col">
             {activeTab === 'reports' && <ReportsView />}
+            {activeTab === 'areas' && <AreasView />}
             {activeTab === 'users' && <UsersView />}
             {activeTab === 'qa' && <QAView />}
             {activeTab === 'docs' && <DocumentationView />}

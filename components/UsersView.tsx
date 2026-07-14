@@ -2,13 +2,32 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useSisreq } from '../context/SisreqContext';
 import { User, UserRole, UserStatus } from '../types';
-import { User as UserIcon, Edit2, Activity, UserPlus, Calendar, Shield, Briefcase, Mail, Power, ShieldCheck, Database, Key, Hash, MapPin, ShieldAlert } from 'lucide-react';
+import { User as UserIcon, Edit2, Trash2, Activity, UserPlus, Calendar, Shield, Briefcase, Mail, Power, ShieldCheck, Database, Key, Hash, MapPin, ShieldAlert } from 'lucide-react';
 import { NewUserModal } from './NewUserModal';
 
 export const UsersView: React.FC = () => {
-  const { users } = useSisreq();
+  const { users, deleteUser, currentUser, addNotification } = useSisreq();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+
+  const handleDeleteUser = async (user: User) => {
+      if (user.id === currentUser?.id) {
+          addNotification('WARNING', 'Acción denegada', 'No puede eliminar su propia cuenta estando en sesión.');
+          return;
+      }
+      setUserToDelete(user);
+  };
+
+  const confirmDelete = async () => {
+      if (!userToDelete) return;
+      try {
+          await deleteUser(userToDelete.id);
+          setUserToDelete(null);
+      } catch (e: any) {
+          addNotification('WARNING', 'Error', e.message);
+      }
+  };
 
   // Resizable Columns State
   const [colWidths, setColWidths] = useState<number[]>([250, 180, 180, 120, 120, 100, 80]);
@@ -239,12 +258,20 @@ export const UsersView: React.FC = () => {
                         </div>
 
                         {/* Acciones */}
-                        <div className="flex justify-end">
+                        <div className="flex justify-end gap-1">
                             <button 
                                 onClick={() => handleEditClick(user)} 
+                                title="Editar"
                                 className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all border border-transparent hover:border-indigo-100 bg-white" 
                             >
                                 <Edit2 size={14} strokeWidth={2.5}/>
+                            </button>
+                            <button 
+                                onClick={() => handleDeleteUser(user)} 
+                                title="Eliminar"
+                                className="p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all border border-transparent hover:border-red-100 bg-white" 
+                            >
+                                <Trash2 size={14} strokeWidth={2.5}/>
                             </button>
                         </div>
 
@@ -267,6 +294,36 @@ export const UsersView: React.FC = () => {
             onClose={() => setIsModalOpen(false)} 
             userToEdit={selectedUser}
         />
+
+        {userToDelete && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/20 backdrop-blur-sm">
+                <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full animate-in fade-in zoom-in duration-200">
+                    <div className="flex items-center gap-4 text-red-600 mb-4">
+                        <div className="p-3 bg-red-50 rounded-xl">
+                            <ShieldAlert size={24} />
+                        </div>
+                        <h3 className="text-lg font-black uppercase tracking-tight">Confirmar Eliminación</h3>
+                    </div>
+                    <p className="text-slate-600 text-sm mb-6">
+                        ¿Está seguro que desea eliminar al usuario <strong className="text-slate-900">{userToDelete.name}</strong>? Esta acción no se puede deshacer y el usuario perderá acceso al sistema.
+                    </p>
+                    <div className="flex justify-end gap-3">
+                        <button 
+                            onClick={() => setUserToDelete(null)}
+                            className="px-5 py-2.5 rounded-xl font-bold text-sm text-slate-500 hover:bg-slate-100 transition-colors"
+                        >
+                            Cancelar
+                        </button>
+                        <button 
+                            onClick={confirmDelete}
+                            className="px-5 py-2.5 rounded-xl font-bold text-sm bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-200 transition-all active:scale-95"
+                        >
+                            Sí, Eliminar Usuario
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
     </div>
   );
 };
