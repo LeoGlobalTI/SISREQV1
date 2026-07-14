@@ -10,9 +10,11 @@ import {
 } from 'lucide-react';
 
 export const QAView: React.FC = () => {
-  const { requests, users, setSelectedRequestId } = useSisreq();
+  const { requests, users, setSelectedRequestId, hardDeleteAllRequests } = useSisreq();
 
   const deletedRequests = useMemo(() => requests.filter(r => r.isDeleted), [requests]);
+
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
   // Resizable Columns State
   const [monColWidths, setMonColWidths] = useState<number[]>([100, 120, 450, 120, 100]);
@@ -178,12 +180,17 @@ export const QAView: React.FC = () => {
                 </div>
             </div>
 
-            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-center items-center text-center group hover:border-indigo-100 transition-all">
-                <div className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl mb-4 group-hover:scale-105 transition-transform shadow-sm">
-                    <Lock size={24} strokeWidth={2.5}/>
+            <div className="bg-red-50 p-8 rounded-3xl border border-red-200 shadow-sm flex flex-col justify-center items-center text-center transition-all">
+                <div className="p-4 bg-red-100 text-red-600 rounded-2xl mb-4 shadow-sm">
+                    <AlertTriangle size={24} strokeWidth={2.5}/>
                 </div>
-                <p className="text-2xl font-black text-slate-900 tracking-tighter">ANTI-TAMPER</p>
-                <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">SLA PROTEGIDO</p>
+                <p className="text-xl font-black text-slate-900 tracking-tighter">RESTABLECER BD</p>
+                <button 
+                    onClick={() => setIsResetConfirmOpen(true)}
+                    className="mt-3 px-4 py-2 bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-red-700 transition-all shadow-md shadow-red-200 active:scale-95"
+                >
+                    Purgar Requerimientos
+                </button>
             </div>
         </div>
 
@@ -332,6 +339,43 @@ export const QAView: React.FC = () => {
                 </div>
             </div>
         </div>
+
+        {isResetConfirmOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/20 backdrop-blur-sm">
+                <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full animate-in fade-in zoom-in duration-200">
+                    <div className="flex items-center gap-4 text-red-600 mb-4">
+                        <div className="p-3 bg-red-50 rounded-xl">
+                            <AlertTriangle size={24} />
+                        </div>
+                        <h3 className="text-lg font-black uppercase tracking-tight">Confirmar Purgado Total</h3>
+                    </div>
+                    <p className="text-slate-600 text-sm mb-6">
+                        ¿Está seguro que desea eliminar <strong className="text-slate-900">todos los requerimientos</strong> de la base de datos? Esta acción es irreversible y eliminará el historial por completo.
+                    </p>
+                    <div className="flex justify-end gap-3">
+                        <button 
+                            onClick={() => setIsResetConfirmOpen(false)}
+                            className="px-5 py-2.5 rounded-xl font-bold text-sm text-slate-500 hover:bg-slate-100 transition-colors"
+                        >
+                            Cancelar
+                        </button>
+                        <button 
+                            onClick={async () => {
+                                try {
+                                    await hardDeleteAllRequests();
+                                    setIsResetConfirmOpen(false);
+                                } catch (e: any) {
+                                    alert(e.message);
+                                }
+                            }}
+                            className="px-5 py-2.5 rounded-xl font-bold text-sm bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-200 transition-all active:scale-95"
+                        >
+                            Sí, Purgar Base de Datos
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
     </div>
   );
 };

@@ -42,6 +42,7 @@ interface SisreqContextType {
   addLog: (id: string, message: string) => Promise<void>;
   updateRequestDetails: (id: string, title: string, detail: string) => Promise<void>;
   deleteRequest: (id: string) => Promise<void>;
+  hardDeleteAllRequests: () => Promise<void>;
   
   addNotification: (type: NotificationType, title: string, message: string, requestId?: string) => void;
   updateNotificationSettings: (settings: Partial<NotificationSettings>) => void;
@@ -517,6 +518,15 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     addNotification('WARNING', 'Expediente Archivado', `Registro enviado al archivo de auditoría.`);
   }, [addNotification, currentUser, createAuditLog, activeRole]);
 
+  const hardDeleteAllRequests = async () => {
+    if (activeRole !== UserRole.SUPERADMIN) {
+        throw new Error("Solo el Administrador Maestro puede restablecer la base de datos.");
+    }
+    await db.hardDeleteAllRequests();
+    setRequests([]);
+    addNotification('WARNING', 'Requerimientos Eliminados', `La base de datos de requerimientos ha sido restablecida.`);
+  };
+
   const addUser = async (name: string, email: string, role: UserRole, pass: string, area?: Area) => {
     if ((role === UserRole.HEAD || role === UserRole.ANALYST) && !area) {
         throw new Error("El área es obligatoria para Jefaturas y Analistas.");
@@ -554,7 +564,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       currentUser, users, requests, notifications, notificationSettings, isAuthenticated, isLoading, initError, dbDiagnostic, activeRole, viewMode, globalFilterArea, selectedRequestId, organizationAreas,
       login, logout, setActiveRole, switchHybridRole, setViewMode, addUser, updateUser, deleteUser,
       addOrganizationArea, updateOrganizationArea, deleteOrganizationArea,
-      setSelectedRequestId, setGlobalFilterArea, addRequest, updateStatus, returnRequest, assignAnalyst, addLog, updateRequestDetails, deleteRequest,
+      setSelectedRequestId, setGlobalFilterArea, addRequest, updateStatus, returnRequest, assignAnalyst, addLog, updateRequestDetails, deleteRequest, hardDeleteAllRequests,
       addNotification, updateNotificationSettings, markNotificationAsRead, clearNotifications,
       canUserTransition, canUserSeeRequest, isActionable
     }}>
