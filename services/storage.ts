@@ -3,8 +3,8 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { RequestCard, User, Status } from '../types';
 import { INITIAL_USERS, INITIAL_REQUESTS } from '../constants';
 
-const SUPABASE_URL = 'https://giwyowsqmgwsaliiduqi.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_Owy6oQHM50c9v1tNp1PCPg_TTSNIger';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://giwyowsqmgwsaliiduqi.supabase.co';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_Owy6oQHM50c9v1tNp1PCPg_TTSNIger';
 
 const STORE_REQUESTS = 'requests';
 const STORE_USERS = 'users';
@@ -151,7 +151,10 @@ CREATE POLICY "Public Write" ON public.users FOR ALL USING (true);`;
     }
 
     public async getUsers(): Promise<User[]> {
-        const { data, error } = await this.supabase.from(STORE_USERS).select('id, name, email, role, area, status, joinedAt');
+        const { data, error } = await this.supabase
+            .from(STORE_USERS)
+            .select('id, name, email, role, area, status, joinedAt')
+            .order('joinedAt', { ascending: false });
         if (error) return [];
         return (data || []) as User[];
     }
@@ -162,7 +165,7 @@ CREATE POLICY "Public Write" ON public.users FOR ALL USING (true);`;
         const { data, error } = await this.supabase
             .from(STORE_USERS)
             .select('*')
-            .eq('email', email)
+            .ilike('email', email.trim())
             .eq('password', pass)
             .single();
 

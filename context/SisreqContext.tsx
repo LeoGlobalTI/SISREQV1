@@ -216,10 +216,13 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (payload.eventType === 'INSERT') {
             setRequests(prev => {
                 if (prev.find(r => r.id === payload.new.id)) return prev;
-                return [...prev, payload.new as RequestCard];
+                return [...prev, payload.new as RequestCard].sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime());
             });
         } else if (payload.eventType === 'UPDATE') {
-            setRequests(prev => prev.map(r => r.id === payload.new.id ? payload.new as RequestCard : r));
+            setRequests(prev => {
+                const updated = prev.map(r => r.id === payload.new.id ? payload.new as RequestCard : r);
+                return updated.sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime());
+            });
         } else if (payload.eventType === 'DELETE') {
             setRequests(prev => prev.filter(r => r.id !== payload.old.id));
         }
@@ -407,7 +410,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         logs: [...req.logs, createAuditLog(`TRANSICIÓN: Cambio de fase operativa a ${newStatus}`)] 
     };
     await db.saveRequest(updated);
-    setRequests(prev => prev.map(r => r.id === id ? updated : r));
+    setRequests(prev => prev.map(r => r.id === id ? updated : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
     addNotification('PROCESS', 'Fase Actualizada', `Expediente en ${newStatus}`, id);
   };
 
@@ -430,7 +433,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         logs: [...req.logs, createAuditLog(`DEVOLUCIÓN: Retornado a Central. Motivo: ${reason}`)] 
     };
     await db.saveRequest(updated);
-    setRequests(prev => prev.map(r => r.id === id ? updated : r));
+    setRequests(prev => prev.map(r => r.id === id ? updated : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
     addNotification('WARNING', 'Devolución Técnica', `Ticket retornado: ${reason}`, id);
   };
 
@@ -455,7 +458,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         logs: [...req.logs, createAuditLog(`DESIGNACIÓN: Responsable Técnico asignado: ${name}`)] 
     };
     await db.saveRequest(updated);
-    setRequests(prev => prev.map(r => r.id === id ? updated : r));
+    setRequests(prev => prev.map(r => r.id === id ? updated : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
     addNotification('SUCCESS', 'Personal Designado', `${name} asume la responsabilidad del ticket.`, id);
   };
 
@@ -474,7 +477,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const updated = { ...req, lastUpdated: new Date().toISOString(), logs: [...req.logs, createAuditLog(msg)] };
     await db.saveRequest(updated);
-    setRequests(prev => prev.map(r => r.id === id ? updated : r));
+    setRequests(prev => prev.map(r => r.id === id ? updated : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
   };
 
   const updateRequestDetails = async (id: string, title: string, detail: string) => {
@@ -496,7 +499,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         logs: [...req.logs, createAuditLog(`MODIFICACIÓN: Actualización de metadatos de cabecera.`)] 
     };
     await db.saveRequest(updated);
-    setRequests(prev => prev.map(r => r.id === id ? updated : r));
+    setRequests(prev => prev.map(r => r.id === id ? updated : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
   };
 
   const deleteRequest = useCallback(async (id: string) => {
@@ -514,7 +517,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         deletedBy: actorName, 
         status: Status.FINALIZADO,
         logs: [...r.logs, createAuditLog(`AUDITORÍA: Registro movido al archivo inmutable.`)] 
-    } : r));
+    } : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
     addNotification('WARNING', 'Expediente Archivado', `Registro enviado al archivo de auditoría.`);
   }, [addNotification, currentUser, createAuditLog, activeRole]);
 
