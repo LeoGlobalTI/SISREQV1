@@ -19,7 +19,8 @@ import {
   BadgeDollarSign,
   Globe,
   Hash,
-  Sparkles
+  Sparkles,
+  ArrowLeftRight
 } from 'lucide-react';
 
 interface Props {
@@ -42,8 +43,11 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<UserRole>(UserRole.ANALYST);
   const [area, setArea] = useState<Area | 'NONE'>('NONE');
+  const [areas, setAreas] = useState<Area[]>([]);
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState<UserStatus>('ACTIVE');
+  const [canSupervise, setCanSupervise] = useState(false);
+  const [canReceiveAndDerive, setCanReceiveAndDerive] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -52,14 +56,20 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
             setEmail(userToEdit.email || '');
             setRole(userToEdit.role);
             setArea(userToEdit.area || 'NONE');
+            setAreas(userToEdit.areas || (userToEdit.area ? [userToEdit.area] : []));
             setStatus(userToEdit.status || 'ACTIVE');
+            setCanSupervise(userToEdit.canSupervise || false);
+            setCanReceiveAndDerive(userToEdit.canReceiveAndDerive || false);
             setPassword('');
         } else {
             setName('');
             setEmail('');
             setRole(UserRole.ANALYST);
             setArea('Contabilidad');
+            setAreas(['Contabilidad']);
             setStatus('ACTIVE');
+            setCanSupervise(false);
+            setCanReceiveAndDerive(false);
             setPassword('');
         }
     }
@@ -71,8 +81,10 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
     setRole(newRole);
     if (newRole === UserRole.SUPERADMIN) {
         setArea('NONE');
-    } else if (isAreaMandatory && area === 'NONE') {
+        setAreas([]);
+    } else if (isAreaMandatory && areas.length === 0) {
         setArea('Contabilidad');
+        setAreas(['Contabilidad']);
     }
   };
 
@@ -82,7 +94,8 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
     e.preventDefault();
     if (!name || !email || (!userToEdit && !password)) return;
 
-    const finalArea = area !== 'NONE' ? (area as Area) : undefined;
+    const finalArea = areas.length > 0 ? areas[0] : undefined;
+    const finalAreas = areas;
     
     if (userToEdit) {
         const updatedUser: User = {
@@ -91,12 +104,15 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
             email,
             role,
             area: finalArea,
+            areas: finalAreas,
             status,
+            canSupervise,
+            canReceiveAndDerive,
             password: password.trim() ? password : userToEdit.password
         };
         updateUser(updatedUser);
     } else {
-        addUser(name, email, role, password, finalArea);
+        addUser(name, email, role, password, finalArea, finalAreas, canSupervise, canReceiveAndDerive);
     }
     onClose();
   };
@@ -178,7 +194,7 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
                     <Shield size={12} className="text-indigo-500" /> Nivel de Privilegios
                 </label>
                 <div className="flex bg-slate-100 p-1.5 rounded-xl gap-1 border border-slate-200/50">
-                    {Object.values(UserRole).map(r => (
+                    {Object.values(UserRole).filter(r => r !== UserRole.ADMIN).map(r => (
                         <button 
                             key={r}
                             type="button" 
@@ -199,31 +215,39 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
                     {(role === UserRole.ADMIN || role === UserRole.SUPERADMIN) && (
                         <button
                             type="button"
-                            onClick={() => setArea('NONE')}
+                            onClick={() => { setArea('NONE'); setAreas([]); }}
                             className={`
                                 flex items-center gap-3 p-2 rounded-xl border text-left transition-all
-                                ${area === 'NONE' 
+                                ${areas.length === 0 
                                     ? 'border-indigo-600 bg-indigo-50 shadow-sm' 
                                     : 'border-slate-100 bg-slate-50/50 hover:bg-slate-50'}
                             `}
                         >
-                            <div className={`p-1.5 rounded-lg transition-all ${area === 'NONE' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-300 border border-slate-100'}`}>
+                            <div className={`p-1.5 rounded-lg transition-all ${areas.length === 0 ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-300 border border-slate-100'}`}>
                                 {AREA_CONFIG.NONE.icon}
                             </div>
                             <div className="min-w-0">
-                                <div className={`text-[12px] font-bold truncate ${area === 'NONE' ? 'text-indigo-900' : 'text-slate-700'}`}>Acceso Central</div>
+                                <div className={`text-[12px] font-bold truncate ${areas.length === 0 ? 'text-indigo-900' : 'text-slate-700'}`}>Acceso Central</div>
                                 <div className="text-[8px] text-slate-500 font-medium truncate">{AREA_CONFIG.NONE.desc}</div>
                             </div>
                         </button>
                     )}
                     {organizationAreas.map((a) => {
                         const config = (AREA_CONFIG as any)[a] || { icon: <Building size={16} />, desc: 'Área Organizacional' };
-                        const isSelected = area === a;
+                        const isSelected = areas.includes(a);
                         return (
                             <button
                                 key={a}
                                 type="button"
-                                onClick={() => setArea(a)}
+                                onClick={() => {
+                                    if (role === UserRole.ADMIN || role === UserRole.SUPERADMIN) {
+                                        setArea(a);
+                                        setAreas([a]);
+                                    } else {
+                                        setAreas(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a]);
+                                        setArea(a);
+                                    }
+                                }}
                                 className={`
                                     flex items-center gap-3 p-2 rounded-xl border text-left transition-all
                                     ${isSelected 
@@ -241,6 +265,53 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
                             </button>
                         );
                     })}
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
+                {role === UserRole.HEAD && (
+                    <div className="space-y-3">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <Shield size={12} className="text-indigo-500" /> Modo Supervisor
+                        </label>
+                        <div className="flex bg-slate-100 p-1 rounded-xl gap-1 border border-slate-200/50">
+                            <button
+                                 type="button"
+                                 onClick={() => setCanSupervise(true)}
+                                 className={`flex-1 py-2 text-[9px] font-bold uppercase tracking-widest rounded-lg transition-all ${canSupervise ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                                Sí
+                            </button>
+                            <button
+                                 type="button"
+                                 onClick={() => setCanSupervise(false)}
+                                 className={`flex-1 py-2 text-[9px] font-bold uppercase tracking-widest rounded-lg transition-all ${!canSupervise ? 'bg-slate-400 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                                No
+                            </button>
+                        </div>
+                    </div>
+                )}
+                <div className="space-y-3">
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <ArrowLeftRight size={12} className="text-indigo-500" /> Recepción y Derivación
+                    </label>
+                    <div className="flex bg-slate-100 p-1 rounded-xl gap-1 border border-slate-200/50">
+                        <button
+                             type="button"
+                             onClick={() => setCanReceiveAndDerive(true)}
+                             className={`flex-1 py-2 text-[9px] font-bold uppercase tracking-widest rounded-lg transition-all ${canReceiveAndDerive ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            Sí
+                        </button>
+                        <button
+                             type="button"
+                             onClick={() => setCanReceiveAndDerive(false)}
+                             className={`flex-1 py-2 text-[9px] font-bold uppercase tracking-widest rounded-lg transition-all ${!canReceiveAndDerive ? 'bg-slate-400 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            No
+                        </button>
+                    </div>
                 </div>
             </div>
 

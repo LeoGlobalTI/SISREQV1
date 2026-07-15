@@ -58,10 +58,13 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
-  area?: Area; 
+  area?: Area;   // Keep for primary or backward comp.
+  areas?: Area[]; // For multiple assigned areas
   password?: string;
   status?: UserStatus;
   joinedAt?: string;
+  canSupervise?: boolean;
+  canReceiveAndDerive?: boolean;
 }
 
 export interface LogEntry {

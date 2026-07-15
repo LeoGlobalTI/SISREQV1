@@ -8,7 +8,7 @@ import { RequestDetailModal } from './RequestDetailModal';
 import { NotificationBell } from './NotificationBell';
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { currentUser, logout, viewMode, setViewMode, activeRole, switchHybridRole, setSelectedRequestId } = useSisreq();
+  const { currentUser, logout, viewMode, setViewMode, activeRole, toggleSupervisorMode, isSupervisorMode, setSelectedRequestId } = useSisreq();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Los hooks deben estar arriba. Si no hay usuario, retornamos null después.
@@ -16,26 +16,26 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
   const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
   
-  const isHybridUser = currentUser.role === UserRole.ADMIN && !!currentUser.area;
+  const canSupervise = currentUser.role === UserRole.HEAD && currentUser.canSupervise;
 
   const handleToggleProfile = () => {
     setSelectedRequestId(null);
-    switchHybridRole();
+    toggleSupervisorMode();
   };
 
   const getRoleBadge = () => {
-    if (isHybridUser) {
+    if (canSupervise) {
         return (
             <button 
                 onClick={handleToggleProfile}
                 className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[9px] font-bold border transition-all ${
-                    activeRole === UserRole.ADMIN 
+                    isSupervisorMode 
                     ? 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100' 
                     : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100'
                 }`}
             >
                 <ArrowLeftRight size={10} />
-                {activeRole === UserRole.ADMIN ? 'MODO ADMIN' : `JEFE ${currentUser.area?.toUpperCase()}`}
+                {isSupervisorMode ? 'MODO SUPERVISOR' : `JEFE ${currentUser.areas?.join(', ')?.toUpperCase() || currentUser.area?.toUpperCase()}`}
             </button>
         );
     }
@@ -43,7 +43,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     switch (currentUser.role) {
         case UserRole.SUPERADMIN: return <span className="px-2 py-0.5 rounded-lg text-[9px] bg-slate-900 text-white font-bold border border-slate-950 tracking-wider">SUPERADMIN</span>;
         case UserRole.ADMIN: return <span className="px-2 py-0.5 rounded-lg text-[9px] bg-red-50 text-red-600 font-bold border border-red-100 tracking-wider uppercase">ADMIN CENTRAL</span>;
-        case UserRole.HEAD: return <span className="px-2 py-0.5 rounded-lg text-[9px] bg-indigo-50 text-indigo-600 font-bold border border-indigo-100 tracking-wider uppercase">JEFE {currentUser.area}</span>;
+        case UserRole.HEAD: return <span className="px-2 py-0.5 rounded-lg text-[9px] bg-indigo-50 text-indigo-600 font-bold border border-indigo-100 tracking-wider uppercase truncate max-w-[120px]">JEFE {currentUser.areas?.join(', ') || currentUser.area}</span>;
         default: return <span className="px-2 py-0.5 rounded-lg text-[9px] bg-slate-100 text-slate-500 font-bold border border-slate-200 tracking-wider uppercase">ANALYST</span>;
     }
   };
@@ -76,10 +76,10 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                         </button>
                     </div>
                 ) : (
-                    <div className="flex items-center gap-2.5 px-4 py-1.5 bg-slate-50 rounded-full border border-slate-100">
-                        {activeRole === UserRole.ADMIN ? <Shield size={14} className="text-red-500"/> : <Briefcase size={14} className="text-indigo-500"/>}
-                        <span className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-600">
-                            {activeRole === UserRole.ADMIN ? 'Consola de Control Central' : `${activeRole} • ${currentUser.area || 'General'}`}
+                    <div className="flex items-center gap-2.5 px-4 py-1.5 bg-slate-50 rounded-full border border-slate-100 max-w-[300px]">
+                        {isSupervisorMode || activeRole === UserRole.ADMIN ? <Shield size={14} className="text-red-500 shrink-0"/> : <Briefcase size={14} className="text-indigo-500 shrink-0"/>}
+                        <span className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-600 truncate">
+                            {isSupervisorMode ? 'SUPERVISIÓN GLOBAL' : (activeRole === UserRole.ADMIN ? 'Consola de Control Central' : `${activeRole} • ${(currentUser.areas?.join(', ') || currentUser.area) || 'General'}`)}
                         </span>
                     </div>
                 )}
@@ -87,7 +87,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         </div>
 
         <div className="flex items-center gap-5">
-            {(activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN || activeRole === UserRole.HEAD) && (
+            {(activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN || activeRole === UserRole.HEAD || currentUser.canReceiveAndDerive) && (
                 <button 
                     onClick={() => setIsModalOpen(true)}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl flex items-center gap-2.5 text-xs font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-100 active:scale-95 group"

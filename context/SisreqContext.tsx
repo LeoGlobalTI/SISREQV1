@@ -19,13 +19,14 @@ interface SisreqContextType {
   globalFilterArea: Area | 'ALL';
   selectedRequestId: string | null;
   organizationAreas: string[];
+  isSupervisorMode: boolean;
   
   login: (email: string, pass: string) => Promise<boolean>;
   logout: () => void;
   setActiveRole: (role: UserRole) => void;
-  switchHybridRole: () => void;
+  toggleSupervisorMode: () => void;
   setViewMode: (mode: ViewMode) => void;
-  addUser: (name: string, email: string, role: UserRole, password: string, area?: Area) => Promise<void>;
+  addUser: (name: string, email: string, role: UserRole, password: string, area?: Area, areas?: Area[], canSupervise?: boolean, canReceiveAndDerive?: boolean) => Promise<void>;
   updateUser: (updatedUser: User) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
   
@@ -143,6 +144,14 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   });
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  const [isSupervisorMode, setIsSupervisorMode] = useState<boolean>(() => {
+    try {
+        const saved = localStorage.getItem('sisreq_session_supervisor');
+        return saved ? JSON.parse(saved) : false;
+    } catch (e) {
+        return false;
+    }
+  });
   
   const [organizationAreas, setOrganizationAreas] = useState<string[]>(() => {
     try {
@@ -294,7 +303,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 console.warn("No se pudo persistir la sesión en localStorage.");
             }
 
-            setGlobalFilterArea(user.role === UserRole.ADMIN || user.role === UserRole.SUPERADMIN ? 'ALL' : (user.area as Area));
+            setGlobalFilterArea('ALL');
             addNotification('INFO', 'Acceso Concedido', `Bienvenido(a), ${user.name}. Modo ${user.role} activo.`);
             return true;
         }
@@ -316,18 +325,23 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
         localStorage.removeItem('sisreq_session_user');
         localStorage.removeItem('sisreq_session_role');
+        localStorage.removeItem('sisreq_session_supervisor');
     } catch (e) {
         console.warn("No se pudo limpiar la sesión de localStorage.");
     }
   };
 
-  const switchHybridRole = () => {
-    if (!currentUser || currentUser.role !== UserRole.ADMIN || !currentUser.area) return;
-    const isNowHead = activeRole === UserRole.ADMIN;
-    const newRole = isNowHead ? UserRole.HEAD : UserRole.ADMIN;
-    setActiveRole(newRole);
-    setGlobalFilterArea(isNowHead ? (currentUser.area as Area) : 'ALL');
-    addNotification('PROCESS', 'Cambio de Rol', `Perfil alternado a: ${newRole === UserRole.ADMIN ? 'Administrador Central' : 'Jefatura ' + currentUser.area}`);
+  const toggleSupervisorMode = () => {
+    if (!currentUser || currentUser.role !== UserRole.HEAD || !currentUser.canSupervise) return;
+    const newMode = !isSupervisorMode;
+    setIsSupervisorMode(newMode);
+    try {
+        localStorage.setItem('sisreq_session_supervisor', JSON.stringify(newMode));
+    } catch (e) {
+        console.warn("No se pudo persistir modo supervisor");
+    }
+    setGlobalFilterArea(newMode ? 'ALL' : (currentUser.areas?.[0] || currentUser.area as Area));
+    addNotification('PROCESS', 'Modo Supervisor', newMode ? 'Modo supervisor activado. Vista global habilitada.' : `Vista retornada a la unidad ${currentUser.areas?.[0] || currentUser.area}.`);
   };
 
   const createAuditLog = useCallback((message: string): LogEntry => ({
@@ -338,14 +352,26 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     role: activeRole || UserRole.ANALYST
   }), [currentUser, activeRole]);
 
+  const checkEditJurisdiction = useCallback((req: RequestCard): boolean => {
+    if (activeRole === UserRole.SUPERADMIN || activeRole === UserRole.ADMIN) return true;
+    if (currentUser?.canReceiveAndDerive && (req.status === Status.RECIBIDO || req.status === Status.DERIVACION)) return true;
+    const userAreas = currentUser?.areas || (currentUser?.area ? [currentUser.area] : []);
+    return userAreas.includes(req.area);
+  }, [activeRole, currentUser]);
+
   const canUserSeeRequest = useCallback((req: RequestCard): boolean => {
     if (!currentUser || !activeRole) return false;
     if (req.isDeleted && activeRole !== UserRole.SUPERADMIN) return false; 
     if (activeRole === UserRole.SUPERADMIN || activeRole === UserRole.ADMIN) return true;
-    const isSameArea = req.area === currentUser.area;
+    
+    if (isSupervisorMode) return true;
+    if (currentUser.canReceiveAndDerive && req.status === Status.RECIBIDO) return true;
+
+    const userAreas = currentUser.areas || (currentUser.area ? [currentUser.area] : []);
+    const isSameArea = userAreas.includes(req.area);
     const isOutOfCentral = req.status !== Status.RECIBIDO;
     return isSameArea && isOutOfCentral;
-  }, [currentUser, activeRole]);
+  }, [currentUser, activeRole, isSupervisorMode]);
 
   const canUserTransition = useCallback((req: RequestCard, target: Status): { allowed: boolean; reason?: string } => {
     if (!currentUser || !activeRole) return { allowed: false, reason: 'Sesión inactiva.' };
@@ -358,11 +384,16 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const rule = WORKFLOW_MATRIX.find(r => r.from === req.status && r.to === target);
     if (!rule) return { allowed: false, reason: 'Flujo operativo no permitido.' };
-    if (!rule.allowedRoles.includes(activeRole)) return { allowed: false, reason: 'Nivel de privilegios insuficiente.' };
+    
+    const isActingAsAdmin = currentUser.canReceiveAndDerive && (req.status === Status.RECIBIDO || target === Status.RECIBIDO || target === Status.DERIVACION);
+    const hasRoleAccess = rule.allowedRoles.includes(activeRole) || (isActingAsAdmin && rule.allowedRoles.includes(UserRole.ADMIN));
+    
+    if (!hasRoleAccess) return { allowed: false, reason: 'Nivel de privilegios insuficiente.' };
     
     // Verificación estricta de Jurisdicción de Área
-    if (rule.checkAreaJurisdiction && ![UserRole.SUPERADMIN, UserRole.ADMIN].includes(activeRole)) {
-        if (req.area !== currentUser.area) return { allowed: false, reason: 'El expediente no pertenece a su unidad orgánica.' };
+    if (rule.checkAreaJurisdiction && ![UserRole.SUPERADMIN, UserRole.ADMIN].includes(activeRole) && !isActingAsAdmin) {
+        const userAreas = currentUser.areas || (currentUser.area ? [currentUser.area] : []);
+        if (!userAreas.includes(req.area)) return { allowed: false, reason: 'El expediente no pertenece a su unidad orgánica.' };
     }
     
     if (rule.requiresAnalyst && !req.assignedAnalyst) return { allowed: false, reason: 'Debe designar un Responsable Técnico antes de la ejecución.' };
@@ -445,6 +476,10 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!localReq) return;
     const req = await db.getRequestById(id) || localReq;
     
+    if (!checkEditJurisdiction(req)) {
+        throw new Error("No tiene jurisdicción para editar este expediente.");
+    }
+    
     // Bloqueo de asignación si no está en la fase correcta
     if (req.status !== Status.DERIVACION && req.status !== Status.EJECUCION) 
         throw new Error("Acción denegada: El expediente debe estar en fase de DERIVACIÓN o EJECUCIÓN.");
@@ -467,7 +502,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!localReq || localReq.isDeleted) return;
     const req = await db.getRequestById(id) || localReq;
     
-    if (!canUserSeeRequest(req)) {
+    if (!checkEditJurisdiction(req)) {
         throw new Error("No tiene jurisdicción para comentar en este expediente.");
     }
     
@@ -485,7 +520,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!localReq || localReq.isDeleted) return;
     const req = await db.getRequestById(id) || localReq;
     
-    if (activeRole !== UserRole.ADMIN && activeRole !== UserRole.SUPERADMIN) 
+    if (activeRole !== UserRole.ADMIN && activeRole !== UserRole.SUPERADMIN && !currentUser?.canReceiveAndDerive && !checkEditJurisdiction(req)) 
         throw new Error("Privilegios insuficientes para editar metadatos.");
     
     if (req.status === Status.FINALIZADO && activeRole !== UserRole.SUPERADMIN)
@@ -530,11 +565,11 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     addNotification('WARNING', 'Requerimientos Eliminados', `La base de datos de requerimientos ha sido restablecida.`);
   };
 
-  const addUser = async (name: string, email: string, role: UserRole, pass: string, area?: Area) => {
-    if ((role === UserRole.HEAD || role === UserRole.ANALYST) && !area) {
+  const addUser = async (name: string, email: string, role: UserRole, pass: string, area?: Area, areas?: Area[], canSupervise?: boolean, canReceiveAndDerive?: boolean) => {
+    if ((role === UserRole.HEAD || role === UserRole.ANALYST) && (!areas || areas.length === 0) && !area) {
         throw new Error("El área es obligatoria para Jefaturas y Analistas.");
     }
-    const newUser: User = { id: genUUID(), name, email, role, area, password: pass, status: 'ACTIVE', joinedAt: new Date().toISOString() };
+    const newUser: User = { id: genUUID(), name, email, role, area, areas, password: pass, status: 'ACTIVE', joinedAt: new Date().toISOString(), canSupervise, canReceiveAndDerive };
     await db.saveUser(newUser);
     await loadData();
     addNotification('SUCCESS', 'Nuevo Usuario', `Colaborador creado: ${name}`);
@@ -564,8 +599,8 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   return (
     <SisreqContext.Provider value={{
-      currentUser, users, requests, notifications, notificationSettings, isAuthenticated, isLoading, initError, dbDiagnostic, activeRole, viewMode, globalFilterArea, selectedRequestId, organizationAreas,
-      login, logout, setActiveRole, switchHybridRole, setViewMode, addUser, updateUser, deleteUser,
+      currentUser, users, requests, notifications, notificationSettings, isAuthenticated, isLoading, initError, dbDiagnostic, activeRole, viewMode, globalFilterArea, selectedRequestId, organizationAreas, isSupervisorMode,
+      login, logout, setActiveRole, toggleSupervisorMode, setViewMode, addUser, updateUser, deleteUser,
       addOrganizationArea, updateOrganizationArea, deleteOrganizationArea,
       setSelectedRequestId, setGlobalFilterArea, addRequest, updateStatus, returnRequest, assignAnalyst, addLog, updateRequestDetails, deleteRequest, hardDeleteAllRequests,
       addNotification, updateNotificationSettings, markNotificationAsRead, clearNotifications,

@@ -50,7 +50,8 @@ export const Board: React.FC = () => {
     activeRole, 
     canUserSeeRequest, 
     setSelectedRequestId,
-    organizationAreas
+    organizationAreas,
+    currentUser
   } = useSisreq();
   
   const [dragOverColumn, setDragOverColumn] = useState<Status | null>(null);
@@ -118,12 +119,12 @@ export const Board: React.FC = () => {
           req.requester.toLowerCase().includes(term) ||
           (req.assignedAnalyst && req.assignedAnalyst.toLowerCase().includes(term));
 
-      // 5. Filtro global de área (Admin/Superadmin)
-      const matchesArea = globalFilterArea === 'ALL' || req.area === globalFilterArea;
+      // 5. Filtro global de área (Admin/Superadmin o Receptores Centrales)
+      const matchesArea = globalFilterArea === 'ALL' || req.area === globalFilterArea || (currentUser?.canReceiveAndDerive && req.status === Status.RECIBIDO);
       
       return matchesSearch && matchesArea;
     });
-  }, [requests, searchTerm, globalFilterArea, canUserSeeRequest]);
+  }, [requests, searchTerm, globalFilterArea, canUserSeeRequest, currentUser]);
 
   const handleDrop = async (e: React.DragEvent, targetStatus: Status) => {
     e.preventDefault();
@@ -332,7 +333,7 @@ export const Board: React.FC = () => {
                 </div>
              </div>
 
-             {(activeRole === UserRole.SUPERADMIN || activeRole === UserRole.ADMIN) && (
+             {(activeRole === UserRole.SUPERADMIN || activeRole === UserRole.ADMIN || currentUser?.canReceiveAndDerive) && (
                 <div className="relative">
                     <MapPin size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
                     <select 
@@ -358,7 +359,7 @@ export const Board: React.FC = () => {
               <div className="h-full overflow-x-auto overflow-y-hidden hide-scrollbar">
                   <div className="h-full flex px-8 py-10 gap-8 min-w-[1300px]">
                       {COLUMNS.map((col) => {
-                          if (col.status === Status.RECIBIDO && activeRole !== UserRole.ADMIN && activeRole !== UserRole.SUPERADMIN) return null;
+                          if (col.status === Status.RECIBIDO && activeRole !== UserRole.ADMIN && activeRole !== UserRole.SUPERADMIN && !currentUser?.canReceiveAndDerive) return null;
                           
                           const items = filteredRequests.filter(r => r.status === col.status);
                           const isDragActive = dragOverColumn === col.status;

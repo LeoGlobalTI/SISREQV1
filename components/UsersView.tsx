@@ -227,8 +227,10 @@ export const UsersView: React.FC = () => {
 
                         {/* Jurisdicción */}
                         <div className="truncate">
-                            {user.area ? (
-                                <span className="text-[8px] font-black text-indigo-600 bg-indigo-50/50 px-2 py-0.5 rounded-md border border-indigo-100 uppercase tracking-tight truncate block w-fit">{user.area}</span>
+                            {(user.areas && user.areas.length > 0) || user.area ? (
+                                <span className="text-[8px] font-black text-indigo-600 bg-indigo-50/50 px-2 py-0.5 rounded-md border border-indigo-100 uppercase tracking-tight truncate block w-fit">
+                                    {user.areas?.join(', ') || user.area}
+                                </span>
                             ) : (
                                 <span className="text-slate-300 font-black text-[8px] tracking-widest uppercase opacity-50 truncate">Global</span>
                             )}

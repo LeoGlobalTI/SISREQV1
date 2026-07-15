@@ -31,8 +31,9 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
   // Efecto para auto-seleccionar el área si el usuario es Jefatura
   useEffect(() => {
-    if (isOpen && activeRole === UserRole.HEAD && currentUser?.area) {
-        setArea(currentUser.area);
+    if (isOpen && activeRole === UserRole.HEAD) {
+        const defaultArea = currentUser?.areas?.[0] || currentUser?.area;
+        if (defaultArea) setArea(defaultArea);
     }
   }, [isOpen, activeRole, currentUser]);
 
@@ -140,7 +141,8 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
                         {organizationAreas.map((a) => {
                             const config = (AREA_CONFIG as any)[a] || { icon: <Building size={16} />, color: 'slate', desc: 'Área Organizacional' };
                             const isSelected = area === a;
-                            const isDisabled = isHeadSelection && currentUser?.area !== a;
+                            const userAreas = currentUser?.areas || (currentUser?.area ? [currentUser.area] : []);
+                            const isDisabled = isHeadSelection && !userAreas.includes(a);
                             
                             return (
                                 <button

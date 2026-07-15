@@ -27,7 +27,7 @@ class DatabaseService {
         try {
             const { error: userError } = await this.supabase
                 .from(STORE_USERS)
-                .select('*', { count: 'exact', head: true });
+                .select('id, "canSupervise", "canReceiveAndDerive"', { count: 'exact', head: true });
 
             if (userError) return this.diagnoseError(userError, STORE_USERS);
 
@@ -65,7 +65,9 @@ class DatabaseService {
   area text,
   password text,
   status text,
-  "joinedAt" timestamp with time zone DEFAULT now()
+  "joinedAt" timestamp with time zone DEFAULT now(),
+  "canSupervise" boolean DEFAULT false,
+  "canReceiveAndDerive" boolean DEFAULT false
 );`;
 
         const sqlTableRequests = `CREATE TABLE IF NOT EXISTS public.requests (
@@ -100,7 +102,7 @@ CREATE POLICY "Public Write" ON public.users FOR ALL USING (true);`;
             return {
                 status: 'SETUP_REQUIRED',
                 message: `Estructura obsoleta en '${table}'`,
-                sqlSuggestion: `-- Migración de integridad:\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "isDeleted" boolean DEFAULT false;`
+                sqlSuggestion: `-- Migración de integridad:\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "isDeleted" boolean DEFAULT false;\nALTER TABLE public.users ADD COLUMN IF NOT EXISTS "canSupervise" boolean DEFAULT false;\nALTER TABLE public.users ADD COLUMN IF NOT EXISTS "canReceiveAndDerive" boolean DEFAULT false;`
             };
         }
 
@@ -153,10 +155,17 @@ CREATE POLICY "Public Write" ON public.users FOR ALL USING (true);`;
     public async getUsers(): Promise<User[]> {
         const { data, error } = await this.supabase
             .from(STORE_USERS)
-            .select('id, name, email, role, area, status, joinedAt')
+            .select('id, name, email, role, area, status, joinedAt, canSupervise, canReceiveAndDerive')
             .order('joinedAt', { ascending: false });
         if (error) return [];
-        return (data || []) as User[];
+        return (data || []).map(u => {
+            const areas = u.area ? u.area.split(',').map((a: string) => a.trim()).filter((a: string) => a.length > 0) : [];
+            return {
+                ...u,
+                areas,
+                area: areas.length > 0 ? areas[0] : undefined
+            };
+        }) as User[];
     }
 
     public async validateUser(email: string, pass: string): Promise<User | null> {
@@ -173,11 +182,22 @@ CREATE POLICY "Public Write" ON public.users FOR ALL USING (true);`;
         
         // Limpiamos datos sensibles antes de devolver al contexto
         const { password, ...safeUser } = data;
-        return safeUser as User;
+        const areas = safeUser.area ? safeUser.area.split(',').map((a: string) => a.trim()).filter((a: string) => a.length > 0) : [];
+        return {
+            ...safeUser,
+            areas,
+            area: areas.length > 0 ? areas[0] : undefined
+        } as User;
     }
 
     public async saveUser(user: User): Promise<void> {
-        const { error } = await this.supabase.from(STORE_USERS).upsert(user);
+        const toSave = { ...user };
+        if (toSave.areas && toSave.areas.length > 0) {
+            toSave.area = toSave.areas.join(',');
+        }
+        delete toSave.areas;
+
+        const { error } = await this.supabase.from(STORE_USERS).upsert(toSave);
         if (error) throw new Error(`DB_USER_UPDATE_ERROR: ${error.message}`);
     }
 
