@@ -40,7 +40,7 @@ class DatabaseService {
             await this.seedData();
             return { status: 'READY', message: 'Capa de persistencia verificada.' };
         } catch (error: any) {
-            return { status: 'ERROR', message: error.message || 'Error de red crítico', errorDetails: error };
+            return this.diagnoseError(error, 'init');
         }
     }
 
@@ -55,6 +55,15 @@ class DatabaseService {
     private diagnoseError(error: any, table: string): DbDiagnostic {
         const msg = error.message || "";
         const code = error.code || "";
+
+        // Handle network/connection errors
+        if (msg === 'Failed to fetch' || error instanceof TypeError) {
+            return {
+                status: 'ERROR',
+                message: `Error de conexión: No se pudo conectar a la base de datos (${SUPABASE_URL}). Verifique su conexión a Internet o si la URL de Supabase es correcta.`,
+                errorDetails: error
+            };
+        }
 
         // SQL Definitions remain the same as they are structural requirements
         const sqlTableUsers = `CREATE TABLE IF NOT EXISTS public.users (
@@ -128,9 +137,13 @@ CREATE POLICY "Public Write" ON public.users FOR ALL USING (true);`;
     public async getRequests(): Promise<RequestCard[]> {
         const { data, error } = await this.supabase
             .from(STORE_REQUESTS)
-            .select('*')
+            .select('id, title, detail, requester, area, status, priority, "responsibleHead", "assignedAnalyst", logs, "createdAt", "lastUpdated", "finishedAt", "isReturned", "isDeleted", "deletedAt", "deletedBy"')
             .order('lastUpdated', { ascending: false });
-        return error ? [] : (data || []) as RequestCard[];
+        if (error) {
+            console.error('Error fetching requests:', JSON.stringify(error, null, 2));
+            throw new Error(`DB_FETCH_ERROR: ${error.message || 'Unknown error'}`);
+        }
+        return (data || []) as RequestCard[];
     }
 
     public async saveRequest(req: RequestCard): Promise<void> {
@@ -155,15 +168,20 @@ CREATE POLICY "Public Write" ON public.users FOR ALL USING (true);`;
     public async getUsers(): Promise<User[]> {
         const { data, error } = await this.supabase
             .from(STORE_USERS)
-            .select('id, name, email, role, area, status, joinedAt, canSupervise, canReceiveAndDerive')
+            .select('id, name, email, role, area, status, joinedAt, "canSupervise", "canReceiveAndDerive"')
             .order('joinedAt', { ascending: false });
-        if (error) return [];
+        if (error) {
+            console.error('Error fetching users:', JSON.stringify(error, null, 2));
+            throw new Error(`DB_USER_FETCH_ERROR: ${error.message || 'Unknown error'}`);
+        }
         return (data || []).map(u => {
             const areas = u.area ? u.area.split(',').map((a: string) => a.trim()).filter((a: string) => a.length > 0) : [];
             return {
                 ...u,
                 areas,
-                area: areas.length > 0 ? areas[0] : undefined
+                area: areas.length > 0 ? areas[0] : undefined,
+                canSupervise: u.canSupervise || false,
+                canReceiveAndDerive: u.canReceiveAndDerive || false
             };
         }) as User[];
     }
@@ -186,7 +204,9 @@ CREATE POLICY "Public Write" ON public.users FOR ALL USING (true);`;
         return {
             ...safeUser,
             areas,
-            area: areas.length > 0 ? areas[0] : undefined
+            area: areas.length > 0 ? areas[0] : undefined,
+            canSupervise: safeUser.canSupervise || false,
+            canReceiveAndDerive: safeUser.canReceiveAndDerive || false
         } as User;
     }
 

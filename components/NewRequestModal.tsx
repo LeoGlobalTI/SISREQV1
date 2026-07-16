@@ -142,7 +142,8 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             const config = (AREA_CONFIG as any)[a] || { icon: <Building size={16} />, color: 'slate', desc: 'Área Organizacional' };
                             const isSelected = area === a;
                             const userAreas = currentUser?.areas || (currentUser?.area ? [currentUser.area] : []);
-                            const isDisabled = isHeadSelection && !userAreas.includes(a);
+                            // Si el usuario puede recibir y derivar, no se le bloquea la selección de áreas
+                            const isDisabled = isHeadSelection && !userAreas.includes(a) && !currentUser?.canReceiveAndDerive;
                             
                             return (
                                 <button

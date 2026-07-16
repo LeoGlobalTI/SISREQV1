@@ -384,6 +384,13 @@ export const DocumentationView: React.FC = () => {
                             <p className="text-slate-600 leading-relaxed text-lg">
                                 SISREQ utiliza una arquitectura moderna desacoplada con servicios gestionados para garantizar alta disponibilidad y seguridad de nivel gubernamental.
                             </p>
+                            <div className="p-6 bg-slate-100 rounded-2xl border border-slate-200">
+                                <h5 className="font-black text-slate-900 uppercase text-xs mb-3">Actualizaciones de Julio 2026</h5>
+                                <ul className="text-sm text-slate-600 list-disc list-inside space-y-1">
+                                    <li>Centralización de la lógica de autorización mediante el nuevo módulo <span className="font-mono bg-white px-1 py-0.5 rounded text-indigo-600">src/lib/auth.ts</span> para mayor consistencia.</li>
+                                    <li>Refuerzo en la seguridad de consultas a Base de Datos mediante selección explícita y normalización de nombres de columnas.</li>
+                                </ul>
+                            </div>
                         </section>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

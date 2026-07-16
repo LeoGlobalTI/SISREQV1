@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { User, RequestCard, Status, Priority, Area, UserRole, ViewMode, TransitionRule, LogEntry, Notification, NotificationType, NotificationSettings } from '../types';
 import { AREA_HEADS } from '../constants';
 import { db, DbDiagnostic } from '../services/storage';
+import { canSupervise, canReceiveAndDerive } from '../src/lib/auth';
 
 interface SisreqContextType {
   currentUser: User | null;
@@ -332,7 +333,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const toggleSupervisorMode = () => {
-    if (!currentUser || currentUser.role !== UserRole.HEAD || !currentUser.canSupervise) return;
+    if (!currentUser || currentUser.role !== UserRole.HEAD || !canSupervise(currentUser)) return;
     const newMode = !isSupervisorMode;
     setIsSupervisorMode(newMode);
     try {
@@ -365,7 +366,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (activeRole === UserRole.SUPERADMIN || activeRole === UserRole.ADMIN) return true;
     
     if (isSupervisorMode) return true;
-    if (currentUser.canReceiveAndDerive && req.status === Status.RECIBIDO) return true;
+    if (canReceiveAndDerive(currentUser) && req.status === Status.RECIBIDO) return true;
 
     const userAreas = currentUser.areas || (currentUser.area ? [currentUser.area] : []);
     const isSameArea = userAreas.includes(req.area);
@@ -385,7 +386,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const rule = WORKFLOW_MATRIX.find(r => r.from === req.status && r.to === target);
     if (!rule) return { allowed: false, reason: 'Flujo operativo no permitido.' };
     
-    const isActingAsAdmin = currentUser.canReceiveAndDerive && (req.status === Status.RECIBIDO || target === Status.RECIBIDO || target === Status.DERIVACION);
+    const isActingAsAdmin = canReceiveAndDerive(currentUser) && (req.status === Status.RECIBIDO || target === Status.RECIBIDO || target === Status.DERIVACION);
     const hasRoleAccess = rule.allowedRoles.includes(activeRole) || (isActingAsAdmin && rule.allowedRoles.includes(UserRole.ADMIN));
     
     if (!hasRoleAccess) return { allowed: false, reason: 'Nivel de privilegios insuficiente.' };
@@ -409,7 +410,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const addRequest = async (title: string, detail: string, area: Area, priority: Priority, requester: string) => {
     const now = new Date().toISOString();
-    const initialStatus = (activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN) ? Status.RECIBIDO : Status.DERIVACION;
+    const initialStatus = (activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN || canReceiveAndDerive(currentUser)) ? Status.RECIBIDO : Status.DERIVACION;
     const newReq: RequestCard = {
       id: genUUID(),
       title, detail, area, status: initialStatus, priority, requester,
@@ -520,7 +521,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!localReq || localReq.isDeleted) return;
     const req = await db.getRequestById(id) || localReq;
     
-    if (activeRole !== UserRole.ADMIN && activeRole !== UserRole.SUPERADMIN && !currentUser?.canReceiveAndDerive && !checkEditJurisdiction(req)) 
+    if (activeRole !== UserRole.ADMIN && activeRole !== UserRole.SUPERADMIN && !canReceiveAndDerive(currentUser) && !checkEditJurisdiction(req)) 
         throw new Error("Privilegios insuficientes para editar metadatos.");
     
     if (req.status === Status.FINALIZADO && activeRole !== UserRole.SUPERADMIN)
