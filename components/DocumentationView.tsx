@@ -115,7 +115,8 @@ export const DocumentationView: React.FC = () => {
                         ['Jurisdicción', 'Un usuario solo puede ver tickets asignados a su área específica.'],
                         ['Inmutabilidad', 'Los registros finalizados no permiten ediciones de fondo, solo lectura.'],
                         ['Auditoría', 'Toda acción deja una huella digital (Log) con marca de tiempo y autoría.'],
-                        ['Archivado', 'Solo el SuperAdmin puede mover registros a la bóveda de auditoría.']
+                        ['Archivado', 'Solo el SuperAdmin puede mover registros a la bóveda de auditoría.'],
+                        ['Prev. Pérdida', 'Bloqueo de eliminación de áreas/usuarios con tickets activos.']
                     ],
                     theme: 'striped',
                     styles: { fontSize: 8 }
@@ -268,6 +269,16 @@ export const DocumentationView: React.FC = () => {
                                         <p className="text-slate-500 text-xs leading-relaxed font-medium">Cuerpo técnico ejecutor. Resuelve el requerimiento, documenta hallazgos en el log inmutable y certifica la finalización del servicio.</p>
                                     </div>
                                 </div>
+                                <div className="p-8 bg-white border border-slate-200 rounded-3xl relative overflow-hidden group">
+                                    <Layers className="absolute -right-4 -bottom-4 text-slate-50 w-32 h-32 group-hover:scale-110 transition-transform" />
+                                    <div className="relative z-10">
+                                        <div className="bg-emerald-50 text-emerald-600 w-10 h-10 rounded-xl flex items-center justify-center mb-4 border border-emerald-100">
+                                            <Search size={20} />
+                                        </div>
+                                        <h4 className="font-black uppercase tracking-tighter text-xl mb-2 text-slate-900">Receptor Central</h4>
+                                        <p className="text-slate-500 text-xs leading-relaxed font-medium">Permiso especial asignable a usuarios selectos (Ej: Jefes o Analistas). Les otorga facultades globales para visualizar, crear y derivar tickets sin estar limitados por su área de origen.</p>
+                                    </div>
+                                </div>
                             </div>
                         </section>
 
@@ -386,9 +397,12 @@ export const DocumentationView: React.FC = () => {
                             </p>
                             <div className="p-6 bg-slate-100 rounded-2xl border border-slate-200">
                                 <h5 className="font-black text-slate-900 uppercase text-xs mb-3">Actualizaciones de Julio 2026</h5>
-                                <ul className="text-sm text-slate-600 list-disc list-inside space-y-1">
+                                <ul className="text-sm text-slate-600 list-disc list-inside space-y-2">
                                     <li>Centralización de la lógica de autorización mediante el nuevo módulo <span className="font-mono bg-white px-1 py-0.5 rounded text-indigo-600">src/lib/auth.ts</span> para mayor consistencia.</li>
                                     <li>Refuerzo en la seguridad de consultas a Base de Datos mediante selección explícita y normalización de nombres de columnas.</li>
+                                    <li>Inclusión del permiso <span className="font-mono bg-white px-1 py-0.5 rounded text-indigo-600">canReceiveAndDerive</span> para flexibilizar la Recepción y Derivación de tickets.</li>
+                                    <li>Sincronización automática de identidad de usuario: Los tickets se actualizan asíncronamente si el Jefe o Analista cambia su nombre.</li>
+                                    <li>Prevención de pérdida de datos: Validaciones estrictas al borrar Usuarios o Áreas para asegurar que no posean tickets en progreso.</li>
                                 </ul>
                             </div>
                         </section>

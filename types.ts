@@ -29,7 +29,7 @@ export enum Priority {
 }
 
 export type UserStatus = 'ACTIVE' | 'INACTIVE';
-export type ViewMode = 'work' | 'superadmin';
+export type ViewMode = 'work' | 'superadmin' | 'documentation';
 
 export type NotificationType = 'INFO' | 'SUCCESS' | 'WARNING' | 'PROCESS';
 
