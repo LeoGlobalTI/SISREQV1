@@ -247,6 +247,28 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   useEffect(() => {
+    if (currentUser && users.length > 0) {
+        const updated = users.find(u => u.id === currentUser.id);
+        if (!updated) {
+            logout();
+        } else {
+            const hasChanged = updated.name !== currentUser.name || 
+                updated.role !== currentUser.role || 
+                updated.area !== currentUser.area || 
+                JSON.stringify(updated.areas) !== JSON.stringify(currentUser.areas) ||
+                updated.canReceiveAndDerive !== currentUser.canReceiveAndDerive ||
+                updated.canSupervise !== currentUser.canSupervise;
+            if (hasChanged) {
+                setCurrentUser(updated);
+                try {
+                    localStorage.setItem('sisreq_session_user', JSON.stringify(updated));
+                } catch (e) {}
+            }
+        }
+    }
+  }, [users]);
+
+  useEffect(() => {
     const initializeSystem = async () => {
       try {
         const diag = await db.init();
@@ -627,7 +649,30 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const updateUser = async (u: User) => {
+    const oldUser = users.find(existing => existing.id === u.id);
     await db.saveUser(u);
+    
+    // Sincronizar nombre en expedientes si ha cambiado
+    if (oldUser && oldUser.name !== u.name) {
+        for (const req of requests) {
+            let reqUpdated = false;
+            let updatedReq = { ...req };
+            
+            if (updatedReq.assignedAnalyst === oldUser.name) {
+                updatedReq.assignedAnalyst = u.name;
+                reqUpdated = true;
+            }
+            if (updatedReq.responsibleHead === oldUser.name) {
+                updatedReq.responsibleHead = u.name;
+                reqUpdated = true;
+            }
+            
+            if (reqUpdated) {
+                await db.saveRequest(updatedReq);
+            }
+        }
+    }
+    
     await loadData();
     addNotification('INFO', 'Perfil Actualizado', `Usuario ${u.name} modificado.`);
   };

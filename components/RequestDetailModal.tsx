@@ -48,7 +48,7 @@ export const RequestDetailModal: React.FC = () => {
   const availableAssignees = useMemo(() => {
     if (!data) return [];
     return users.filter(u => 
-        u.area === data.area && 
+        (u.areas?.includes(data.area) || u.area === data.area) && 
         (u.status === 'ACTIVE' || !u.status) &&
         (u.role === UserRole.HEAD || u.role === UserRole.ANALYST || u.role === UserRole.ADMIN)
     ).sort((a, b) => {

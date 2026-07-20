@@ -51,6 +51,14 @@ class DatabaseService {
 
         const { count: rCount } = await this.supabase.from(STORE_REQUESTS).select('*', { count: 'exact', head: true });
         if (rCount === 0) await this.supabase.from(STORE_REQUESTS).insert(INITIAL_REQUESTS);
+
+        const { count: aCount } = await this.supabase.from(STORE_AREAS).select('*', { count: 'exact', head: true });
+        if (aCount === 0) {
+            const initialAreas = Array.from(new Set(INITIAL_REQUESTS.map(r => r.area)));
+            for (const area of initialAreas) {
+                await this.supabase.from(STORE_AREAS).insert({ name: area });
+            }
+        }
     }
 
     private diagnoseError(error: any, table: string): DbDiagnostic {
