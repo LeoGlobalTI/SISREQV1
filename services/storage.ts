@@ -8,6 +8,7 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publisha
 
 const STORE_REQUESTS = 'requests';
 const STORE_USERS = 'users';
+const STORE_AREAS = 'organization_areas';
 
 export interface DbDiagnostic {
     status: 'READY' | 'ERROR' | 'SETUP_REQUIRED';
@@ -99,13 +100,21 @@ class DatabaseService {
   "deletedBy" text
 );`;
 
+        const sqlTableAreas = `CREATE TABLE IF NOT EXISTS public.organization_areas (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name text UNIQUE NOT NULL
+);`;
+
         const sqlRLS = `-- SEGURIDAD DE FILA (RLS)
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.organization_areas ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public Read" ON public.users FOR SELECT USING (true);
 CREATE POLICY "Public Read" ON public.requests FOR SELECT USING (true);
+CREATE POLICY "Public Read" ON public.organization_areas FOR SELECT USING (true);
 CREATE POLICY "Public Write" ON public.requests FOR ALL USING (true);
-CREATE POLICY "Public Write" ON public.users FOR ALL USING (true);`;
+CREATE POLICY "Public Write" ON public.users FOR ALL USING (true);
+CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`;
 
         if (code === '42703' || msg.includes('column')) {
             return {
@@ -127,7 +136,7 @@ CREATE POLICY "Public Write" ON public.users FOR ALL USING (true);`;
             return {
                 status: 'SETUP_REQUIRED',
                 message: `Esquema no inicializado`,
-                sqlSuggestion: `${sqlTableUsers}\n\n${sqlTableRequests}\n\n${sqlRLS}`
+                sqlSuggestion: `${sqlTableUsers}\n\n${sqlTableRequests}\n\n${sqlTableAreas}\n\n${sqlRLS}`
             };
         }
 
@@ -144,6 +153,25 @@ CREATE POLICY "Public Write" ON public.users FOR ALL USING (true);`;
             throw new Error(`DB_FETCH_ERROR: ${error.message || 'Unknown error'}`);
         }
         return (data || []) as RequestCard[];
+    }
+
+    public async getAreas(): Promise<string[]> {
+        const { data, error } = await this.supabase
+            .from(STORE_AREAS)
+            .select('name')
+            .order('name', { ascending: true });
+        if (error) throw new Error(`DB_AREA_FETCH_ERROR: ${error.message}`);
+        return (data || []).map(a => a.name);
+    }
+
+    public async addArea(name: string): Promise<void> {
+        const { error } = await this.supabase.from(STORE_AREAS).insert({ name });
+        if (error) throw new Error(`DB_AREA_INSERT_ERROR: ${error.message}`);
+    }
+
+    public async deleteArea(name: string): Promise<void> {
+        const { error } = await this.supabase.from(STORE_AREAS).delete().eq('name', name);
+        if (error) throw new Error(`DB_AREA_DELETE_ERROR: ${error.message}`);
     }
 
     public async saveRequest(req: RequestCard): Promise<void> {

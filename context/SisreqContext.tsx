@@ -154,50 +154,96 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   });
   
-  const [organizationAreas, setOrganizationAreas] = useState<string[]>(() => {
-    try {
-        const saved = localStorage.getItem('sisreq_organization_areas');
-        return saved ? JSON.parse(saved) : ['Contabilidad', 'RRHH', 'Acreditación', 'Finanzas'];
-    } catch (e) {
-        return ['Contabilidad', 'RRHH', 'Acreditación', 'Finanzas'];
-    }
-  });
+  const [organizationAreas, setOrganizationAreas] = useState<string[]>([]);
 
-  const saveAreas = (newAreas: string[]) => {
-      setOrganizationAreas(newAreas);
-      try {
-          localStorage.setItem('sisreq_organization_areas', JSON.stringify(newAreas));
-      } catch (e) {
-          console.warn("No se pudieron guardar las áreas.");
-      }
-  };
-
-  const addOrganizationArea = (areaName: string) => {
+  const addOrganizationArea = async (areaName: string) => {
       if (!organizationAreas.includes(areaName)) {
-          saveAreas([...organizationAreas, areaName]);
+          await db.addArea(areaName);
+          await loadData();
           addNotification('SUCCESS', 'Área Creada', `El área ${areaName} fue registrada en la organización.`);
       }
   };
 
-  const updateOrganizationArea = (oldName: string, newName: string) => {
-      saveAreas(organizationAreas.map(a => a === oldName ? newName : a));
+  const updateOrganizationArea = async (oldName: string, newName: string) => {
+      await db.deleteArea(oldName);
+      await db.addArea(newName);
+      
+      for (const user of users) {
+          let updated = false;
+          let updatedUser = { ...user };
+          
+          if (user.area) {
+              const strAreas = user.area.split(',').map(a => a.trim());
+              if (strAreas.includes(oldName)) {
+                  updatedUser.area = strAreas.map(a => a === oldName ? newName : a).join(', ');
+                  updated = true;
+              }
+          }
+          if (user.areas && user.areas.includes(oldName)) {
+              updatedUser.areas = user.areas.map(a => a === oldName ? newName : a);
+              updated = true;
+          }
+          
+          if (updated) {
+              await db.saveUser(updatedUser);
+          }
+      }
+
+      for (const req of requests) {
+          if (req.area === oldName) {
+              await db.saveRequest({ ...req, area: newName });
+          }
+      }
+
+      await loadData();
       addNotification('INFO', 'Área Actualizada', `El área ${oldName} ahora es ${newName}.`);
   };
 
-  const deleteOrganizationArea = (areaName: string) => {
-      saveAreas(organizationAreas.filter(a => a !== areaName));
+  const deleteOrganizationArea = async (areaName: string) => {
+      const activeRequests = requests.some(r => r.area === areaName && r.status !== Status.FINALIZADO && !r.isDeleted);
+      if (activeRequests) {
+          addNotification('WARNING', 'Acción Denegada', `No se puede eliminar el área ${areaName} porque tiene expedientes activos asignados.`);
+          return;
+      }
+
+      await db.deleteArea(areaName);
+
+      for (const user of users) {
+          let updated = false;
+          let updatedUser = { ...user };
+          
+          if (user.area) {
+              const strAreas = user.area.split(',').map(a => a.trim());
+              if (strAreas.includes(areaName)) {
+                  updatedUser.area = strAreas.filter(a => a !== areaName).join(', ');
+                  updated = true;
+              }
+          }
+          if (user.areas && user.areas.includes(areaName)) {
+              updatedUser.areas = user.areas.filter(a => a !== areaName);
+              updated = true;
+          }
+          
+          if (updated) {
+              await db.saveUser(updatedUser);
+          }
+      }
+
+      await loadData();
       addNotification('WARNING', 'Área Eliminada', `El área ${areaName} fue eliminada de la organización.`);
   };
 
   const loadData = useCallback(async () => {
-      const [loadedUsers, loadedRequests] = await Promise.all([
+      const [loadedUsers, loadedRequests, loadedAreas] = await Promise.all([
         db.getUsers(),
-        db.getRequests()
+        db.getRequests(),
+        db.getAreas()
       ]);
       setUsers(loadedUsers);
       setRequests(loadedRequests.sort((a, b) => 
         new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()
       ));
+      setOrganizationAreas(loadedAreas);
   }, []);
 
   useEffect(() => {
