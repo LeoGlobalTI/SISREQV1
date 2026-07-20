@@ -10,6 +10,7 @@ import {
     Hash, FileDown, FilterX, FileSpreadsheet
 } from 'lucide-react';
 import { PRIORITY_STYLES, STATUS_BADGE_COLORS } from '../constants';
+import { canReceiveAndDerive } from '../src/lib/auth';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -120,7 +121,8 @@ export const Board: React.FC = () => {
           (req.assignedAnalyst && req.assignedAnalyst.toLowerCase().includes(term));
 
       // 5. Filtro global de área (Admin/Superadmin o Receptores Centrales)
-      const matchesArea = globalFilterArea === 'ALL' || req.area === globalFilterArea || (currentUser?.canReceiveAndDerive && req.status === Status.RECIBIDO);
+      const isCentralReceiver = canReceiveAndDerive(currentUser || undefined);
+      const matchesArea = globalFilterArea === 'ALL' || req.area === globalFilterArea || (isCentralReceiver && req.status === Status.RECIBIDO);
       
       return matchesSearch && matchesArea;
     });
@@ -333,7 +335,7 @@ export const Board: React.FC = () => {
                 </div>
              </div>
 
-             {(activeRole === UserRole.SUPERADMIN || activeRole === UserRole.ADMIN || currentUser?.canReceiveAndDerive) && (
+             {(canReceiveAndDerive(currentUser || undefined)) && (
                 <div className="relative">
                     <MapPin size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
                     <select 
@@ -359,7 +361,7 @@ export const Board: React.FC = () => {
               <div className="h-full overflow-x-auto overflow-y-hidden hide-scrollbar">
                   <div className="h-full flex px-8 py-10 gap-8 min-w-[1300px]">
                       {COLUMNS.map((col) => {
-                          if (col.status === Status.RECIBIDO && activeRole !== UserRole.ADMIN && activeRole !== UserRole.SUPERADMIN && !currentUser?.canReceiveAndDerive) return null;
+                          if (col.status === Status.RECIBIDO && !canReceiveAndDerive(currentUser || undefined)) return null;
                           
                           const items = filteredRequests.filter(r => r.status === col.status);
                           const isDragActive = dragOverColumn === col.status;

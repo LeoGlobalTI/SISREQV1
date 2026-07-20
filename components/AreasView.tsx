@@ -3,22 +3,30 @@ import { useSisreq } from '../context/SisreqContext';
 import { Building, Plus, Edit2, Trash2, Save, X } from 'lucide-react';
 
 export const AreasView: React.FC = () => {
-    const { organizationAreas, addOrganizationArea, updateOrganizationArea, deleteOrganizationArea } = useSisreq();
+    const { organizationAreas, addOrganizationArea, updateOrganizationArea, deleteOrganizationArea, addNotification } = useSisreq();
     const [newArea, setNewArea] = useState('');
     const [editingArea, setEditingArea] = useState<string | null>(null);
     const [editValue, setEditValue] = useState('');
 
-    const handleAdd = (e: React.FormEvent) => {
+    const handleAdd = async (e: React.FormEvent) => {
         e.preventDefault();
         if (newArea.trim()) {
-            addOrganizationArea(newArea.trim());
-            setNewArea('');
+            try {
+                await addOrganizationArea(newArea.trim());
+                setNewArea('');
+            } catch (err: any) {
+                addNotification('WARNING', 'Error', err.message || 'No se pudo crear el área. Verifique que no exista previamente.');
+            }
         }
     };
 
-    const handleSaveEdit = () => {
+    const handleSaveEdit = async () => {
         if (editingArea && editValue.trim() && editingArea !== editValue.trim()) {
-            updateOrganizationArea(editingArea, editValue.trim());
+            try {
+                await updateOrganizationArea(editingArea, editValue.trim());
+            } catch (err: any) {
+                addNotification('WARNING', 'Error', err.message || 'No se pudo actualizar el área.');
+            }
         }
         setEditingArea(null);
         setEditValue('');
@@ -30,9 +38,13 @@ export const AreasView: React.FC = () => {
         setAreaToDelete(area);
     };
 
-    const confirmDelete = () => {
+    const confirmDelete = async () => {
         if (areaToDelete) {
-            deleteOrganizationArea(areaToDelete);
+            try {
+                await deleteOrganizationArea(areaToDelete);
+            } catch (err: any) {
+                addNotification('WARNING', 'Error', err.message || 'No se pudo eliminar el área.');
+            }
             setAreaToDelete(null);
         }
     };

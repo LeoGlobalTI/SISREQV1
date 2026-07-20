@@ -401,7 +401,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const checkEditJurisdiction = useCallback((req: RequestCard): boolean => {
     if (activeRole === UserRole.SUPERADMIN || activeRole === UserRole.ADMIN) return true;
-    if (currentUser?.canReceiveAndDerive && (req.status === Status.RECIBIDO || req.status === Status.DERIVACION)) return true;
+    if (canReceiveAndDerive(currentUser || undefined) && (req.status === Status.RECIBIDO || req.status === Status.DERIVACION)) return true;
     const userAreas = currentUser?.areas || (currentUser?.area ? [currentUser.area] : []);
     return userAreas.includes(req.area);
   }, [activeRole, currentUser]);
@@ -457,10 +457,14 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const addRequest = async (title: string, detail: string, area: Area, priority: Priority, requester: string) => {
     const now = new Date().toISOString();
     const initialStatus = (activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN || canReceiveAndDerive(currentUser)) ? Status.RECIBIDO : Status.DERIVACION;
+    
+    const headUser = users.find(u => u.role === UserRole.HEAD && (u.areas?.includes(area) || u.area === area));
+    const responsibleHead = headUser ? headUser.name : 'Pendiente de asignación';
+
     const newReq: RequestCard = {
       id: genUUID(),
       title, detail, area, status: initialStatus, priority, requester,
-      responsibleHead: AREA_HEADS[area], createdAt: now, lastUpdated: now,
+      responsibleHead, createdAt: now, lastUpdated: now,
       logs: [createAuditLog(`APERTURA: Registro inicializado en fase ${initialStatus}`)]
     };
     await db.saveRequest(newReq);
@@ -635,6 +639,15 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (id === currentUser?.id) {
         throw new Error("Acción denegada: No puede eliminar su propia cuenta estando en sesión.");
     }
+    
+    const userToDelete = users.find(u => u.id === id);
+    if (userToDelete) {
+        const hasActiveRequests = requests.some(r => r.assignedAnalyst === userToDelete.name && r.status !== Status.FINALIZADO && !r.isDeleted);
+        if (hasActiveRequests) {
+            throw new Error("El usuario tiene requerimientos activos asignados. Reasígnelos antes de eliminar.");
+        }
+    }
+
     try {
         await db.deleteUser(id);
         await loadData();
