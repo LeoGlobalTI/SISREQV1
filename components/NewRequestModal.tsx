@@ -28,6 +28,7 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [requester, setRequester] = useState('');
   const [area, setArea] = useState<Area>('Contabilidad');
   const [priority, setPriority] = useState<Priority>(Priority.MEDIUM);
+  const [error, setError] = useState<string | null>(null);
 
   // Efecto para auto-seleccionar el área si el usuario es Jefatura
   useEffect(() => {
@@ -39,14 +40,19 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !detail || !requester) return;
-    addRequest(title, detail, area, priority, requester);
-    setTitle('');
-    setDetail('');
-    setRequester('');
-    onClose();
+    setError(null);
+    try {
+      await addRequest(title, detail, area, priority, requester);
+      setTitle('');
+      setDetail('');
+      setRequester('');
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Error al guardar el requerimiento');
+    }
   };
 
   const isHeadSelection = activeRole === UserRole.HEAD;
@@ -90,6 +96,15 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
         <div className="flex-1 overflow-y-auto custom-scrollbar bg-white">
           <form id="new-request-form" onSubmit={handleSubmit} className="p-6 space-y-6">
             
+            {error && (
+                <div className="bg-red-50 border border-red-100 p-3 rounded-xl flex items-center gap-3 animate-in slide-in-from-top-2">
+                    <AlertCircle size={16} className="text-red-600 shrink-0" />
+                    <p className="text-[10px] font-bold text-red-700 uppercase tracking-tight">
+                        {error}
+                    </p>
+                </div>
+            )}
+
             {isHeadSelection && (
                 <div className="bg-amber-50 border border-amber-100 p-3 rounded-xl flex items-center gap-3 animate-in slide-in-from-top-2">
                     <ShieldCheck size={16} className="text-amber-600 shrink-0" />
