@@ -136,15 +136,25 @@ export const RequestDetailModal: React.FC = () => {
 
   const handleSaveChanges = async () => {
     if (editTitle.trim() && editDetail.trim()) {
-        await updateRequestDetails(data.id, editTitle, editDetail);
-        setIsEditing(false);
+        setActionError(null);
+        try {
+            await updateRequestDetails(data.id, editTitle, editDetail);
+            setIsEditing(false);
+        } catch (e: any) {
+            setActionError(e.message);
+        }
     }
   };
 
   const handleAddComment = async () => {
     if (newComment.trim()) {
-        await addLog(data.id, `NOTA: ${newComment.trim()}`);
-        setNewComment('');
+        setActionError(null);
+        try {
+            await addLog(data.id, `NOTA: ${newComment.trim()}`);
+            setNewComment('');
+        } catch (e: any) {
+            setActionError(e.message);
+        }
     }
   };
 

@@ -48,6 +48,7 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
   const [status, setStatus] = useState<UserStatus>('ACTIVE');
   const [canSupervise, setCanSupervise] = useState(false);
   const [canReceiveAndDerive, setCanReceiveAndDerive] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -90,31 +91,36 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email || (!userToEdit && !password)) return;
+    setError(null);
 
     const finalArea = areas.length > 0 ? areas[0] : undefined;
     const finalAreas = areas;
     
-    if (userToEdit) {
-        const updatedUser: User = {
-            ...userToEdit,
-            name,
-            email,
-            role,
-            area: finalArea,
-            areas: finalAreas,
-            status,
-            canSupervise,
-            canReceiveAndDerive,
-            password: password.trim() ? password : userToEdit.password
-        };
-        updateUser(updatedUser);
-    } else {
-        addUser(name, email, role, password, finalArea, finalAreas, canSupervise, canReceiveAndDerive);
+    try {
+        if (userToEdit) {
+            const updatedUser: User = {
+                ...userToEdit,
+                name,
+                email,
+                role,
+                area: finalArea,
+                areas: finalAreas,
+                status,
+                canSupervise,
+                canReceiveAndDerive,
+                password: password.trim() ? password : userToEdit.password
+            };
+            await updateUser(updatedUser);
+        } else {
+            await addUser(name, email, role, password, finalArea, finalAreas, canSupervise, canReceiveAndDerive);
+        }
+        onClose();
+    } catch (err: any) {
+        setError(err.message || 'Error al guardar el usuario');
     }
-    onClose();
   };
 
   const isEditMode = !!userToEdit;
@@ -160,6 +166,15 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
         <div className="flex-1 overflow-y-auto custom-scrollbar bg-white">
           <form id="user-form" onSubmit={handleSubmit} className="p-6 space-y-6">
             
+            {error && (
+                <div className="bg-red-50 border border-red-100 p-3 rounded-xl flex items-center gap-3 animate-in slide-in-from-top-2">
+                    <ShieldCheck size={16} className="text-red-600 shrink-0" />
+                    <p className="text-[10px] font-bold text-red-700 uppercase tracking-tight">
+                        {error}
+                    </p>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                     <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
