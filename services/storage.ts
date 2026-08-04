@@ -66,7 +66,7 @@ class DatabaseService {
         const code = error.code || "";
 
         // Handle network/connection errors
-        if (msg === 'Failed to fetch' || error instanceof TypeError) {
+        if (msg.includes('Failed to fetch') || error instanceof TypeError) {
             return {
                 status: 'ERROR',
                 message: `Error de conexión: No se pudo conectar a la base de datos (${SUPABASE_URL}). Verifique su conexión a Internet o si la URL de Supabase es correcta.`,

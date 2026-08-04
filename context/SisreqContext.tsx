@@ -242,16 +242,20 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const loadData = useCallback(async () => {
-      const [loadedUsers, loadedRequests, loadedAreas] = await Promise.all([
-        db.getUsers(),
-        db.getRequests(),
-        db.getAreas()
-      ]);
-      setUsers(loadedUsers);
-      setRequests(loadedRequests.sort((a, b) => 
-        new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()
-      ));
-      setOrganizationAreas(loadedAreas);
+      try {
+          const [loadedUsers, loadedRequests, loadedAreas] = await Promise.all([
+            db.getUsers(),
+            db.getRequests(),
+            db.getAreas()
+          ]);
+          setUsers(loadedUsers);
+          setRequests(loadedRequests.sort((a, b) => 
+            new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()
+          ));
+          setOrganizationAreas(loadedAreas);
+      } catch (e) {
+          console.error("Failed to load data from Supabase:", e);
+      }
   }, []);
 
   useEffect(() => {
@@ -331,13 +335,16 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     // Fallback de Polling (reducido a cada 60 segundos para no saturar la red)
-    const interval = setInterval(() => {
-        loadData();
-    }, 60000);
+    let interval: ReturnType<typeof setInterval>;
+    if (dbDiagnostic?.status === 'READY') {
+        interval = setInterval(() => {
+            loadData();
+        }, 60000);
+    }
 
     return () => {
         unsubscribe();
-        clearInterval(interval);
+        if (interval) clearInterval(interval);
     };
   }, [dbDiagnostic, loadData]);
 
@@ -679,22 +686,14 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     // Sincronizar nombre en expedientes si ha cambiado
     if (oldUser && oldUser.name !== u.name) {
-        for (const req of requests) {
-            let reqUpdated = false;
+        const allReqs = await db.getRequests();
+        const reqsToUpdate = allReqs.filter(r => r.assignedAnalyst === oldUser.name || r.responsibleHead === oldUser.name);
+        
+        for (const req of reqsToUpdate) {
             let updatedReq = { ...req };
-            
-            if (updatedReq.assignedAnalyst === oldUser.name) {
-                updatedReq.assignedAnalyst = u.name;
-                reqUpdated = true;
-            }
-            if (updatedReq.responsibleHead === oldUser.name) {
-                updatedReq.responsibleHead = u.name;
-                reqUpdated = true;
-            }
-            
-            if (reqUpdated) {
-                await db.saveRequest(updatedReq);
-            }
+            if (updatedReq.assignedAnalyst === oldUser.name) updatedReq.assignedAnalyst = u.name;
+            if (updatedReq.responsibleHead === oldUser.name) updatedReq.responsibleHead = u.name;
+            await db.saveRequest(updatedReq);
         }
     }
     
