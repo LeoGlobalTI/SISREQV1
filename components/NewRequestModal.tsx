@@ -26,17 +26,27 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [title, setTitle] = useState('');
   const [detail, setDetail] = useState('');
   const [requester, setRequester] = useState('');
-  const [area, setArea] = useState<Area>('Contabilidad');
+  const [area, setArea] = useState<Area>(() => {
+    return (organizationAreas && organizationAreas.length > 0 ? organizationAreas[0] : 'Contabilidad') as Area;
+  });
   const [priority, setPriority] = useState<Priority>(Priority.MEDIUM);
   const [error, setError] = useState<string | null>(null);
 
-  // Efecto para auto-seleccionar el área si el usuario es Jefatura
+  // Efecto para auto-seleccionar el área si el usuario es Jefatura, o validar el área actual
   useEffect(() => {
-    if (isOpen && activeRole === UserRole.HEAD) {
-        const defaultArea = currentUser?.areas?.[0] || currentUser?.area;
-        if (defaultArea) setArea(defaultArea);
+    if (isOpen) {
+        if (activeRole === UserRole.HEAD) {
+            const defaultArea = currentUser?.areas?.[0] || currentUser?.area;
+            if (defaultArea && organizationAreas.includes(defaultArea)) {
+                setArea(defaultArea as Area);
+            } else if (organizationAreas.length > 0) {
+                setArea(organizationAreas[0] as Area);
+            }
+        } else if (organizationAreas.length > 0 && !organizationAreas.includes(area)) {
+            setArea(organizationAreas[0] as Area);
+        }
     }
-  }, [isOpen, activeRole, currentUser]);
+  }, [isOpen, activeRole, currentUser, organizationAreas]);
 
   if (!isOpen) return null;
 

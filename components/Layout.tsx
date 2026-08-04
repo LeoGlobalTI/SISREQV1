@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useSisreq } from '../context/SisreqContext';
 import { UserRole, Area } from '../types';
-import { LayoutDashboard, Plus, Briefcase, LogOut, Shield, ArrowLeftRight, Book } from 'lucide-react';
+import { LayoutDashboard, Plus, Briefcase, LogOut, Shield, ArrowLeftRight, Book, Calculator } from 'lucide-react';
 import { NewRequestModal } from './NewRequestModal';
 import { RequestDetailModal } from './RequestDetailModal';
 import { NotificationBell } from './NotificationBell';
@@ -16,7 +16,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
   const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
   
-  const canSupervise = currentUser.role === UserRole.HEAD && currentUser.canSupervise;
+  const canSupervise = !!currentUser.canSupervise && currentUser.role !== UserRole.ADMIN && currentUser.role !== UserRole.SUPERADMIN;
 
   const handleToggleProfile = () => {
     setSelectedRequestId(null);
@@ -35,7 +35,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 }`}
             >
                 <ArrowLeftRight size={10} />
-                {isSupervisorMode ? 'MODO SUPERVISOR' : `JEFE ${currentUser.areas?.join(', ')?.toUpperCase() || currentUser.area?.toUpperCase()}`}
+                {isSupervisorMode ? 'MODO SUPERVISOR' : `${currentUser.role === UserRole.HEAD ? 'JEFE' : 'ANALISTA'} ${currentUser.areas?.join(', ')?.toUpperCase() || currentUser.area?.toUpperCase()}`}
             </button>
         );
     }
@@ -100,6 +100,13 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <div className="h-8 w-px bg-slate-200 mx-1"></div>
 
             <div className="flex items-center gap-2">
+                <button
+                    onClick={() => setViewMode(viewMode === 'calculator' ? 'work' : 'calculator')}
+                    className={`relative p-2.5 rounded-full transition-all border ${viewMode === 'calculator' ? 'bg-indigo-50 border-indigo-200 text-indigo-600 shadow-inner' : 'bg-white border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-100 hover:bg-indigo-50/50 shadow-sm'}`}
+                    title="Calculadora de IVA"
+                >
+                    <Calculator size={18} className={viewMode === 'calculator' ? 'text-indigo-600' : ''}/>
+                </button>
                 <button
                     onClick={() => setViewMode(viewMode === 'documentation' ? 'work' : 'documentation')}
                     className={`relative p-2.5 rounded-full transition-all border ${viewMode === 'documentation' ? 'bg-indigo-50 border-indigo-200 text-indigo-600 shadow-inner' : 'bg-white border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-100 hover:bg-indigo-50/50 shadow-sm'}`}

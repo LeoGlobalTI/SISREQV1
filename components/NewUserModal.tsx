@@ -63,18 +63,19 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
             setCanReceiveAndDerive(userToEdit.canReceiveAndDerive || false);
             setPassword('');
         } else {
+            const defaultArea = (organizationAreas && organizationAreas.length > 0 ? organizationAreas[0] : 'Contabilidad') as Area;
             setName('');
             setEmail('');
             setRole(UserRole.ANALYST);
-            setArea('Contabilidad');
-            setAreas(['Contabilidad']);
+            setArea(defaultArea);
+            setAreas([defaultArea]);
             setStatus('ACTIVE');
             setCanSupervise(false);
             setCanReceiveAndDerive(false);
             setPassword('');
         }
     }
-  }, [isOpen, userToEdit]);
+  }, [isOpen, userToEdit, organizationAreas]);
 
   const isAreaMandatory = role === UserRole.HEAD || role === UserRole.ANALYST;
 
@@ -84,8 +85,9 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
         setArea('NONE');
         setAreas([]);
     } else if (isAreaMandatory && areas.length === 0) {
-        setArea('Contabilidad');
-        setAreas(['Contabilidad']);
+        const defaultArea = (organizationAreas && organizationAreas.length > 0 ? organizationAreas[0] : 'Contabilidad') as Area;
+        setArea(defaultArea);
+        setAreas([defaultArea]);
     }
   };
 

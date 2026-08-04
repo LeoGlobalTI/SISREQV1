@@ -195,6 +195,10 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
       }
 
+      if (globalFilterArea === oldName) {
+          setGlobalFilterArea(newName);
+      }
+
       await loadData();
       addNotification('INFO', 'Área Actualizada', `El área ${oldName} ahora es ${newName}.`);
   };
@@ -227,6 +231,10 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           if (updated) {
               await db.saveUser(updatedUser);
           }
+      }
+
+      if (globalFilterArea === areaName) {
+          setGlobalFilterArea('ALL');
       }
 
       await loadData();
@@ -294,11 +302,27 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (payload.eventType === 'INSERT') {
             setRequests(prev => {
                 if (prev.find(r => r.id === payload.new.id)) return prev;
-                return [...prev, payload.new as RequestCard].sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime());
+                const newReq = { ...payload.new } as RequestCard;
+                if (typeof newReq.logs === 'string') {
+                    try {
+                        newReq.logs = JSON.parse(newReq.logs);
+                    } catch (e) {
+                        newReq.logs = [];
+                    }
+                }
+                return [...prev, newReq].sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime());
             });
         } else if (payload.eventType === 'UPDATE') {
             setRequests(prev => {
-                const updated = prev.map(r => r.id === payload.new.id ? payload.new as RequestCard : r);
+                const updatedReq = { ...payload.new } as RequestCard;
+                if (typeof updatedReq.logs === 'string') {
+                    try {
+                        updatedReq.logs = JSON.parse(updatedReq.logs);
+                    } catch (e) {
+                        updatedReq.logs = [];
+                    }
+                }
+                const updated = prev.map(r => r.id === payload.new.id ? updatedReq : r);
                 return updated.sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime());
             });
         } else if (payload.eventType === 'DELETE') {
@@ -389,6 +413,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setActiveRole(null);
     setSelectedRequestId(null);
     setNotifications([]);
+    setIsSupervisorMode(false);
     
     // Limpieza de sesión
     try {
@@ -401,7 +426,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const toggleSupervisorMode = () => {
-    if (!currentUser || currentUser.role !== UserRole.HEAD || !canSupervise(currentUser)) return;
+    if (!currentUser || !currentUser.canSupervise || currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.SUPERADMIN) return;
     const newMode = !isSupervisorMode;
     setIsSupervisorMode(newMode);
     try {
@@ -480,7 +505,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const now = new Date().toISOString();
     const initialStatus = (activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN || canReceiveAndDerive(currentUser)) ? Status.RECIBIDO : Status.DERIVACION;
     
-    const headUser = users.find(u => u.role === UserRole.HEAD && (u.areas?.includes(area) || u.area === area));
+    const headUser = users.find(u => u.role === UserRole.HEAD && (u.areas?.includes(area) || u.area === area) && (u.status === 'ACTIVE' || !u.status));
     const responsibleHead = headUser ? headUser.name : 'Pendiente de asignación';
 
     const newReq: RequestCard = {
@@ -688,8 +713,9 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const userToDelete = users.find(u => u.id === id);
     if (userToDelete) {
         const hasActiveRequests = requests.some(r => r.assignedAnalyst === userToDelete.name && r.status !== Status.FINALIZADO && !r.isDeleted);
-        if (hasActiveRequests) {
-            throw new Error("El usuario tiene requerimientos activos asignados. Reasígnelos antes de eliminar.");
+        const isResponsibleForActiveRequests = requests.some(r => r.responsibleHead === userToDelete.name && r.status !== Status.FINALIZADO && !r.isDeleted);
+        if (hasActiveRequests || isResponsibleForActiveRequests) {
+            throw new Error("El usuario tiene requerimientos activos asignados como Analista o Jefatura Responsable. Reasígnelos antes de eliminar.");
         }
     }
 

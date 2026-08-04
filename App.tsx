@@ -6,6 +6,7 @@ import { Board } from './components/Board';
 import { SuperAdminView } from './components/SuperAdminView';
 import { LoginPage } from './components/LoginPage';
 import { DocumentationView } from './components/DocumentationView';
+import { CalculatorView } from './components/CalculatorView';
 import { LayoutDashboard, AlertCircle, Database, Copy, CheckCircle2, Terminal } from 'lucide-react';
 
 const SetupRequiredView: React.FC<{ sql?: string, message: string }> = ({ sql, message }) => {
@@ -131,7 +132,7 @@ const MainContent: React.FC = () => {
 
   return (
     <Layout>
-      {viewMode === 'superadmin' ? <SuperAdminView /> : viewMode === 'documentation' ? <DocumentationView /> : <Board />}
+      {viewMode === 'superadmin' ? <SuperAdminView /> : viewMode === 'documentation' ? <DocumentationView /> : viewMode === 'calculator' ? <CalculatorView /> : <Board />}
     </Layout>
   );
 };

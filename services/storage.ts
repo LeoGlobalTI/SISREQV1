@@ -247,11 +247,11 @@ CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`
     }
 
     public async saveUser(user: User): Promise<void> {
-        const toSave = { ...user };
-        if (toSave.areas && toSave.areas.length > 0) {
-            toSave.area = toSave.areas.join(',');
+        const toSave = { ...user } as any;
+        if (toSave.areas) {
+            toSave.area = toSave.areas.length > 0 ? toSave.areas.join(',') : null;
+            delete toSave.areas;
         }
-        delete toSave.areas;
 
         const { error } = await this.supabase.from(STORE_USERS).upsert(toSave);
         if (error) throw new Error(`DB_USER_UPDATE_ERROR: ${error.message}`);

@@ -41,8 +41,9 @@ export const RequestDetailModal: React.FC = () => {
 
   // Se muestran todos los logs sin excepción para trazabilidad total
   const allLogs = useMemo(() => {
-    if (!data) return [];
-    return [...data.logs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    if (!data || !data.logs) return [];
+    const logsArray = Array.isArray(data.logs) ? data.logs : [];
+    return [...logsArray].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [data]);
 
   const availableAssignees = useMemo(() => {
@@ -160,7 +161,7 @@ export const RequestDetailModal: React.FC = () => {
 
   const canDeriveUI = !isArchived && canUserTransition(data, Status.DERIVACION).allowed;
   const canFinalizeUI = !isArchived && canUserTransition(data, Status.FINALIZADO).allowed;
-  const canEditUI = !isArchived && (activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN) && !isFinalized;
+  const canEditUI = !isArchived && (activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN || (currentUser.canReceiveAndDerive && data.status === Status.RECIBIDO)) && !isFinalized;
   const showReturnButton = !isArchived && canUserTransition(data, Status.RECIBIDO).allowed && !isFinalized;
   const canAssignUI = !isArchived && (activeRole === UserRole.HEAD || activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN) && data.status === Status.DERIVACION;
 

@@ -20,7 +20,9 @@ type DisplayMode = 'kanban' | 'list';
  * Calcula si una fecha es mayor a 5 días hábiles respecto a hoy.
  */
 const isOlderThan5BusinessDays = (dateStr: string): boolean => {
+  if (!dateStr) return false;
   const finishedDate = new Date(dateStr);
+  if (isNaN(finishedDate.getTime())) return false;
   const now = new Date();
   
   if (finishedDate > now) return false;
