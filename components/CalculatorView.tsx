@@ -6,6 +6,7 @@ export const CalculatorView: React.FC = () => {
   const [sales, setSales] = useState<string>('');
   const [purchases, setPurchases] = useState<string>('');
   const [targetIva, setTargetIva] = useState<string>('');
+  const [ppm, setPpm] = useState<string>('0.25');
 
   const parseNumber = (val: string) => {
     const num = parseInt(val.replace(/\D/g, ''), 10);
@@ -50,9 +51,20 @@ export const CalculatorView: React.FC = () => {
     setTargetIva(formatCurrency(rawValue));
   };
 
+  const handlePpmChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value.replace(/[^0-9.]/g, '');
+    // limit multiple dots
+    const dots = val.match(/\./g);
+    if (dots && dots.length > 1) {
+      val = val.substring(0, val.lastIndexOf('.'));
+    }
+    setPpm(val);
+  };
+
   const salesAmount = parseNumber(sales);
   const purchasesAmount = parseNumber(purchases);
   const targetIvaAmount = parseNumber(targetIva);
+  const ppmValue = parseFloat(ppm) || 0;
 
   // Consideramos que los montos ingresados son BRUTOS (Total).
   // IVA es 19% en Chile
@@ -68,6 +80,9 @@ export const CalculatorView: React.FC = () => {
   const absoluteIva = Math.abs(ivaToPay);
   const netoCorrespondiente = absoluteIva > 0 ? Math.round(absoluteIva / 0.19) : 0;
   const brutoCorrespondiente = netoCorrespondiente + absoluteIva;
+
+  const ppmAmount = Math.round(netoVentas * (ppmValue / 100));
+  const totalResult = isPositive ? (absoluteIva + ppmAmount) : ppmAmount;
 
   const chartData = [
     { name: 'IVA Débito (Ventas)', amount: ivaDebito, color: '#4f46e5' }, // indigo-600
@@ -161,7 +176,7 @@ export const CalculatorView: React.FC = () => {
                   </span>
                   <div className="flex flex-col gap-3">
                     <span className={`text-3xl font-black tracking-tighter ${isPositive ? 'text-indigo-900' : 'text-emerald-900'}`}>
-                      {formatCurrency(absoluteIva)}
+                      {isPositive ? formatCurrency(absoluteIva) : `-${formatCurrency(absoluteIva)}`}
                     </span>
                     
                     {absoluteIva > 0 && (
@@ -176,6 +191,39 @@ export const CalculatorView: React.FC = () => {
                         </div>
                       </div>
                     )}
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center border-b border-slate-100 pb-4 mt-6">
+                  <div className="flex flex-col">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                      Tasa PPM (%)
+                    </label>
+                    <div className="relative w-24">
+                      <input
+                        type="text"
+                        value={ppm}
+                        onChange={handlePpmChange}
+                        placeholder="0.25"
+                        className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-xl pl-3 pr-8 py-2 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-black placeholder:text-slate-300"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">%</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col text-right">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Monto PPM</span>
+                    <span className="text-lg font-black text-slate-800">{formatCurrency(ppmAmount)}</span>
+                  </div>
+                </div>
+
+                <div className={`mt-6 p-5 rounded-2xl shadow-lg border ${isPositive ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-emerald-600 text-white border-emerald-500'}`}>
+                  <span className={`text-[9px] font-black uppercase tracking-widest mb-1 block opacity-80`}>
+                    {isPositive ? 'Total a Pagar (IVA + PPM)' : 'Total a Pagar (Solo PPM)'}
+                  </span>
+                  <div className="flex flex-col gap-3">
+                    <span className={`text-3xl font-black tracking-tighter`}>
+                      {formatCurrency(totalResult)}
+                    </span>
                   </div>
                 </div>
               </div>
