@@ -85,7 +85,7 @@ const SetupRequiredView: React.FC<{ sql?: string, message: string }> = ({ sql, m
 };
 
 const MainContent: React.FC = () => {
-  const { isAuthenticated, viewMode, isLoading, initError, dbDiagnostic } = useSisreq();
+  const { isAuthenticated, viewMode, isLoading, initError, dbDiagnostic, bypassConnectionError } = useSisreq();
 
   if (isLoading) {
     return (
@@ -109,18 +109,26 @@ const MainContent: React.FC = () => {
         <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-6 text-center">
             <div className="bg-red-50 p-8 rounded-[2.5rem] border border-red-100 max-w-md shadow-xl">
                 <AlertCircle className="text-red-500 mx-auto mb-4" size={48} />
-                <h2 className="text-xl font-black text-slate-900 mb-2 uppercase tracking-tight">Fallo Crítico de Conexión</h2>
-                <p className="text-slate-500 text-sm font-medium mb-8 leading-relaxed">
+                <h2 className="text-xl font-black text-slate-900 mb-2 uppercase tracking-tight">Fallo de Conexión</h2>
+                <p className="text-slate-500 text-sm font-medium mb-6 leading-relaxed">
                     {errorMsg}
                     <br/><br/>
-                    <span className="text-[10px] text-slate-400">Verifica que las credenciales de Supabase sean correctas y que el proyecto esté activo.</span>
+                    <span className="text-[10px] text-slate-400">Verifica tu conexión o ingresa utilizando el respaldo local guardado en el navegador.</span>
                 </p>
-                <button 
-                    onClick={() => window.location.reload()}
-                    className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all"
-                >
-                    Reintentar Conexión
-                </button>
+                <div className="flex flex-col gap-3">
+                    <button 
+                        onClick={() => window.location.reload()}
+                        className="w-full bg-slate-900 hover:bg-black text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+                    >
+                        Reintentar Conexión
+                    </button>
+                    <button 
+                        onClick={() => bypassConnectionError()}
+                        className="w-full bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 py-3.5 rounded-2xl font-bold text-xs uppercase tracking-wider transition-all active:scale-95"
+                    >
+                        Continuar con Respaldo Local
+                    </button>
+                </div>
             </div>
         </div>
       );

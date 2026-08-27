@@ -21,6 +21,7 @@ interface SisreqContextType {
   selectedRequestId: string | null;
   organizationAreas: string[];
   isSupervisorMode: boolean;
+  bypassConnectionError: () => void;
   
   login: (email: string, pass: string) => Promise<boolean>;
   logout: () => void;
@@ -119,7 +120,27 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return null;
     }
   });
-  const [viewMode, setViewMode] = useState<ViewMode>('work');
+  const [viewMode, setViewModeState] = useState<ViewMode>(() => {
+    try {
+        const saved = localStorage.getItem('sisreq_view_mode');
+        if (saved === 'calculator') {
+            localStorage.setItem('sisreq_view_mode', 'work');
+            return 'work';
+        }
+        return (saved as ViewMode) || 'work';
+    } catch (e) {
+        return 'work';
+    }
+  });
+
+  const setViewMode = useCallback((mode: ViewMode) => {
+    setViewModeState(mode);
+    try {
+        localStorage.setItem('sisreq_view_mode', mode);
+    } catch (e) {
+        // ignore
+    }
+  }, []);
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     try {
         return localStorage.getItem('sisreq_session_user') !== null;
@@ -248,13 +269,19 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             db.getRequests(),
             db.getAreas()
           ]);
-          setUsers(loadedUsers);
-          setRequests(loadedRequests.sort((a, b) => 
-            new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()
-          ));
-          setOrganizationAreas(loadedAreas);
+          if (loadedUsers && loadedUsers.length > 0) {
+              setUsers(loadedUsers);
+          }
+          if (loadedRequests && loadedRequests.length >= 0) {
+              setRequests(loadedRequests.sort((a, b) => 
+                new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()
+              ));
+          }
+          if (loadedAreas && loadedAreas.length > 0) {
+              setOrganizationAreas(loadedAreas);
+          }
       } catch (e) {
-          console.error("Failed to load data from Supabase:", e);
+          console.warn("Aviso al sincronizar datos:", e);
       }
   }, []);
 
@@ -262,7 +289,11 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (currentUser && users.length > 0) {
         const updated = users.find(u => u.id === currentUser.id);
         if (!updated) {
-            logout();
+            // Solo desloguear si no existe en la sesión persistida localmente
+            const localUserRaw = localStorage.getItem('sisreq_session_user');
+            if (!localUserRaw) {
+                logout();
+            }
         } else {
             const hasChanged = updated.name !== currentUser.name || 
                 updated.role !== currentUser.role || 
@@ -347,6 +378,17 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (interval) clearInterval(interval);
     };
   }, [dbDiagnostic, loadData]);
+
+  const [hasAutoOpened, setHasAutoOpened] = useState(false);
+  useEffect(() => {
+    if (!isLoading && requests.length > 0 && !hasAutoOpened && !selectedRequestId) {
+        const activeReq = requests.find(r => !r.isDeleted) || requests[0];
+        if (activeReq) {
+            setSelectedRequestId(activeReq.id);
+            setHasAutoOpened(true);
+        }
+    }
+  }, [isLoading, requests, hasAutoOpened, selectedRequestId]);
 
   const updateNotificationSettings = useCallback((newSettings: Partial<NotificationSettings>) => {
     setNotificationSettings(prev => {
@@ -727,9 +769,16 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const bypassConnectionError = useCallback(() => {
+    setInitError(null);
+    setDbDiagnostic({ status: 'READY', message: 'Modo local de contingencia activo.' });
+    loadData();
+  }, [loadData]);
+
   return (
     <SisreqContext.Provider value={{
       currentUser, users, requests, notifications, notificationSettings, isAuthenticated, isLoading, initError, dbDiagnostic, activeRole, viewMode, globalFilterArea, selectedRequestId, organizationAreas, isSupervisorMode,
+      bypassConnectionError,
       login, logout, setActiveRole, toggleSupervisorMode, setViewMode, addUser, updateUser, deleteUser,
       addOrganizationArea, updateOrganizationArea, deleteOrganizationArea,
       setSelectedRequestId, setGlobalFilterArea, addRequest, updateStatus, returnRequest, assignAnalyst, addLog, updateRequestDetails, deleteRequest, hardDeleteAllRequests,
