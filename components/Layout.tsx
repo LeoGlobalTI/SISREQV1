@@ -56,7 +56,10 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-100">
                     <LayoutDashboard size={20} strokeWidth={2.5} />
                 </div>
-                <h1 className="text-lg font-black tracking-tighter text-slate-900 leading-none">SISREQ</h1>
+                <div className="flex flex-col">
+                    <h1 className="text-lg font-black tracking-tighter text-slate-900 leading-none">SISREQ</h1>
+                    <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mt-0.5">by Global TI 2026</span>
+                </div>
             </div>
 
             <nav className="flex items-center gap-6">
@@ -142,6 +145,20 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
              style={{backgroundImage: 'radial-gradient(#94a3b8 1px, transparent 1px)', backgroundSize: '30px 30px'}}>
         </div>
       </main>
+
+      {/* Footer Institucional del Sistema */}
+      <footer className="h-7 bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-6 flex items-center justify-between text-[9px] font-black text-slate-400 uppercase tracking-widest shrink-0 select-none z-20">
+        <div className="flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          <span>SISREQ v3.5.0</span>
+          <span className="text-slate-300 hidden sm:inline">•</span>
+          <span className="text-slate-500 hidden sm:inline">SISTEMA INTEGRAL DE GESTIÓN DE REQUERIMIENTOS</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-slate-500 font-black">
+          <span>Powered by</span>
+          <span className="text-indigo-600 font-extrabold tracking-wider">Global TI 2026</span>
+        </div>
+      </footer>
 
       <NewRequestModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
       <RequestDetailModal />

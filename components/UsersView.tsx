@@ -1,12 +1,12 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import { useSisreq } from '../context/SisreqContext';
-import { User, UserRole, UserStatus } from '../types';
-import { User as UserIcon, Edit2, Trash2, Activity, UserPlus, Calendar, Shield, Briefcase, Mail, Power, ShieldCheck, Database, Key, Hash, MapPin, ShieldAlert } from 'lucide-react';
+import { User, UserRole, UserStatus, Status } from '../types';
+import { User as UserIcon, Edit2, Trash2, Activity, UserPlus, Calendar, Shield, Briefcase, Mail, Power, ShieldCheck, Database, Key, Hash, MapPin, ShieldAlert, Zap } from 'lucide-react';
 import { NewUserModal } from './NewUserModal';
 
 export const UsersView: React.FC = () => {
-  const { users, deleteUser, currentUser, addNotification } = useSisreq();
+  const { users, deleteUser, currentUser, addNotification, requests } = useSisreq();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
@@ -208,6 +208,16 @@ export const UsersView: React.FC = () => {
                                     <div className="text-[9px] text-slate-400 font-bold truncate flex items-center gap-1">
                                         <Mail size={9} className="opacity-40" /> {user.email}
                                     </div>
+                                    {(() => {
+                                        const assigned = requests.filter(r => r.assignedAnalyst && r.assignedAnalyst.toLowerCase() === user.name.toLowerCase());
+                                        const completed = assigned.filter(r => r.status === Status.FINALIZADO).length;
+                                        if (assigned.length === 0) return null;
+                                        return (
+                                            <div className="text-[8px] font-black text-indigo-600 truncate flex items-center gap-1 mt-0.5">
+                                                <Zap size={8} className="text-amber-500" /> {assigned.length} asignados • {completed} finalizados
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             </div>
                         </div>

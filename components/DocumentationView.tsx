@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
     Book, 
     Code, 
@@ -13,31 +13,35 @@ import {
     CheckCircle2, 
     Lock,
     Download,
-    Printer,
     HelpCircle,
     Server,
-    Smartphone,
     Layers,
     FileDown,
-    ShieldAlert as ShieldAlertIcon,
     AlertTriangle,
     Scale,
     Fingerprint,
     Search,
     ChevronRight,
     Target,
-    // Fix: Added missing icons Briefcase, Users, Clock to resolve "Cannot find name" errors
     Briefcase,
     Users,
-    Clock
+    Clock,
+    X,
+    Building2,
+    CheckSquare,
+    Workflow,
+    FileCheck,
+    Cpu,
+    ExternalLink
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-type ManualType = 'user' | 'technical';
+type ManualType = 'user' | 'organization' | 'technical';
 
 export const DocumentationView: React.FC = () => {
     const [activeManual, setActiveManual] = useState<ManualType>('user');
+    const [searchTerm, setSearchTerm] = useState('');
     const [isExporting, setIsExporting] = useState(false);
 
     const handleExportPDF = () => {
@@ -50,118 +54,151 @@ export const DocumentationView: React.FC = () => {
             const contentWidth = pageWidth - (margin * 2);
             let yPos = 25;
 
-            // --- Header Estilo Institucional ---
-            doc.setFillColor(30, 41, 59);
+            // --- Header Estilo Institucional Master ---
+            doc.setFillColor(15, 23, 42); // slate-900
             doc.rect(0, 0, pageWidth, 45, 'F');
             doc.setTextColor(255, 255, 255);
-            doc.setFontSize(24);
+            doc.setFontSize(22);
             doc.setFont('helvetica', 'bold');
-            doc.text('SISREQ', margin, 22);
-            doc.setFontSize(9);
+            doc.text('SISREQ v3.5.0-MASTER', margin, 20);
+            doc.setFontSize(8);
             doc.setFont('helvetica', 'normal');
-            doc.text('DOCUMENTACIÓN OFICIAL DEL SISTEMA', margin, 29);
+            doc.text('DOCUMENTACIÓN INSTITUCIONAL • POWERED BY GLOBAL TI 2026', margin, 27);
             
-            const manualTitle = activeManual === 'user' ? 'MANUAL DE USUARIO Y PROCESOS' : 'MEMORIA TÉCNICA E INFRAESTRUCTURA';
-            doc.setFontSize(11);
-            doc.text(manualTitle, pageWidth - margin, 25, { align: 'right' });
+            const titles: Record<ManualType, string> = {
+                user: 'MANUAL DE USUARIO Y PROCESOS',
+                organization: 'GUÍA UNIFICADA DE UNIDADES Y USUARIOS',
+                technical: 'MEMORIA TÉCNICA E INFRAESTRUCTURA'
+            };
+            doc.setFontSize(10);
+            doc.text(titles[activeManual], pageWidth - margin, 23, { align: 'right' });
 
             yPos = 60;
             doc.setTextColor(30, 41, 59);
 
             if (activeManual === 'user') {
                 // SECCIÓN: PERFILES
-                doc.setFontSize(16);
+                doc.setFontSize(14);
                 doc.setFont('helvetica', 'bold');
-                doc.text('01. Perfiles y Atribuciones', margin, yPos);
+                doc.text('01. Perfiles de Usuario y Atribuciones Operativas', margin, yPos);
                 yPos += 8;
 
                 autoTable(doc, {
                     startY: yPos,
                     head: [['PERFIL', 'ALCANCE Y COMPETENCIAS']],
                     body: [
-                        ['SUPERADMIN', 'Auditoría forense, gestión de identidades y recuperación de registros archivados.'],
-                        ['ADMIN CENTRAL', 'Recepción de solicitudes, triage inicial y derivación a unidades orgánicas.'],
-                        ['JEFATURA (HEAD)', 'Gestión departamental, asignación de analistas y validación de resoluciones.'],
-                        ['ANALISTA', 'Ejecución técnica de requerimientos, registro de logs y cierre operativo.']
+                        ['SUPERADMIN', 'Auditoría forense global, configuración de parámetros del sistema, purgado controlado y recuperación en bóveda inmutable.'],
+                        ['ADMIN CENTRAL', 'Mesa de entrada institucional, triage y clasificación, derivación formal a unidades orgánicas competentes.'],
+                        ['JEFATURA (HEAD)', 'Gobierno departamental, balanceo de carga de analistas, asignación técnica y validación de resoluciones.'],
+                        ['ANALISTA', 'Ejecución técnica de tareas, redacción de notas de progreso con marcas de tiempo y firma digital de finalización.']
                     ],
                     theme: 'grid',
-                    headStyles: { fillColor: [30, 41, 59] },
+                    headStyles: { fillColor: [15, 23, 42] },
                     styles: { fontSize: 8 }
                 });
                 
                 // @ts-ignore
-                yPos = doc.lastAutoTable.finalY + 15;
+                yPos = doc.lastAutoTable.finalY + 14;
 
-                // SECCIÓN: PROCESO
-                doc.setFontSize(14);
+                // SECCIÓN: SLA ANSI
+                doc.setFontSize(13);
                 doc.setFont('helvetica', 'bold');
-                doc.text('02. Flujo del Requerimiento', margin, yPos);
-                yPos += 8;
-                doc.setFontSize(9);
+                doc.text('02. Estándar de SLAs ANSI (Resolución en 5 Días)', margin, yPos);
+                yPos += 7;
+                doc.setFontSize(8.5);
                 doc.setFont('helvetica', 'normal');
-                const flujo = "El sistema sigue un circuito cerrado: 1. RECEPCIÓN (Admin) -> 2. DERIVACIÓN (Head) -> 3. EJECUCIÓN (Analista) -> 4. FINALIZACIÓN. No se permiten saltos de fase para asegurar la cadena de mando.";
-                const splitFlujo = doc.splitTextToSize(flujo, contentWidth);
-                doc.text(splitFlujo, margin, yPos);
-                yPos += 20;
+                const slaText = "Todo expediente cuenta con un umbral operativo máximo de 5 días hábiles. Al superar los 4 días hábiles, el sistema emite una alerta temprana en el tablero ejecutivo para evitar cuellos de botella.";
+                doc.text(doc.splitTextToSize(slaText, contentWidth), margin, yPos);
+                yPos += 18;
 
-                // SECCIÓN: RESTRICCIONES
-                doc.setFontSize(14);
+                // SECCIÓN: FLUJO
+                doc.setFontSize(13);
                 doc.setFont('helvetica', 'bold');
-                doc.text('03. Restricciones de Seguridad', margin, yPos);
-                yPos += 8;
+                doc.text('03. Circuito de Requerimientos (Fases Consecutivas)', margin, yPos);
+                yPos += 7;
                 autoTable(doc, {
                     startY: yPos,
+                    head: [['FASE', 'RESPONSABLE', 'REQUISITO DE SALIDA']],
                     body: [
-                        ['Jurisdicción', 'Un usuario solo puede ver tickets asignados a su área específica.'],
-                        ['Inmutabilidad', 'Los registros finalizados no permiten ediciones de fondo, solo lectura.'],
-                        ['Auditoría', 'Toda acción deja una huella digital (Log) con marca de tiempo y autoría.'],
-                        ['Archivado', 'Solo el SuperAdmin puede mover registros a la bóveda de auditoría.'],
-                        ['Prev. Pérdida', 'Bloqueo de eliminación de áreas/usuarios con tickets activos.']
+                        ['1. RECIBIDO', 'Admin Central', 'Validación formal y derivación a unidad correspondiente.'],
+                        ['2. DERIVACIÓN', 'Jefe de Área', 'Designación expresa de un Analista técnico matriculado.'],
+                        ['3. EJECUCIÓN', 'Analista Asignado', 'Acciones operativas, notas y firma de resolución final.'],
+                        ['4. FINALIZADO', 'Sistema / Auditor', 'Cierre inmutable con marca temporal finishedAt.']
                     ],
                     theme: 'striped',
                     styles: { fontSize: 8 }
                 });
 
-            } else {
-                // MANUAL TÉCNICO PDF
-                doc.setFontSize(16);
-                doc.setFont('helvetica', 'bold');
-                doc.text('Arquitectura y Seguridad', margin, yPos);
-                yPos += 10;
-                doc.setFontSize(9);
-                doc.setFont('helvetica', 'normal');
-                doc.text('• Backend: Supabase (PostgreSQL 15+) con RLS dinámico.', margin + 5, yPos); yPos += 6;
-                doc.text('• Frontend: SPA con React 19 y Context API para gestión de estado.', margin + 5, yPos); yPos += 6;
-                doc.text('• Trazabilidad: Objetos JSONB para logs inmutables.', margin + 5, yPos);
-                
-                yPos += 10;
+            } else if (activeManual === 'organization') {
                 doc.setFontSize(14);
                 doc.setFont('helvetica', 'bold');
-                doc.text('Matriz de Transiciones SQL', margin, yPos);
+                doc.text('01. Gestión Unificada de Estructura Organizacional', margin, yPos);
                 yPos += 8;
+
+                const orgText = "En el Modo Master, la gestión de Unidades Orgánicas (Áreas) y de Usuarios (Colaboradores) se encuentra integrada en un mismo espacio de trabajo para optimizar la toma de decisiones y evitar inconsistencias.";
+                doc.setFontSize(8.5);
+                doc.setFont('helvetica', 'normal');
+                doc.text(doc.splitTextToSize(orgText, contentWidth), margin, yPos);
+                yPos += 18;
+
                 autoTable(doc, {
                     startY: yPos,
-                    head: [['DE', 'A', 'REQUISITO']],
+                    head: [['MECANISMO', 'DESCRIPCIÓN OPERATIVA']],
                     body: [
-                        ['RECIBIDO', 'DERIVACIÓN', 'Admin Role'],
-                        ['DERIVACIÓN', 'EJECUCIÓN', 'Assign Analyst'],
-                        ['EJECUCIÓN', 'FINALIZADO', 'Firma Analista']
+                        ['Headcount en Vivo', 'Conteo en tiempo real del personal asignado a cada unidad funcional.'],
+                        ['Cálculo de Carga', 'Monitoreo de expedientes activos vs. capacidad instalada de analistas.'],
+                        ['Protección de Integridad', 'Bloqueo preventivo de eliminación si el área o usuario tiene tickets en curso.'],
+                        ['Sincronización de Identidad', 'La actualización de nombre o área de un usuario propaga su reflejo en logs y expedientes.']
                     ],
                     theme: 'grid',
-                    headStyles: { fillColor: [79, 70, 229] }
+                    headStyles: { fillColor: [79, 70, 229] },
+                    styles: { fontSize: 8 }
+                });
+
+            } else {
+                // MANUAL TÉCNICO PDF
+                doc.setFontSize(14);
+                doc.setFont('helvetica', 'bold');
+                doc.text('01. Arquitectura Técnica y Seguridad de Datos', margin, yPos);
+                yPos += 8;
+                doc.setFontSize(8.5);
+                doc.setFont('helvetica', 'normal');
+                doc.text('• Frontend: SPA React 19 + TypeScript 5.x Strict + Tailwind CSS.', margin + 5, yPos); yPos += 6;
+                doc.text('• Persistencia: PostgreSQL 15 con motor Supabase y RLS granular.', margin + 5, yPos); yPos += 6;
+                doc.text('• Trazabilidad: Array JSONB inmutable para bitácora forense de auditoría.', margin + 5, yPos); yPos += 6;
+                doc.text('• Resiliencia: Soft-delete con campo isDeleted para recuperación en Bóveda.', margin + 5, yPos);
+                
+                yPos += 14;
+                doc.setFontSize(13);
+                doc.setFont('helvetica', 'bold');
+                doc.text('02. Reglas del Motor de Validación QA', margin, yPos);
+                yPos += 7;
+                autoTable(doc, {
+                    startY: yPos,
+                    head: [['CÓDIGO', 'SEVERIDAD', 'DESCRIPCIÓN']],
+                    body: [
+                        ['ERR_PROC_01', 'CRÍTICO', 'Ticket en fase de ejecución sin analista técnico asignado.'],
+                        ['WARN_JUR_02', 'AVISO', 'Analista asignado no coincide con el área declarada del ticket.'],
+                        ['ERR_TIME_03', 'CRÍTICO', 'Expediente finalizado sin registro de fecha de finalización (finishedAt).'],
+                        ['WARN_SLA_04', 'AVISO', 'Ticket activo con más de 5 días hábiles sin resolución.'],
+                        ['WARN_USER_05', 'AVISO', 'Solicitante huérfano no registrado en el directorio institucional.']
+                    ],
+                    theme: 'grid',
+                    headStyles: { fillColor: [15, 23, 42] },
+                    styles: { fontSize: 8 }
                 });
             }
 
-            // Footer Paginación
+            // Footer de Paginación
             const pages = doc.internal.getNumberOfPages();
             for (let i = 1; i <= pages; i++) {
                 doc.setPage(i);
                 doc.setFontSize(8);
-                doc.setTextColor(150);
-                doc.text(`SISREQ v2.5 | ${new Date().toLocaleDateString()} | Página ${i} de ${pages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+                doc.setTextColor(148, 163, 184);
+                doc.text(`SISREQ v3.5.0-MASTER | Powered by Global TI 2026 | Página ${i} de ${pages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
             }
 
-            doc.save(`SISREQ_Manual_${activeManual.toUpperCase()}.pdf`);
+            doc.save(`SISREQ_v3.5.0_Manual_${activeManual.toUpperCase()}.pdf`);
         } catch (error) {
             console.error('Error exportando PDF:', error);
         } finally {
@@ -171,293 +208,431 @@ export const DocumentationView: React.FC = () => {
 
     return (
         <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-8 bg-[#F8FAFC]">
-            {/* Header Manuales */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
-                <div className="flex items-center gap-5">
-                    <div className="bg-indigo-600 p-4 rounded-2xl text-white shadow-xl shadow-indigo-100">
-                        <Book size={28} strokeWidth={2.5} />
+            {/* Header Institucional Master */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white p-7 rounded-3xl border border-slate-200 shadow-xs">
+                <div className="flex items-center gap-4">
+                    <div className="bg-slate-900 p-3.5 rounded-2xl text-white shadow-md">
+                        <Book size={24} strokeWidth={2.5} />
                     </div>
                     <div>
-                        <h2 className="text-2xl font-black text-slate-900 tracking-tighter uppercase leading-none">Documentación SISREQ</h2>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-2">
-                            <HelpCircle size={12} className="text-indigo-400"/> Guía oficial de procedimientos y arquitectura
-                        </p>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[8px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
+                                DOCUMENTACIÓN MASTER
+                            </span>
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
+                                • Powered by Global TI 2026
+                            </span>
+                        </div>
+                        <h2 className="text-xl font-black text-slate-900 tracking-tighter uppercase leading-none mt-1">
+                            Manuales & Memorias Técnicas del Sistema
+                        </h2>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                    <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+                <div className="flex flex-wrap items-center gap-3">
+                    {/* Switcher de Manuales */}
+                    <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs">
                         <button 
                             onClick={() => setActiveManual('user')}
-                            className={`px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeManual === 'user' ? 'bg-white text-indigo-600 shadow-md ring-1 ring-black/5' : 'text-slate-400 hover:text-slate-600'}`}
+                            className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+                                activeManual === 'user' ? 'bg-white text-indigo-600 shadow-xs font-black' : 'text-slate-500 hover:text-slate-900'
+                            }`}
                         >
-                            <User size={14}/> Manual de Usuario
+                            <User size={13}/> Manual de Usuario
+                        </button>
+                        <button 
+                            onClick={() => setActiveManual('organization')}
+                            className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+                                activeManual === 'organization' ? 'bg-white text-indigo-600 shadow-xs font-black' : 'text-slate-500 hover:text-slate-900'
+                            }`}
+                        >
+                            <Building2 size={13}/> Unidades & Usuarios
                         </button>
                         <button 
                             onClick={() => setActiveManual('technical')}
-                            className={`px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeManual === 'technical' ? 'bg-white text-indigo-600 shadow-md ring-1 ring-black/5' : 'text-slate-400 hover:text-slate-600'}`}
+                            className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+                                activeManual === 'technical' ? 'bg-white text-indigo-600 shadow-xs font-black' : 'text-slate-500 hover:text-slate-900'
+                            }`}
                         >
-                            <Code size={14}/> Manual Técnico
+                            <Code size={13}/> Memoria Técnica
                         </button>
                     </div>
+
+                    {/* Botón de Exportar a PDF */}
                     <button 
                         onClick={handleExportPDF}
                         disabled={isExporting}
-                        className={`p-3 bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 rounded-xl transition-all shadow-sm group ${isExporting ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        title="Exportar a PDF"
+                        className={`flex items-center gap-2 px-4 py-2 bg-slate-900 text-white hover:bg-slate-800 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shadow-xs disabled:opacity-50`}
+                        title="Exportar PDF Institucional"
                     >
-                        {isExporting ? <Zap size={18} className="animate-spin text-indigo-600" /> : <FileDown size={18} className="group-hover:scale-110 transition-transform"/>}
+                        {isExporting ? <Zap size={14} className="animate-spin text-indigo-400" /> : <FileDown size={14} />}
+                        <span>{isExporting ? 'Generando...' : 'Exportar PDF'}</span>
                     </button>
                 </div>
             </div>
 
             {/* Content Area */}
-            <div className="max-w-5xl mx-auto space-y-16 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
-                {activeManual === 'user' ? (
-                    <div className="space-y-16">
-                        {/* Introducción */}
-                        <section className="bg-white p-12 rounded-[3rem] border border-slate-200 shadow-sm space-y-6">
-                            <div className="flex items-center gap-4 border-b border-slate-100 pb-6">
-                                <span className="text-4xl font-black text-slate-100 font-mono">01.</span>
-                                <h3 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">Ecosistema de Usuarios</h3>
+            <div className="max-w-6xl mx-auto space-y-10 animate-in fade-in duration-400 pb-16">
+                
+                {/* MANUAL 1: MANUAL DE USUARIO Y PROCESOS */}
+                {activeManual === 'user' && (
+                    <div className="space-y-8">
+                        {/* Sección 1: Perfiles */}
+                        <section className="bg-white p-8 rounded-3xl border border-slate-200 shadow-xs space-y-6">
+                            <div className="flex items-center gap-3.5 border-b border-slate-100 pb-5">
+                                <span className="text-3xl font-black text-slate-300 font-mono">01.</span>
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-900 tracking-tight uppercase">Ecosistema de Roles y Atribuciones</h3>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">ESTRUCTURA JERÁRQUICA Y CADENA DE MANDO OPERATIVA</p>
+                                </div>
                             </div>
-                            <p className="text-slate-500 leading-relaxed text-lg">
-                                El sistema SISREQ opera bajo un esquema jerárquico estricto. Cada perfil tiene una responsabilidad definida para garantizar que los requerimientos se resuelvan con máxima eficiencia y trazabilidad.
+                            
+                            <p className="text-slate-600 leading-relaxed text-xs">
+                                SISREQ implementa un modelo de control de acceso basado en roles (RBAC) con delimitación estricta de competencias para asegurar la confidencialidad, la celeridad y la inmutabilidad de cada expediente.
                             </p>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
-                                <div className="p-8 bg-slate-900 rounded-3xl text-white relative overflow-hidden group">
-                                    <Shield className="absolute -right-4 -bottom-4 text-white/5 w-32 h-32 group-hover:scale-110 transition-transform" />
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+                                <div className="p-5 bg-slate-900 rounded-2xl text-white relative overflow-hidden flex flex-col justify-between">
                                     <div className="relative z-10">
-                                        <div className="bg-indigo-500 w-10 h-10 rounded-xl flex items-center justify-center mb-4">
-                                            <Fingerprint size={20} />
+                                        <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center mb-3">
+                                            <Fingerprint size={16} />
                                         </div>
-                                        <h4 className="font-black uppercase tracking-tighter text-xl mb-2">Auditoría Master (SuperAdmin)</h4>
-                                        <p className="text-slate-400 text-xs leading-relaxed font-medium">Control supremo del sistema. Supervisa la salud técnica, gestiona identidades y tiene acceso exclusivo a la bóveda de registros archivados para reconstrucción de incidentes.</p>
+                                        <h4 className="font-black uppercase tracking-tight text-sm text-white mb-1.5">SuperAdmin</h4>
+                                        <p className="text-slate-400 text-[10px] leading-relaxed font-medium">
+                                            Auditoría global, control de parámetros core, purgado y bóveda inmutable.
+                                        </p>
+                                    </div>
+                                    <div className="mt-4 pt-3 border-t border-slate-800 text-[8px] font-mono text-indigo-400 font-bold uppercase">
+                                        Acceso Total
                                     </div>
                                 </div>
 
-                                <div className="p-8 bg-white border border-slate-200 rounded-3xl relative overflow-hidden group">
-                                    <LayoutDashboard className="absolute -right-4 -bottom-4 text-slate-50 w-32 h-32 group-hover:scale-110 transition-transform" />
-                                    <div className="relative z-10">
-                                        <div className="bg-red-50 text-red-600 w-10 h-10 rounded-xl flex items-center justify-center mb-4 border border-red-100">
-                                            <Target size={20} />
+                                <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col justify-between">
+                                    <div>
+                                        <div className="w-8 h-8 rounded-xl bg-red-50 text-red-600 border border-red-200 flex items-center justify-center mb-3">
+                                            <Target size={16} />
                                         </div>
-                                        <h4 className="font-black uppercase tracking-tighter text-xl mb-2 text-slate-900">Admin Central</h4>
-                                        <p className="text-slate-500 text-xs leading-relaxed font-medium">Mesa de entrada institucional. Valida la información del ticket, asigna la prioridad inicial y deriva el requerimiento a la unidad orgánica competente.</p>
+                                        <h4 className="font-black uppercase tracking-tight text-sm text-slate-900 mb-1.5">Admin Central</h4>
+                                        <p className="text-slate-500 text-[10px] leading-relaxed font-medium">
+                                            Mesa de entrada general, categorización, prioridad y derivación formal a unidades.
+                                        </p>
+                                    </div>
+                                    <div className="mt-4 pt-3 border-t border-slate-200 text-[8px] font-mono text-red-600 font-bold uppercase">
+                                        Triage Institucional
                                     </div>
                                 </div>
 
-                                <div className="p-8 bg-white border border-slate-200 rounded-3xl relative overflow-hidden group">
-                                    <Briefcase className="absolute -right-4 -bottom-4 text-slate-50 w-32 h-32 group-hover:scale-110 transition-transform" />
-                                    <div className="relative z-10">
-                                        <div className="bg-indigo-50 text-indigo-600 w-10 h-10 rounded-xl flex items-center justify-center mb-4 border border-indigo-100">
-                                            <Users size={20} />
+                                <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col justify-between">
+                                    <div>
+                                        <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center mb-3">
+                                            <Briefcase size={16} />
                                         </div>
-                                        <h4 className="font-black uppercase tracking-tighter text-xl mb-2 text-slate-900">Jefatura de Área (Head)</h4>
-                                        <p className="text-slate-500 text-xs leading-relaxed font-medium">Líder operativo de unidad. Gestiona la carga de trabajo de su departamento y designa al Analista (especialista) responsable de la ejecución técnica.</p>
+                                        <h4 className="font-black uppercase tracking-tight text-sm text-slate-900 mb-1.5">Jefatura (Head)</h4>
+                                        <p className="text-slate-500 text-[10px] leading-relaxed font-medium">
+                                            Gobierno de su área, distribución equitativa de carga y designación de analistas técnicos.
+                                        </p>
+                                    </div>
+                                    <div className="mt-4 pt-3 border-t border-slate-200 text-[8px] font-mono text-indigo-600 font-bold uppercase">
+                                        Gestión Departamental
                                     </div>
                                 </div>
 
-                                <div className="p-8 bg-white border border-slate-200 rounded-3xl relative overflow-hidden group">
-                                    <Code className="absolute -right-4 -bottom-4 text-slate-50 w-32 h-32 group-hover:scale-110 transition-transform" />
-                                    <div className="relative z-10">
-                                        <div className="bg-amber-50 text-amber-600 w-10 h-10 rounded-xl flex items-center justify-center mb-4 border border-amber-100">
-                                            <Zap size={20} />
+                                <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col justify-between">
+                                    <div>
+                                        <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mb-3">
+                                            <CheckCircle2 size={16} />
                                         </div>
-                                        <h4 className="font-black uppercase tracking-tighter text-xl mb-2 text-slate-900">Analista</h4>
-                                        <p className="text-slate-500 text-xs leading-relaxed font-medium">Cuerpo técnico ejecutor. Resuelve el requerimiento, documenta hallazgos en el log inmutable y certifica la finalización del servicio.</p>
+                                        <h4 className="font-black uppercase tracking-tight text-sm text-slate-900 mb-1.5">Analista</h4>
+                                        <p className="text-slate-500 text-[10px] leading-relaxed font-medium">
+                                            Ejecución directa del requerimiento, registro de notas técnicas y firma de resolución.
+                                        </p>
                                     </div>
-                                </div>
-                                <div className="p-8 bg-white border border-slate-200 rounded-3xl relative overflow-hidden group">
-                                    <Layers className="absolute -right-4 -bottom-4 text-slate-50 w-32 h-32 group-hover:scale-110 transition-transform" />
-                                    <div className="relative z-10">
-                                        <div className="bg-emerald-50 text-emerald-600 w-10 h-10 rounded-xl flex items-center justify-center mb-4 border border-emerald-100">
-                                            <Search size={20} />
-                                        </div>
-                                        <h4 className="font-black uppercase tracking-tighter text-xl mb-2 text-slate-900">Receptor Central</h4>
-                                        <p className="text-slate-500 text-xs leading-relaxed font-medium">Permiso especial asignable a usuarios selectos (Ej: Jefes o Analistas). Les otorga facultades globales para visualizar, crear y derivar tickets sin estar limitados por su área de origen.</p>
+                                    <div className="mt-4 pt-3 border-t border-slate-200 text-[8px] font-mono text-emerald-600 font-bold uppercase">
+                                        Ejecución Técnica
                                     </div>
                                 </div>
                             </div>
                         </section>
 
-                        {/* Proceso del Sistema */}
-                        <section className="bg-white p-12 rounded-[3rem] border border-slate-200 shadow-sm space-y-12">
-                            <div className="flex items-center gap-4 border-b border-slate-100 pb-6">
-                                <span className="text-4xl font-black text-slate-100 font-mono">02.</span>
-                                <h3 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">Circuito Operativo</h3>
+                        {/* Sección 2: Circuito de Requerimientos y SLAs */}
+                        <section className="bg-white p-8 rounded-3xl border border-slate-200 shadow-xs space-y-6">
+                            <div className="flex items-center gap-3.5 border-b border-slate-100 pb-5">
+                                <span className="text-3xl font-black text-slate-300 font-mono">02.</span>
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-900 tracking-tight uppercase">Circuito de Requerimientos & Matriz SLA</h3>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">SECUENCIA OPERATIVA LINEAL CON UMBRAL MÁXIMO DE 5 DÍAS</p>
+                                </div>
                             </div>
 
-                            <div className="flex flex-col gap-8">
-                                <div className="flex gap-6 group">
-                                    <div className="flex flex-col items-center">
-                                        <div className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center font-black shadow-lg">1</div>
-                                        <div className="w-1 flex-1 bg-indigo-100 my-2"></div>
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                {[
+                                    { step: '1', name: 'RECIBIDO', desc: 'Ingreso inicial por mesa de partes o usuario. Priorización y revisión.', color: 'bg-indigo-50 border-indigo-100 text-indigo-700' },
+                                    { step: '2', name: 'DERIVACIÓN', desc: 'Asignado a la unidad orgánica correspondiente por el Administrador.', color: 'bg-orange-50 border-orange-100 text-orange-700' },
+                                    { step: '3', name: 'EJECUCIÓN', desc: 'El Jefe asigna un analista matriculado. Trabajo activo y bitácora.', color: 'bg-amber-50 border-amber-100 text-amber-700' },
+                                    { step: '4', name: 'FINALIZADO', desc: 'Cierre formal con firma digital de resolución y cálculo de SLA final.', color: 'bg-emerald-50 border-emerald-100 text-emerald-700' },
+                                ].map(s => (
+                                    <div key={s.step} className={`p-4 rounded-2xl border ${s.color} space-y-2`}>
+                                        <div className="flex items-center justify-between">
+                                            <span className="w-6 h-6 rounded-lg bg-white shadow-2xs flex items-center justify-center font-mono font-black text-[10px]">
+                                                {s.step}
+                                            </span>
+                                            <span className="text-[9px] font-black tracking-wider uppercase">{s.name}</span>
+                                        </div>
+                                        <p className="text-[10px] font-medium leading-relaxed opacity-90">{s.desc}</p>
                                     </div>
-                                    <div className="pb-8">
-                                        <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight mb-2">Triage y Registro</h4>
-                                        <p className="text-slate-500 text-sm leading-relaxed italic">El ticket nace en la Administración Central. Se evalúa su pertinencia técnica y se le asigna un folio único.</p>
-                                    </div>
-                                </div>
+                                ))}
+                            </div>
 
-                                <div className="flex gap-6 group">
-                                    <div className="flex flex-col items-center">
-                                        <div className="w-10 h-10 rounded-full bg-orange-500 text-white flex items-center justify-center font-black shadow-lg">2</div>
-                                        <div className="w-1 flex-1 bg-orange-100 my-2"></div>
-                                    </div>
-                                    <div className="pb-8">
-                                        <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight mb-2">Asignación Departamental</h4>
-                                        <p className="text-slate-500 text-sm leading-relaxed italic">La Jefatura de Área recibe la derivación. Analiza la complejidad y "firma" la asignación a un analista idóneo.</p>
-                                    </div>
-                                </div>
-
-                                <div className="flex gap-6 group">
-                                    <div className="flex flex-col items-center">
-                                        <div className="w-10 h-10 rounded-full bg-amber-500 text-white flex items-center justify-center font-black shadow-lg">3</div>
-                                        <div className="w-1 flex-1 bg-amber-100 my-2"></div>
-                                    </div>
-                                    <div className="pb-8">
-                                        <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight mb-2">Ejecución Técnica</h4>
-                                        <p className="text-slate-500 text-sm leading-relaxed italic">El analista trabaja activamente. Cada avance debe registrarse como "Nota Técnica" para futura auditoría.</p>
-                                    </div>
-                                </div>
-
-                                <div className="flex gap-6 group">
-                                    <div className="flex flex-col items-center">
-                                        <div className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-black shadow-lg">4</div>
+                            <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2.5 bg-amber-500 text-white rounded-xl">
+                                        <Clock size={18} />
                                     </div>
                                     <div>
-                                        <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight mb-2">Cierre y Auditoría</h4>
-                                        <p className="text-slate-500 text-sm leading-relaxed italic">El ticket se marca como FINALIZADO. Solo el SuperAdmin podrá mover este registro al archivo definitivo después de 5 días.</p>
+                                        <h4 className="text-xs font-black uppercase text-slate-900">Estándar SLA ANSI: Máximo 5 Días Hábiles</h4>
+                                        <p className="text-[9px] text-slate-500 font-medium">
+                                            El sistema computa automáticamente el tiempo de respuesta. A los 4 días se genera una alerta temprana preventiva en el Dashboard Ejecutivo.
+                                        </p>
                                     </div>
+                                </div>
+                                <span className="bg-white border border-slate-200 text-slate-700 font-mono text-[9px] font-black px-3 py-1.5 rounded-xl uppercase shrink-0">
+                                    ANSI / ISO 9001
+                                </span>
+                            </div>
+                        </section>
+
+                        {/* Sección 3: Principios de Seguridad e Inmutabilidad */}
+                        <section className="bg-slate-900 text-white p-8 rounded-3xl space-y-6">
+                            <div className="flex items-center gap-3.5 border-b border-slate-800 pb-5">
+                                <span className="text-3xl font-black text-indigo-400 font-mono">03.</span>
+                                <div>
+                                    <h3 className="text-xl font-black text-white tracking-tight uppercase">Principios de Seguridad & Trazabilidad</h3>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">RESTRICCIONES Y POLÍTICAS SISTÉMICAS ACTIVAS</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="p-5 bg-white/5 rounded-2xl border border-white/10 space-y-1.5">
+                                    <div className="flex items-center gap-2 text-indigo-400 text-xs font-black uppercase">
+                                        <Lock size={14} /> Principio de Inmutabilidad de Cierres
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 leading-relaxed">
+                                        Ningún usuario, independientemente de su nivel de privilegios, puede alterar el contenido ni las resoluciones de un expediente una vez finalizado. Las evidencias quedan aseguradas.
+                                    </p>
+                                </div>
+
+                                <div className="p-5 bg-white/5 rounded-2xl border border-white/10 space-y-1.5">
+                                    <div className="flex items-center gap-2 text-indigo-400 text-xs font-black uppercase">
+                                        <Shield size={14} /> Jurisdicción Restringida por Área
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 leading-relaxed">
+                                        Los analistas y jefaturas están circunscritos exclusivamente a los tickets de su departamento orgánico, imposibilitando el acceso o manipulación de registros de otras áreas.
+                                    </p>
+                                </div>
+
+                                <div className="p-5 bg-white/5 rounded-2xl border border-white/10 space-y-1.5">
+                                    <div className="flex items-center gap-2 text-indigo-400 text-xs font-black uppercase">
+                                        <GitPullRequest size={14} /> Secuencialidad Forzada
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 leading-relaxed">
+                                        El sistema no permite saltar estados de proceso: no es posible pasar a Ejecución sin antes haber asignado a un analista técnico responsable.
+                                    </p>
+                                </div>
+
+                                <div className="p-5 bg-white/5 rounded-2xl border border-white/10 space-y-1.5">
+                                    <div className="flex items-center gap-2 text-indigo-400 text-xs font-black uppercase">
+                                        <History size={14} /> Bitácora Forense JSONB
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 leading-relaxed">
+                                        Cada interacción, cambio de estado, comentario o asignación escribe una entrada indeleble en el historial del expediente con identificador de usuario y marca UTC.
+                                    </p>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                )}
+
+                {/* MANUAL 2: GUÍA UNIFICADA DE UNIDADES Y USUARIOS */}
+                {activeManual === 'organization' && (
+                    <div className="space-y-8">
+                        <section className="bg-white p-8 rounded-3xl border border-slate-200 shadow-xs space-y-6">
+                            <div className="flex items-center gap-3.5 border-b border-slate-100 pb-5">
+                                <span className="text-3xl font-black text-slate-300 font-mono">01.</span>
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-900 tracking-tight uppercase">Módulo Unificado de Gestión Organizacional</h3>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">ADMINISTRACIÓN CENTRALIZADA DE UNIDADES ORGÁNICAS Y COLABORADORES</p>
+                                </div>
+                            </div>
+
+                            <p className="text-slate-600 leading-relaxed text-xs">
+                                En el Modo Master, la administración de Unidades Funcionales (Áreas) y el Directorio de Usuarios operan en una misma vista integrada. Esto permite verificar de forma inmediata la disponibilidad de jefaturas, la dotación de analistas técnicos y la carga operativa por departamento.
+                            </p>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2">
+                                <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                                    <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
+                                        <Building2 size={16} />
+                                    </div>
+                                    <h4 className="text-xs font-black uppercase text-slate-900">Unidades Orgánicas</h4>
+                                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                                        Creación y edición de áreas con designación de Jefatura responsable y presupuesto asignado.
+                                    </p>
+                                </div>
+
+                                <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                                    <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
+                                        <Users size={16} />
+                                    </div>
+                                    <h4 className="text-xs font-black uppercase text-slate-900">Headcount en Tiempo Real</h4>
+                                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                                        Cómputo instantáneo de colaboradores activos por unidad para balancear la capacidad operativa.
+                                    </p>
+                                </div>
+
+                                <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                                    <div className="w-8 h-8 rounded-xl bg-red-600 text-white flex items-center justify-center">
+                                        <AlertTriangle size={16} />
+                                    </div>
+                                    <h4 className="text-xs font-black uppercase text-slate-900">Protección Anti-Pérdida</h4>
+                                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                                        El sistema rechaza la eliminación de usuarios o áreas que posean expedientes en trámite.
+                                    </p>
                                 </div>
                             </div>
                         </section>
 
-                        {/* Restricciones */}
-                        <section className="bg-slate-900 p-12 rounded-[3rem] text-white space-y-10 relative overflow-hidden">
-                            <div className="absolute top-0 right-0 p-12 opacity-10">
-                                <AlertTriangle size={120} strokeWidth={1} />
-                            </div>
-                            
-                            <div className="space-y-4 relative z-10">
-                                <h3 className="text-3xl font-black tracking-tighter uppercase flex items-center gap-4">
-                                    <Scale className="text-amber-400" size={32} /> Reglas y Restricciones
-                                </h3>
-                                <p className="text-slate-400 text-sm font-medium uppercase tracking-widest border-l-2 border-amber-400 pl-4">Protocolo de Seguridad Institucional</p>
+                        <section className="bg-white p-8 rounded-3xl border border-slate-200 shadow-xs space-y-6">
+                            <div className="flex items-center gap-3.5 border-b border-slate-100 pb-5">
+                                <span className="text-3xl font-black text-slate-300 font-mono">02.</span>
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-900 tracking-tight uppercase">Protocolo de Asignación y Reemplazos</h3>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">PROCEDIMIENTO OPERATIVO ESTÁNDAR PARA CAMBIOS DE PERSONAL</p>
+                                </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
-                                <div className="space-y-4">
-                                    <div className="flex items-start gap-4 p-6 bg-white/5 rounded-2xl border border-white/10">
-                                        <div className="p-2 bg-red-500/20 text-red-400 rounded-lg"><Lock size={16}/></div>
-                                        <div>
-                                            <h5 className="font-black uppercase text-xs mb-1">Principio de Inmutabilidad</h5>
-                                            <p className="text-slate-400 text-[11px] leading-relaxed">Ningún usuario (incluyendo Admins) puede alterar el cuerpo de un ticket una vez finalizado. Las evidencias son permanentes.</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-start gap-4 p-6 bg-white/5 rounded-2xl border border-white/10">
-                                        <div className="p-2 bg-indigo-500/20 text-indigo-400 rounded-lg"><Search size={16}/></div>
-                                        <div>
-                                            <h5 className="font-black uppercase text-xs mb-1">Jurisdicción Restringida</h5>
-                                            <p className="text-slate-400 text-[11px] leading-relaxed">Los analistas y jefaturas están limitados a su Unidad Orgánica. No es posible visualizar ni operar expedientes de otras áreas.</p>
-                                        </div>
+                            <div className="space-y-3">
+                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-start gap-3">
+                                    <div className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs font-black shrink-0 mt-0.5">1</div>
+                                    <div>
+                                        <h5 className="text-xs font-black text-slate-900 uppercase">Reasignación de Expedientes Previos</h5>
+                                        <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                                            Antes de dar de baja a un colaborador o trasladarlo de unidad orgánica, el Administrador debe reasignar sus tickets en curso a otro analista activo.
+                                        </p>
                                     </div>
                                 </div>
-                                <div className="space-y-4">
-                                    <div className="flex items-start gap-4 p-6 bg-white/5 rounded-2xl border border-white/10">
-                                        <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg"><GitPullRequest size={16}/></div>
-                                        <div>
-                                            <h5 className="font-black uppercase text-xs mb-1">Secuencialidad Forzada</h5>
-                                            <p className="text-slate-400 text-[11px] leading-relaxed">El sistema bloquea transiciones ilegales. Es obligatorio asignar un responsable antes de mover un ticket a la fase de Ejecución.</p>
-                                        </div>
+
+                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-start gap-3">
+                                    <div className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs font-black shrink-0 mt-0.5">2</div>
+                                    <div>
+                                        <h5 className="text-xs font-black text-slate-900 uppercase">Sincronización Automática de Identidad</h5>
+                                        <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                                            Cualquier corrección en el nombre de un colaborador o jefa de área actualiza asíncronamente las referencias visuales en los expedientes para mantener la consistencia histórica.
+                                        </p>
                                     </div>
-                                    <div className="flex items-start gap-4 p-6 bg-white/5 rounded-2xl border border-white/10">
-                                        <div className="p-2 bg-amber-500/20 text-amber-400 rounded-lg"><Clock size={16}/></div>
-                                        <div>
-                                            <h5 className="font-black uppercase text-xs mb-1">Auditoría Live</h5>
-                                            <p className="text-slate-400 text-[11px] leading-relaxed">Toda acción genera un log automático que incluye ID de sesión, marca de tiempo UTC y autoría real del perfil.</p>
-                                        </div>
+                                </div>
+
+                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-start gap-3">
+                                    <div className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs font-black shrink-0 mt-0.5">3</div>
+                                    <div>
+                                        <h5 className="text-xs font-black text-slate-900 uppercase">Cálculo de Demanda y Saturación</h5>
+                                        <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                                            El panel de métricas clasifica a los colaboradores en: Disponible (&le; 2 tickets), Carga Óptima (3 a 5 tickets) y Alta Demanda (&gt; 5 tickets activos).
+                                        </p>
                                     </div>
                                 </div>
                             </div>
                         </section>
                     </div>
-                ) : (
-                    <div className="space-y-12 bg-white p-12 rounded-[3rem] border border-slate-200 shadow-sm">
-                        {/* Manual Técnico Section */}
-                        <section className="space-y-6">
-                            <div className="flex items-center gap-4 border-b border-slate-100 pb-6">
-                                <span className="text-4xl font-black text-slate-200 font-mono">03.</span>
-                                <h3 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">Arquitectura Técnica</h3>
+                )}
+
+                {/* MANUAL 3: MEMORIA TÉCNICA E INFRAESTRUCTURA */}
+                {activeManual === 'technical' && (
+                    <div className="space-y-8">
+                        <section className="bg-white p-8 rounded-3xl border border-slate-200 shadow-xs space-y-6">
+                            <div className="flex items-center gap-3.5 border-b border-slate-100 pb-5">
+                                <span className="text-3xl font-black text-slate-300 font-mono">01.</span>
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-900 tracking-tight uppercase">Arquitectura del Stack Tecnológico</h3>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">SISTEMA MODERNO DESACOPLADO CON PERSISTENCIA POSTGRESQL</p>
+                                </div>
                             </div>
-                            <p className="text-slate-600 leading-relaxed text-lg">
-                                SISREQ utiliza una arquitectura moderna desacoplada con servicios gestionados para garantizar alta disponibilidad y seguridad de nivel gubernamental.
+
+                            <p className="text-slate-600 leading-relaxed text-xs">
+                                SISREQ v3.5.0-MASTER implementa una arquitectura React SPA desacoplada con TypeScript estricto, persistencia en Supabase (PostgreSQL 15+) con Row-Level Security (RLS) y Context API centralizado.
                             </p>
-                            <div className="p-6 bg-slate-100 rounded-2xl border border-slate-200">
-                                <h5 className="font-black text-slate-900 uppercase text-xs mb-3">Actualizaciones de Julio 2026</h5>
-                                <ul className="text-sm text-slate-600 list-disc list-inside space-y-2">
-                                    <li>Centralización de la lógica de autorización mediante el nuevo módulo <span className="font-mono bg-white px-1 py-0.5 rounded text-indigo-600">src/lib/auth.ts</span> para mayor consistencia.</li>
-                                    <li>Refuerzo en la seguridad de consultas a Base de Datos mediante selección explícita y normalización de nombres de columnas.</li>
-                                    <li>Inclusión del permiso <span className="font-mono bg-white px-1 py-0.5 rounded text-indigo-600">canReceiveAndDerive</span> para flexibilizar la Recepción y Derivación de tickets.</li>
-                                    <li>Sincronización automática de identidad de usuario: Los tickets se actualizan asíncronamente si el Jefe o Analista cambia su nombre.</li>
-                                    <li>Prevención de pérdida de datos: Validaciones estrictas al borrar Usuarios o Áreas para asegurar que no posean tickets en progreso.</li>
-                                </ul>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                <div className="p-6 bg-indigo-50 border border-indigo-100 rounded-2xl">
+                                    <LayoutDashboard className="text-indigo-600 mb-3" size={24}/>
+                                    <h5 className="font-black text-slate-900 uppercase text-xs mb-2 tracking-wider">Frontend SPA</h5>
+                                    <ul className="text-[10px] text-slate-600 font-bold space-y-1.5">
+                                        <li className="flex items-center gap-2"><ChevronRight size={10} /> React 19 + Vite</li>
+                                        <li className="flex items-center gap-2"><ChevronRight size={10} /> TypeScript 5.x Strict</li>
+                                        <li className="flex items-center gap-2"><ChevronRight size={10} /> Tailwind CSS JIT</li>
+                                        <li className="flex items-center gap-2"><ChevronRight size={10} /> Lucide React Icons</li>
+                                    </ul>
+                                </div>
+
+                                <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-2xl">
+                                    <Database className="text-emerald-600 mb-3" size={24}/>
+                                    <h5 className="font-black text-slate-900 uppercase text-xs mb-2 tracking-wider">Capa de Datos</h5>
+                                    <ul className="text-[10px] text-slate-600 font-bold space-y-1.5">
+                                        <li className="flex items-center gap-2"><ChevronRight size={10} /> Supabase Client</li>
+                                        <li className="flex items-center gap-2"><ChevronRight size={10} /> PostgreSQL 15 Engine</li>
+                                        <li className="flex items-center gap-2"><ChevronRight size={10} /> JSONB Immutable Logs</li>
+                                        <li className="flex items-center gap-2"><ChevronRight size={10} /> Soft-Delete Pattern</li>
+                                    </ul>
+                                </div>
+
+                                <div className="p-6 bg-slate-900 text-white rounded-2xl">
+                                    <Lock className="text-indigo-400 mb-3" size={24}/>
+                                    <h5 className="font-black text-white uppercase text-xs mb-2 tracking-wider">Seguridad & Auth</h5>
+                                    <ul className="text-[10px] text-slate-400 font-bold space-y-1.5">
+                                        <li className="flex items-center gap-2"><ChevronRight size={10} /> Matriz RLS Dinámica</li>
+                                        <li className="flex items-center gap-2"><ChevronRight size={10} /> RBAC Multi-Nivel</li>
+                                        <li className="flex items-center gap-2"><ChevronRight size={10} /> Purgado con Confirmación</li>
+                                        <li className="flex items-center gap-2"><ChevronRight size={10} /> Bóveda Inmutable</li>
+                                    </ul>
+                                </div>
                             </div>
                         </section>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="p-8 bg-indigo-50 border border-indigo-100 rounded-3xl">
-                                <LayoutDashboard className="text-indigo-600 mb-4" size={32}/>
-                                <h5 className="font-black text-slate-900 uppercase text-xs mb-2 tracking-widest">Frontend Stack</h5>
-                                <ul className="text-[11px] text-slate-500 font-bold space-y-2">
-                                    <li className="flex items-center gap-2"><ChevronRight size={10} /> React 19 (SPA)</li>
-                                    <li className="flex items-center gap-2"><ChevronRight size={10} /> TypeScript 5.x Strict</li>
-                                    <li className="flex items-center gap-2"><ChevronRight size={10} /> Tailwind JIT</li>
-                                </ul>
+                        <section className="bg-white p-8 rounded-3xl border border-slate-200 shadow-xs space-y-6">
+                            <div className="flex items-center gap-3.5 border-b border-slate-100 pb-5">
+                                <span className="text-3xl font-black text-slate-300 font-mono">02.</span>
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-900 tracking-tight uppercase">Definición de Esquema SQL (DDL)</h3>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">ESTRUCTURA DE TABLAS PRINCIPALES Y POLÍTICAS RLS</p>
+                                </div>
                             </div>
-                            <div className="p-8 bg-emerald-50 border border-emerald-100 rounded-3xl">
-                                <Database className="text-emerald-600 mb-4" size={32}/>
-                                <h5 className="font-black text-slate-900 uppercase text-xs mb-2 tracking-widest">Persistencia</h5>
-                                <ul className="text-[11px] text-slate-500 font-bold space-y-2">
-                                    <li className="flex items-center gap-2"><ChevronRight size={10} /> Supabase (PaaS)</li>
-                                    <li className="flex items-center gap-2"><ChevronRight size={10} /> PostgreSQL 15</li>
-                                    <li className="flex items-center gap-2"><ChevronRight size={10} /> RLS Logic Layers</li>
-                                </ul>
-                            </div>
-                            <div className="p-8 bg-slate-900 border border-slate-800 rounded-3xl text-white">
-                                <Lock className="text-indigo-400 mb-4" size={32}/>
-                                <h5 className="font-black text-slate-100 uppercase text-xs mb-2 tracking-widest">Security Core</h5>
-                                <ul className="text-[11px] text-slate-400 font-bold space-y-2">
-                                    <li className="flex items-center gap-2"><ChevronRight size={10} /> JWT Auth</li>
-                                    <li className="flex items-center gap-2"><ChevronRight size={10} /> Workflow Matrix</li>
-                                    <li className="flex items-center gap-2"><ChevronRight size={10} /> JSONB Immutable Logs</li>
-                                </ul>
-                            </div>
-                        </div>
 
-                        <section className="space-y-6">
-                            <h4 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-3">
-                                <Server className="text-indigo-600" size={24}/> Definición del Esquema (DDL)
-                            </h4>
                             <div className="relative group">
-                                <pre className="bg-slate-900 rounded-2xl p-10 text-[11px] font-mono text-emerald-400 overflow-x-auto shadow-2xl leading-relaxed">
-{`-- Estructura de Auditoría y Trazabilidad
+                                <pre className="bg-slate-900 rounded-2xl p-6 text-[10px] font-mono text-emerald-400 overflow-x-auto shadow-sm leading-relaxed border border-slate-800">
+{`-- 1. Tabla de Requerimientos Institucionales
 CREATE TABLE public.requests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   title text NOT NULL,
   area text NOT NULL,
   status text NOT NULL CHECK (status IN ('Recibido', 'En Derivación', 'En Ejecución', 'Finalizado')),
-  logs jsonb DEFAULT '[]'::jsonb, -- Almacén inmutable de eventos
-  "isDeleted" boolean DEFAULT false, -- Soft-delete para QA
-  "createdAt" timestamp with time zone DEFAULT now()
+  priority text NOT NULL DEFAULT 'Normal',
+  requester text NOT NULL,
+  assignedAnalyst text,
+  logs jsonb DEFAULT '[]'::jsonb, -- Trazabilidad forense inmutable
+  isDeleted boolean DEFAULT false, -- Soft-delete para QA Vault
+  deletedAt timestamp with time zone,
+  deletedBy text,
+  finishedAt timestamp with time zone,
+  createdAt timestamp with time zone DEFAULT now()
 );
 
--- Políticas de Seguridad RLS
+-- 2. Políticas de Seguridad RLS
 ALTER TABLE public.requests ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Area Jurisdiction Access" ON public.requests 
-FOR SELECT USING (auth.role() = 'SUPERADMIN' OR area = auth.user_area());`}
+
+CREATE POLICY "Jurisdicción por Unidad" ON public.requests
+FOR ALL USING (
+  auth.role() = 'SUPERADMIN' 
+  OR area = (SELECT area FROM public.users WHERE id = auth.uid())
+);`}
                                 </pre>
                             </div>
                         </section>

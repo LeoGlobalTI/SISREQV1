@@ -379,16 +379,6 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, [dbDiagnostic, loadData]);
 
-  const [hasAutoOpened, setHasAutoOpened] = useState(false);
-  useEffect(() => {
-    if (!isLoading && requests.length > 0 && !hasAutoOpened && !selectedRequestId) {
-        const activeReq = requests.find(r => !r.isDeleted) || requests[0];
-        if (activeReq) {
-            setSelectedRequestId(activeReq.id);
-            setHasAutoOpened(true);
-        }
-    }
-  }, [isLoading, requests, hasAutoOpened, selectedRequestId]);
 
   const updateNotificationSettings = useCallback((newSettings: Partial<NotificationSettings>) => {
     setNotificationSettings(prev => {

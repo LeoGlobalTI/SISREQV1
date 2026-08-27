@@ -221,10 +221,14 @@ export const LoginPage: React.FC = () => {
                 )}
             </form>
             
-            <div className="mt-10 text-center">
-                <div className="inline-block px-5 py-2.5 bg-[#F8FAFC] rounded-full text-[9px] font-bold text-slate-400 uppercase tracking-widest border border-slate-100">
-                    Demo: <span className="text-indigo-600">123</span>
+            <div className="mt-8 text-center space-y-3">
+                <div className="inline-block px-5 py-2 bg-[#F8FAFC] rounded-full text-[9px] font-bold text-slate-400 uppercase tracking-widest border border-slate-100">
+                    Demo: <span className="text-indigo-600 font-black">123</span>
                 </div>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center justify-center gap-1">
+                    <span>Powered by</span>
+                    <span className="text-indigo-600 font-extrabold">Global TI 2026</span>
+                </p>
             </div>
         </div>
     </div>

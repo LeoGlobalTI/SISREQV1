@@ -1,6 +1,6 @@
 {
   "name": "SISREQ - Sistema de Requerimientos",
-  "description": "Workflow management system for interdepartmental requests with strict role-based progression (Admin, Heads, Analysts).",
+  "description": "Workflow management system for interdepartmental requests with unified organizational management, executive reports, role-based progression, user performance metrics, and Powered by Global TI 2026.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
