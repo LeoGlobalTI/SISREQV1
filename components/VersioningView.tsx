@@ -178,73 +178,66 @@ export const VersioningView: React.FC = () => {
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-8 bg-[#F8FAFC]">
       {/* Header Institucional */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-slate-900 text-white rounded-2xl shadow-xl shadow-slate-200">
-              <GitBranch size={20} strokeWidth={2.5} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-xl font-black text-slate-900 tracking-tighter uppercase leading-none">
-                  Control de Versionamiento Master
-                </h3>
-                <span className="bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded-full text-[8px] font-black uppercase">
-                  SemVer 2.0
-                </span>
+      <div className="flex flex-col gap-6 border-b border-slate-200 pb-5">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-slate-900 text-white rounded-xl shadow-sm">
+                <GitBranch size={20} strokeWidth={2.5} />
               </div>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                Trazabilidad y Ciclo de Vida del Software • Powered by Global TI 2026
-              </p>
+              <h3 className="text-xl font-bold text-slate-900 tracking-tight">
+                Control de Versionamiento
+              </h3>
+            </div>
+            
+            <div className="flex items-center gap-6 mt-4 overflow-x-auto">
+              {['ALL', 'MAJOR', 'MINOR', 'PATCH'].map(t => (
+                <button
+                  key={t}
+                  onClick={() => setFilterType(t)}
+                  className={`pb-2 text-xs font-semibold uppercase tracking-wider transition-all border-b-2 whitespace-nowrap ${
+                    filterType === t 
+                    ? 'border-indigo-600 text-indigo-600' 
+                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  {t === 'ALL' ? 'Todas las versiones' : t}
+                </button>
+              ))}
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-sm text-[8px] font-black uppercase tracking-widest">
-            {['ALL', 'MAJOR', 'MINOR', 'PATCH'].map(t => (
-              <button
-                key={t}
-                onClick={() => setFilterType(t)}
-                className={`px-3 py-1.5 rounded-lg transition-all ${filterType === t ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-              >
-                {t === 'ALL' ? 'Todas' : t}
-              </button>
-            ))}
+          <div className="flex items-center gap-3 mb-2">
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm flex items-center gap-2 transition-all active:scale-95"
+            >
+              <Plus size={16} strokeWidth={2.5} /> Registrar Release
+            </button>
           </div>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100 flex items-center gap-2 transition-all active:scale-95 border border-indigo-700"
-          >
-            <Plus size={14} strokeWidth={3} /> Registrar Release
-          </button>
         </div>
       </div>
 
       {/* Tarjeta de Versión Activa en Producción */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white rounded-3xl p-8 shadow-2xl border border-slate-700">
-        <div className="absolute right-0 top-0 translate-x-12 -translate-y-8 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="relative overflow-hidden bg-slate-900 text-white rounded-3xl p-8 shadow-sm border border-slate-800">
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5">
+              <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-lg text-xs font-semibold uppercase tracking-wider flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                VERSIÓN ACTIVA EN PRODUCCIÓN
+                Producción
               </span>
-              <span className="bg-white/10 text-slate-200 border border-white/15 px-3 py-1 rounded-xl text-[9px] font-black uppercase tracking-widest font-mono">
+              <span className="bg-white/10 text-slate-300 border border-white/20 px-3 py-1 rounded-lg text-xs font-mono uppercase tracking-wider">
                 {currentVersion.commitHash}
-              </span>
-              <span className="bg-indigo-600/40 text-indigo-200 border border-indigo-400/30 px-3 py-1 rounded-xl text-[9px] font-black uppercase tracking-widest">
-                Powered by Global TI 2026
               </span>
             </div>
 
             <div>
-              <h2 className="text-3xl sm:text-4xl font-black tracking-tight uppercase leading-none text-white font-mono">
+              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-white font-mono">
                 {currentVersion.version}
               </h2>
-              <p className="text-slate-300 text-sm font-semibold tracking-wide mt-2">
-                Codename: <span className="text-indigo-300 font-bold">"{currentVersion.codename}"</span>
+              <p className="text-slate-400 text-sm font-medium mt-1">
+                Codename: <span className="text-indigo-400 font-semibold">{currentVersion.codename}</span>
               </p>
             </div>
 

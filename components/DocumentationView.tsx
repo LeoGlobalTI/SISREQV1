@@ -209,65 +209,64 @@ export const DocumentationView: React.FC = () => {
     return (
         <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-8 bg-[#F8FAFC]">
             {/* Header Institucional Master */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white p-7 rounded-3xl border border-slate-200 shadow-xs">
-                <div className="flex items-center gap-4">
-                    <div className="bg-slate-900 p-3.5 rounded-2xl text-white shadow-md">
-                        <Book size={24} strokeWidth={2.5} />
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-[8px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
-                                DOCUMENTACIÓN MASTER
-                            </span>
-                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
-                                • Powered by Global TI 2026
-                            </span>
+            <div className="flex flex-col gap-6 border-b border-slate-200 pb-5">
+                <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+                    <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-slate-900 p-2.5 rounded-xl text-white shadow-sm">
+                                <Book size={20} strokeWidth={2.5} />
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-900 tracking-tight">
+                                Manuales y Memorias Técnicas
+                            </h3>
                         </div>
-                        <h2 className="text-xl font-black text-slate-900 tracking-tighter uppercase leading-none mt-1">
-                            Manuales & Memorias Técnicas del Sistema
-                        </h2>
-                    </div>
-                </div>
 
-                <div className="flex flex-wrap items-center gap-3">
-                    {/* Switcher de Manuales */}
-                    <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs">
-                        <button 
-                            onClick={() => setActiveManual('user')}
-                            className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
-                                activeManual === 'user' ? 'bg-white text-indigo-600 shadow-xs font-black' : 'text-slate-500 hover:text-slate-900'
-                            }`}
-                        >
-                            <User size={13}/> Manual de Usuario
-                        </button>
-                        <button 
-                            onClick={() => setActiveManual('organization')}
-                            className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
-                                activeManual === 'organization' ? 'bg-white text-indigo-600 shadow-xs font-black' : 'text-slate-500 hover:text-slate-900'
-                            }`}
-                        >
-                            <Building2 size={13}/> Unidades & Usuarios
-                        </button>
-                        <button 
-                            onClick={() => setActiveManual('technical')}
-                            className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
-                                activeManual === 'technical' ? 'bg-white text-indigo-600 shadow-xs font-black' : 'text-slate-500 hover:text-slate-900'
-                            }`}
-                        >
-                            <Code size={13}/> Memoria Técnica
-                        </button>
+                        {/* Switcher de Manuales */}
+                        <div className="flex items-center gap-6 mt-4 overflow-x-auto">
+                            <button 
+                                onClick={() => setActiveManual('user')}
+                                className={`flex items-center gap-2 pb-2 text-xs font-semibold uppercase tracking-wider transition-all border-b-2 whitespace-nowrap ${
+                                    activeManual === 'user' 
+                                    ? 'border-indigo-600 text-indigo-600' 
+                                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                                }`}
+                            >
+                                <User size={14}/> Manual de Usuario
+                            </button>
+                            <button 
+                                onClick={() => setActiveManual('organization')}
+                                className={`flex items-center gap-2 pb-2 text-xs font-semibold uppercase tracking-wider transition-all border-b-2 whitespace-nowrap ${
+                                    activeManual === 'organization' 
+                                    ? 'border-indigo-600 text-indigo-600' 
+                                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                                }`}
+                            >
+                                <Building2 size={14}/> Unidades y Usuarios
+                            </button>
+                            <button 
+                                onClick={() => setActiveManual('technical')}
+                                className={`flex items-center gap-2 pb-2 text-xs font-semibold uppercase tracking-wider transition-all border-b-2 whitespace-nowrap ${
+                                    activeManual === 'technical' 
+                                    ? 'border-indigo-600 text-indigo-600' 
+                                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                                }`}
+                            >
+                                <Code size={14}/> Memoria Técnica
+                            </button>
+                        </div>
                     </div>
 
-                    {/* Botón de Exportar a PDF */}
-                    <button 
-                        onClick={handleExportPDF}
-                        disabled={isExporting}
-                        className={`flex items-center gap-2 px-4 py-2 bg-slate-900 text-white hover:bg-slate-800 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shadow-xs disabled:opacity-50`}
-                        title="Exportar PDF Institucional"
-                    >
-                        {isExporting ? <Zap size={14} className="animate-spin text-indigo-400" /> : <FileDown size={14} />}
-                        <span>{isExporting ? 'Generando...' : 'Exportar PDF'}</span>
-                    </button>
+                    <div className="flex items-center gap-3 mb-2">
+                        <button 
+                            onClick={handleExportPDF}
+                            disabled={isExporting}
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white hover:bg-slate-800 rounded-xl text-xs font-semibold transition-all shadow-sm disabled:opacity-50"
+                            title="Exportar PDF Institucional"
+                        >
+                            {isExporting ? <Zap size={14} className="animate-spin text-indigo-400" /> : <FileDown size={14} />}
+                            <span>{isExporting ? 'Generando...' : 'Exportar PDF'}</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 

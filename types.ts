@@ -83,8 +83,10 @@ export interface RequestCard {
   area: Area;
   status: Status;
   priority: Priority;
-  responsibleHead: string; 
-  assignedAnalyst?: string | null; 
+  responsibleHead: string; // Deprecated, keep for backward compatibility or display fallback
+  responsibleHeadId?: string | null; 
+  assignedAnalyst?: string | null; // Deprecated, keep for backward compatibility or display fallback
+  assignedAnalystId?: string | null;
   logs: LogEntry[];
   createdAt: string;
   lastUpdated: string;

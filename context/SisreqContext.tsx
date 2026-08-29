@@ -225,9 +225,9 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const deleteOrganizationArea = async (areaName: string) => {
-      const activeRequests = requests.some(r => r.area === areaName && r.status !== Status.FINALIZADO && !r.isDeleted);
-      if (activeRequests) {
-          addNotification('WARNING', 'Acción Denegada', `No se puede eliminar el área ${areaName} porque tiene expedientes activos asignados.`);
+      const anyRequests = requests.some(r => r.area === areaName);
+      if (anyRequests) {
+          addNotification('WARNING', 'Acción Denegada', `No se puede eliminar el área ${areaName} porque tiene expedientes históricos asociados. Para preservar la integridad de datos, no se permite su eliminación.`);
           return;
       }
 
@@ -544,13 +544,15 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const now = new Date().toISOString();
     const initialStatus = (activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN || canReceiveAndDerive(currentUser)) ? Status.RECIBIDO : Status.DERIVACION;
     
-    const headUser = users.find(u => u.role === UserRole.HEAD && (u.areas?.includes(area) || u.area === area) && (u.status === 'ACTIVE' || !u.status));
-    const responsibleHead = headUser ? headUser.name : 'Pendiente de asignación';
+    const responsibleHead = 'Pendiente de asignación';
+    const responsibleHeadId = null;
 
     const newReq: RequestCard = {
       id: genUUID(),
       title, detail, area, status: initialStatus, priority, requester,
-      responsibleHead, createdAt: now, lastUpdated: now,
+      responsibleHead,
+      responsibleHeadId,
+      createdAt: now, lastUpdated: now,
       logs: [createAuditLog(`APERTURA: Registro inicializado en fase ${initialStatus}`)]
     };
     await db.saveRequest(newReq);
@@ -622,9 +624,13 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         throw new Error("Acción denegada: El expediente debe estar en fase de DERIVACIÓN o EJECUCIÓN.");
         
     const now = new Date().toISOString();
+    const targetAnalyst = users.find(u => u.name === name);
     const updated = { 
         ...req, 
         assignedAnalyst: name, 
+        assignedAnalystId: targetAnalyst?.id || null,
+        responsibleHead: activeRole === UserRole.HEAD && currentUser ? currentUser.name : req.responsibleHead,
+        responsibleHeadId: activeRole === UserRole.HEAD && currentUser ? currentUser.id : req.responsibleHeadId,
         status: Status.EJECUCION, 
         lastUpdated: now, 
         logs: [...req.logs, createAuditLog(`DESIGNACIÓN: Responsable Técnico asignado: ${name}`)] 
@@ -657,8 +663,8 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!localReq || localReq.isDeleted) return;
     const req = await db.getRequestById(id) || localReq;
     
-    if (activeRole !== UserRole.ADMIN && activeRole !== UserRole.SUPERADMIN && !canReceiveAndDerive(currentUser) && !checkEditJurisdiction(req)) 
-        throw new Error("Privilegios insuficientes para editar metadatos.");
+    if (activeRole !== UserRole.ADMIN && activeRole !== UserRole.SUPERADMIN && activeRole !== UserRole.HEAD) 
+        throw new Error("Privilegios insuficientes para editar metadatos. Solo Administradores y Jefaturas pueden modificar la solicitud original.");
     
     if (req.status === Status.FINALIZADO && activeRole !== UserRole.SUPERADMIN)
         throw new Error("Registro inmutable: El expediente ya ha sido finalizado.");
@@ -687,7 +693,6 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         isDeleted: true, 
         deletedAt: now, 
         deletedBy: actorName, 
-        status: Status.FINALIZADO,
         logs: [...r.logs, createAuditLog(`AUDITORÍA: Registro movido al archivo inmutable.`)] 
     } : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
     addNotification('WARNING', 'Expediente Archivado', `Registro enviado al archivo de auditoría.`);

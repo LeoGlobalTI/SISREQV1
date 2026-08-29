@@ -238,152 +238,137 @@ export const ReportsView: React.FC = () => {
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-8 bg-[#F8FAFC]">
         {/* Header Section Institucional */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-slate-900 text-white rounded-xl shadow-lg">
-                        <TrendingUp size={20} strokeWidth={2.5} />
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-[8px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
-                                AUDITORÍA MASTER
-                            </span>
-                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
-                                • Powered by Global TI 2026
-                            </span>
+        <div className="flex flex-col gap-6 border-b border-slate-200 pb-5">
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+                <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-slate-900 text-white rounded-xl shadow-sm">
+                            <TrendingUp size={20} strokeWidth={2.5} />
                         </div>
-                        <h3 className="text-xl font-black text-slate-900 tracking-tighter uppercase leading-none mt-1">
-                            Inteligencia Operativa & Rendimiento
+                        <h3 className="text-xl font-bold text-slate-900 tracking-tight">
+                            Inteligencia Operativa y Rendimiento
                         </h3>
                     </div>
-                </div>
-            </div>
-            
-            {/* Filter and Export Bar */}
-            <div className="flex flex-wrap items-center gap-3">
-                {/* Area Filter */}
-                <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
-                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest px-2 flex items-center gap-1">
-                        <Building size={11} className="text-indigo-500" /> Unidad:
-                    </span>
-                    <select
-                        value={selectedArea}
-                        onChange={(e) => setSelectedArea(e.target.value)}
-                        className="bg-white border-0 py-1.5 px-3 rounded-lg text-[9px] font-black uppercase tracking-wider text-slate-800 shadow-2xs outline-none focus:ring-2 focus:ring-indigo-500/20"
-                    >
-                        <option value="ALL">TODAS LAS UNIDADES</option>
-                        {organizationAreas.map(a => (
-                            <option key={a} value={a}>{a.toUpperCase()}</option>
+
+                    {/* Perspectivas (Tabs) */}
+                    <div className="flex items-center gap-6 mt-4 overflow-x-auto">
+                        {[
+                            { id: 'ALL', label: 'Visión 360° Integral', icon: <BarChart3 size={15} /> },
+                            { id: 'AREAS', label: 'Unidades Organizacionales', icon: <Building size={14} /> },
+                            { id: 'STAFF', label: 'Colaboradores y Rendimiento', icon: <Users size={14} /> },
+                            { id: 'SLA', label: 'Auditoría SLA y Alertas', icon: <Clock size={14} />, alertCount: slaBottlenecks.length }
+                        ].map((item) => (
+                            <button
+                                key={item.id}
+                                onClick={() => setPerspective(item.id as ReportPerspective)}
+                                className={`flex items-center gap-2 pb-2 text-xs font-semibold uppercase tracking-wider transition-all border-b-2 whitespace-nowrap ${
+                                    perspective === item.id
+                                        ? 'border-indigo-600 text-indigo-600'
+                                        : 'border-transparent text-slate-400 hover:text-slate-600'
+                                }`}
+                            >
+                                {item.icon}
+                                <span>{item.label}</span>
+                                {item.alertCount !== undefined && item.alertCount > 0 && (
+                                    <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-[9px] font-bold leading-none ml-1">
+                                        {item.alertCount}
+                                    </span>
+                                )}
+                            </button>
                         ))}
-                    </select>
+                    </div>
                 </div>
-
-                {/* Time Range Selector */}
-                <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs">
-                    {['Semanal', 'Mensual', 'Anual', 'Todo'].map((range) => (
-                        <button
-                            key={range}
-                            onClick={() => setTimeRange(range as any)}
-                            className={`px-3 py-1.5 text-[8px] font-black uppercase tracking-widest rounded-lg transition-all ${
-                                timeRange === range 
-                                ? 'bg-white text-indigo-600 shadow-md ring-1 ring-black/5 font-black' 
-                                : 'text-slate-400 hover:text-slate-800'
-                            }`}
+                
+                {/* Unified Filter and Action Bar */}
+                <div className="flex flex-wrap items-center gap-3 mb-2">
+                    {/* Area Filter */}
+                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm">
+                        <Building size={14} className="text-slate-400" />
+                        <select
+                            value={selectedArea}
+                            onChange={(e) => setSelectedArea(e.target.value)}
+                            className="bg-transparent border-0 text-xs font-semibold text-slate-700 outline-none cursor-pointer"
                         >
-                            {range}
-                        </button>
-                    ))}
-                </div>
+                            <option value="ALL">Todas las Unidades</option>
+                            {organizationAreas.map(a => (
+                                <option key={a} value={a}>{a}</option>
+                            ))}
+                        </select>
+                    </div>
 
-                {/* Print / Export Report Button */}
-                <button
-                    onClick={() => window.print()}
-                    className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl text-[9px] font-black uppercase tracking-wider text-slate-700 hover:text-indigo-600 transition-all shadow-2xs active:scale-95"
-                    title="Imprimir o guardar reporte en PDF"
-                >
-                    <Printer size={13} strokeWidth={2.5} /> Imprimir Informe
-                </button>
-            </div>
-        </div>
+                    {/* Time Range Selector */}
+                    <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-sm">
+                        {['Semanal', 'Mensual', 'Anual', 'Todo'].map((range) => (
+                            <button
+                                key={range}
+                                onClick={() => setTimeRange(range as any)}
+                                className={`px-3 py-1 text-xs font-medium rounded-lg transition-all ${
+                                    timeRange === range 
+                                    ? 'bg-white text-indigo-600 shadow-sm font-semibold' 
+                                    : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                {range}
+                            </button>
+                        ))}
+                    </div>
 
-        {/* Sub-lentes de Análisis & Perspectivas */}
-        <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
-            <div className="flex items-center gap-1.5 overflow-x-auto">
-                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest px-2">
-                    Perspectiva:
-                </span>
-                {[
-                    { id: 'ALL', label: 'Visión 360° Integral', icon: <BarChart3 size={13} /> },
-                    { id: 'AREAS', label: 'Unidades Organizacionales', icon: <Building size={13} /> },
-                    { id: 'STAFF', label: 'Colaboradores & Rendimiento', icon: <Users size={13} /> },
-                    { id: 'SLA', label: 'Auditoría SLA & Alertas', icon: <Clock size={13} />, alertCount: slaBottlenecks.length }
-                ].map((item) => (
+                    {/* Export Data Button */}
                     <button
-                        key={item.id}
-                        onClick={() => setPerspective(item.id as ReportPerspective)}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
-                            perspective === item.id
-                                ? 'bg-slate-900 text-white shadow-xs'
-                                : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
-                        }`}
+                        onClick={handleExportCSV}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-600 transition-all shadow-sm"
+                        title="Exportar base de datos a Excel/CSV"
                     >
-                        {item.icon}
-                        <span>{item.label}</span>
-                        {item.alertCount !== undefined && item.alertCount > 0 && (
-                            <span className="bg-amber-500 text-white px-1.5 py-0.5 rounded-full text-[7px] font-black leading-none">
-                                {item.alertCount}
-                            </span>
-                        )}
+                        <FileSpreadsheet size={14} /> Exportar
                     </button>
-                ))}
+
+                    {/* Print / Export Report Button */}
+                    <button
+                        onClick={() => window.print()}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition-all shadow-sm"
+                        title="Imprimir o guardar reporte en PDF"
+                    >
+                        <Printer size={14} /> Imprimir
+                    </button>
+                </div>
             </div>
 
-            <div className="flex items-center gap-2">
-                {selectedStatusFilter !== 'ALL' && (
-                    <span className="text-[8px] font-black uppercase px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1">
-                        Estado: {selectedStatusFilter}
-                        <button onClick={() => setSelectedStatusFilter('ALL')} className="hover:text-red-600 ml-1">✕</button>
-                    </span>
-                )}
-                {hasActiveFilters && (
+            {hasActiveFilters && (
+                <div className="flex items-center gap-3">
+                    {selectedStatusFilter !== 'ALL' && (
+                        <span className="text-xs font-medium px-3 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-2">
+                            Estado: {selectedStatusFilter}
+                            <button onClick={() => setSelectedStatusFilter('ALL')} className="hover:text-indigo-900">
+                                <X size={12} />
+                            </button>
+                        </span>
+                    )}
                     <button
                         onClick={resetFilters}
-                        className="flex items-center gap-1 text-[8px] font-black text-slate-500 hover:text-red-600 bg-slate-100 hover:bg-red-50 border border-slate-200 hover:border-red-200 px-2.5 py-1.5 rounded-xl uppercase transition-colors"
-                        title="Restablecer todos los filtros"
+                        className="text-xs font-medium text-slate-500 hover:text-slate-700 flex items-center gap-1"
                     >
-                        <X size={10} /> Limpiar Filtros
+                        <X size={12}/> Limpiar filtros
                     </button>
-                )}
-                <button
-                    onClick={handleExportCSV}
-                    className="flex items-center gap-1.5 text-[8px] font-black text-slate-700 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 px-3 py-1.5 rounded-xl uppercase transition-all shadow-2xs"
-                    title="Exportar datos analíticos a CSV"
-                >
-                    <FileSpreadsheet size={12} className="text-emerald-600" /> Exportar CSV
-                </button>
-            </div>
+                </div>
+            )}
         </div>
 
         {/* High Density Stats Grid (5 Cards) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {[
-                { label: 'FLUJO TOTAL', val: stats.total, icon: <Briefcase size={18}/>, color: 'bg-slate-900', trend: 'TICKETS' },
-                { label: 'EN EJECUCIÓN', val: stats.pending, icon: <Zap size={18}/>, color: 'bg-orange-500', trend: 'ACTIVOS' },
-                { label: 'RESOLUCIÓN', val: `${stats.completionRate}%`, icon: <Target size={18}/>, color: 'bg-emerald-600', trend: 'EFICIENCIA' },
-                { label: 'CUMPLIMIENTO SLA', val: `${stats.slaComplianceRate}%`, icon: <CheckCircle size={18}/>, color: 'bg-blue-600', trend: '<= 5 DÍAS' },
-                { label: 'ANSI SLA MEDIO', val: `${stats.avgDays}d`, icon: <Clock size={18}/>, color: 'bg-indigo-600', trend: 'PROMEDIO' }
+                { label: 'Flujo Total', val: stats.total, icon: <Briefcase size={20}/>, color: 'bg-slate-900', text: 'text-white' },
+                { label: 'En Ejecución', val: stats.pending, icon: <Zap size={20}/>, color: 'bg-orange-100', text: 'text-orange-600' },
+                { label: 'Resolución', val: `${stats.completionRate}%`, icon: <Target size={20}/>, color: 'bg-emerald-100', text: 'text-emerald-600' },
+                { label: 'Cumplimiento SLA', val: `${stats.slaComplianceRate}%`, icon: <CheckCircle size={20}/>, color: 'bg-blue-100', text: 'text-blue-600' },
+                { label: 'SLA Promedio', val: `${stats.avgDays}d`, icon: <Clock size={20}/>, color: 'bg-indigo-100', text: 'text-indigo-600' }
             ].map((card, i) => (
-                <div key={i} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition-all duration-300 group">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className={`p-2.5 ${card.color} text-white rounded-xl shadow-md transition-transform group-hover:scale-105`}>
-                            {card.icon}
-                        </div>
-                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{card.trend}</span>
+                <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                    <div className={`p-3 ${card.color} ${card.text} rounded-xl w-fit shadow-sm mb-4`}>
+                        {card.icon}
                     </div>
                     <div>
-                        <p className="text-2xl font-black text-slate-900 tracking-tighter leading-none">{card.val}</p>
-                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-2">{card.label}</p>
+                        <div className="text-4xl font-bold text-slate-900 tracking-tight">{card.val}</div>
+                        <div className="text-xs font-medium text-slate-500 mt-1">{card.label}</div>
                     </div>
                 </div>
             ))}

@@ -230,147 +230,99 @@ export const QAView: React.FC = () => {
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-8 bg-[#F8FAFC]">
         {/* Header Institucional Master */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-slate-900 text-white rounded-xl shadow-lg">
-                        <ShieldCheck size={20} strokeWidth={2.5} />
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-[8px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
-                                AUDITORÍA MASTER
-                            </span>
-                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
-                                • Powered by Global TI 2026
-                            </span>
+        <div className="flex flex-col gap-6 border-b border-slate-200 pb-5">
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+                <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-slate-900 p-2.5 rounded-xl text-white shadow-sm">
+                            <ShieldCheck size={20} strokeWidth={2.5} />
                         </div>
-                        <h3 className="text-xl font-black text-slate-900 tracking-tighter uppercase leading-none mt-1">
-                            Auditoría Forense & QA del Sistema
+                        <h3 className="text-xl font-bold text-slate-900 tracking-tight">
+                            Auditoría Forense y QA del Sistema
                         </h3>
                     </div>
-                </div>
-            </div>
 
-            {/* Sub-Tabs de Auditoría */}
-            <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs">
-                {[
-                    { id: 'DIAGNOSTICO', label: 'Diagnóstico Core', icon: <Activity size={13} />, count: auditResults.findings.length },
-                    { id: 'TRAZABILIDAD', label: 'Rastreo Forense', icon: <History size={13} />, count: globalAuditLogs.length },
-                    { id: 'BOVEDA', label: 'Bóveda Inmutable', icon: <Trash2 size={13} />, count: deletedRequests.length }
-                ].map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id as QATab)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
-                            activeTab === tab.id
-                                ? 'bg-white text-indigo-600 shadow-md ring-1 ring-black/5 font-black'
-                                : 'text-slate-500 hover:text-slate-900'
-                        }`}
-                    >
-                        {tab.icon}
-                        <span>{tab.label}</span>
-                        <span className={`px-1.5 py-0.2 rounded-full text-[7px] font-black ${
-                            activeTab === tab.id ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600'
-                        }`}>
-                            {tab.count}
-                        </span>
-                    </button>
-                ))}
+                    {/* Sub-Tabs de Auditoría */}
+                    <div className="flex items-center gap-6 mt-4 overflow-x-auto">
+                        {[
+                            { id: 'DIAGNOSTICO', label: 'Diagnóstico Core', icon: <Activity size={14} />, count: auditResults.findings.length },
+                            { id: 'TRAZABILIDAD', label: 'Rastreo Forense', icon: <History size={14} />, count: globalAuditLogs.length },
+                            { id: 'BOVEDA', label: 'Bóveda Inmutable', icon: <Trash2 size={14} />, count: deletedRequests.length }
+                        ].map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id as QATab)}
+                                className={`flex items-center gap-2 pb-2 text-xs font-semibold uppercase tracking-wider transition-all border-b-2 whitespace-nowrap ${
+                                    activeTab === tab.id
+                                        ? 'border-indigo-600 text-indigo-600'
+                                        : 'border-transparent text-slate-400 hover:text-slate-600'
+                                }`}
+                            >
+                                {tab.icon}
+                                <span>{tab.label}</span>
+                                <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold leading-none ml-1 ${
+                                    activeTab === tab.id ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'
+                                }`}>
+                                    {tab.count}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
             </div>
         </div>
         
         {/* KPI & Status Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between group hover:shadow-md transition-all duration-300">
-                <div>
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2.5 bg-slate-900 text-white rounded-xl shadow-md">
-                            <ShieldCheck size={18} strokeWidth={2.5}/>
-                        </div>
-                        <div>
-                            <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight">Índice de Salud</h4>
-                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">ESTADO DEL CORE</p>
-                        </div>
-                    </div>
-                    <p className="text-slate-400 text-[8px] font-bold uppercase tracking-tight leading-relaxed max-w-[190px]">
-                        Evaluación matemática de coherencia relacional y SLAs.
-                    </p>
+            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-sm flex flex-col justify-between items-center text-center">
+                <div className="flex items-center gap-2 mb-2 text-indigo-400">
+                    <Activity size={18} strokeWidth={2.5}/>
+                    <span className="text-xs font-semibold uppercase tracking-wider">Índice de Salud</span>
                 </div>
-                <div className="text-right">
-                    <span className={`text-5xl font-black tracking-tighter ${auditResults.integrityScore > 85 ? 'text-emerald-600' : 'text-amber-500'}`}>
-                        {auditResults.integrityScore}<span className="text-xl">%</span>
-                    </span>
-                    <p className="text-[8px] font-black text-slate-400 uppercase mt-1 tracking-widest">CERTIFICACIÓN QA</p>
+                <div className={`text-5xl font-bold tracking-tight ${auditResults.integrityScore > 85 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {auditResults.integrityScore}<span className="text-2xl">%</span>
                 </div>
             </div>
             
-            <div className="bg-[#1E293B] p-6 rounded-2xl text-white shadow-md flex flex-col justify-between group">
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2.5">
-                        <div className="p-2 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/10">
-                            <Activity size={16} strokeWidth={2.5}/>
-                        </div>
-                        <div>
-                            <h4 className="font-black uppercase tracking-widest text-[9px] text-slate-200">Auditoría Live</h4>
-                            <p className="text-[7px] font-black text-indigo-400 uppercase tracking-widest">MOTOR: v3.5.0-MASTER</p>
-                        </div>
-                    </div>
-                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]"></div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between text-center">
+                <div className="flex items-center justify-center gap-2 mb-2 text-slate-500">
+                    <Hash size={18} />
+                    <span className="text-xs font-semibold uppercase tracking-wider">Nodos Verificados</span>
                 </div>
-                <div className="space-y-2">
-                    <div className="flex justify-between items-center text-[9px] font-black uppercase">
-                        <span className="text-slate-400">Nodos Verificados</span>
-                        <span className="font-black text-sm text-white">{requests.length} expedientes</span>
+                <div className="text-4xl font-bold text-slate-900 tracking-tight">{requests.length}</div>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                <div className="flex items-center gap-2 mb-4 text-slate-500">
+                    <AlertOctagon size={16}/>
+                    <span className="text-xs font-semibold uppercase tracking-wider">Hallazgos</span>
+                </div>
+                <div className="flex items-center gap-4">
+                    <div className="flex-1 text-center">
+                        <span className="text-3xl font-bold text-red-600 block">{auditResults.errorCount}</span>
+                        <span className="text-[10px] font-medium text-slate-500 uppercase">Críticos</span>
                     </div>
-                    <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                        <div className="bg-indigo-500 h-full w-full opacity-70"></div>
-                    </div>
-                    <div className="flex justify-between items-center text-[8px] font-black uppercase">
-                        <span className="text-slate-400">Archivados (Inmutables)</span>
-                        <span className="text-indigo-400 font-black">{deletedRequests.length}</span>
+                    <div className="w-px h-10 bg-slate-200"></div>
+                    <div className="flex-1 text-center">
+                        <span className="text-3xl font-bold text-amber-500 block">{auditResults.warnCount}</span>
+                        <span className="text-[10px] font-medium text-slate-500 uppercase">Avisos</span>
                     </div>
                 </div>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
-                <div className="flex items-center justify-between mb-2">
-                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">ESTADO DE HALLAZGOS</span>
-                    <span className="text-[8px] font-mono font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
-                        {auditResults.findings.length} TOTAL
-                    </span>
+            <div className="bg-red-50 p-6 rounded-2xl border border-red-200 shadow-sm flex flex-col justify-between items-center text-center">
+                <div className="flex items-center gap-2 text-red-600 mb-2">
+                    <Trash2 size={18}/>
+                    <span className="text-xs font-semibold uppercase tracking-wider">Restablecer BD</span>
                 </div>
-                <div className="flex items-center gap-4 my-2">
-                    <div className="flex-1 bg-red-50 p-2.5 rounded-xl border border-red-100 text-center">
-                        <span className="text-xl font-black text-red-600 block leading-none">{auditResults.errorCount}</span>
-                        <span className="text-[7px] font-black uppercase tracking-widest text-red-500 mt-1 block">Críticos</span>
-                    </div>
-                    <div className="flex-1 bg-amber-50 p-2.5 rounded-xl border border-amber-100 text-center">
-                        <span className="text-xl font-black text-amber-600 block leading-none">{auditResults.warnCount}</span>
-                        <span className="text-[7px] font-black uppercase tracking-widest text-amber-500 mt-1 block">Advertencias</span>
-                    </div>
-                </div>
-                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest text-center">
-                    {auditResults.errorCount === 0 ? '✓ Sin anomalías bloqueantes' : 'Requiere intervención del analista'}
-                </p>
-            </div>
-
-            <div className="bg-red-50/70 p-6 rounded-2xl border border-red-200 shadow-xs flex flex-col justify-between items-center text-center">
-                <div className="flex items-center gap-2 text-red-600">
-                    <AlertTriangle size={18} strokeWidth={2.5}/>
-                    <span className="text-xs font-black uppercase tracking-tight text-slate-900">Restablecer BD</span>
-                </div>
-                <p className="text-[8px] text-slate-500 font-medium uppercase mt-1">
-                    Operación de depuración controlada para entornos de validación y test.
-                </p>
                 <button 
                     onClick={() => {
                         setPurgeConfirmationText('');
                         setIsResetConfirmOpen(true);
                     }}
-                    className="mt-3 w-full py-2 bg-red-600 hover:bg-red-700 text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-all shadow-xs active:scale-95"
+                    className="w-full py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold uppercase tracking-wider rounded-xl transition-all shadow-sm mt-auto"
                 >
-                    Purgar Requerimientos
+                    Purgar Sistema
                 </button>
             </div>
         </div>
