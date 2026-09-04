@@ -9,16 +9,11 @@ import {
 } from 'lucide-react';
 import { NewUserModal } from './NewUserModal';
 
-type SubView = 'INTEGRAL' | 'USERS' | 'AREAS';
-
 export const OrganizationUsersView: React.FC = () => {
   const { 
     users, deleteUser, currentUser, addNotification, requests,
     organizationAreas, addOrganizationArea, updateOrganizationArea, deleteOrganizationArea
   } = useSisreq();
-
-  // Sub-view toggle
-  const [subView, setSubView] = useState<SubView>('INTEGRAL');
 
   // Filter state for users
   const [searchTerm, setSearchTerm] = useState('');
@@ -168,7 +163,10 @@ export const OrganizationUsersView: React.FC = () => {
       };
     });
 
-    return { totalUsers, activeUsers, inactiveUsers, totalAreas, roles, areaStats };
+    const unassignedUsers = users.filter(u => !u.area && (!u.areas || u.areas.length === 0)).length;
+    const assignmentRate = totalUsers > 0 ? Math.round(((totalUsers - unassignedUsers) / totalUsers) * 100) : 0;
+
+    return { totalUsers, activeUsers, inactiveUsers, totalAreas, roles, areaStats, unassignedUsers, assignmentRate };
   }, [users, organizationAreas, requests]);
 
   // Filtered Users List
@@ -207,557 +205,381 @@ export const OrganizationUsersView: React.FC = () => {
   );
 
   return (
-    <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-8 bg-[#F8FAFC]">
-      
-      {/* Top Header Section */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-xl shadow-indigo-100 flex items-center justify-center">
-            <div className="flex items-center -space-x-1.5">
-              <Building size={20} strokeWidth={2.5} />
-              <Users size={16} strokeWidth={2.5} className="text-indigo-200" />
+    <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50 p-4 sm:p-8">
+      <div className="max-w-[1600px] mx-auto space-y-8">
+        
+        {/* Header Compacto */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-2 border-b border-slate-200">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-slate-900 text-white rounded-2xl shadow-sm">
+                <Building size={20} strokeWidth={2.5} />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight uppercase leading-none">
+                Centro de Mando Organizacional
+              </h2>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1.5">
+                Gestión unificada de Unidades y Directorio de Colaboradores
+              </p>
             </div>
           </div>
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-[8px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
-                GESTIÓN INTEGRADA
-              </span>
-              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
-                • Powered by Global TI 2026
-              </span>
-            </div>
-            <h2 className="text-xl font-black text-slate-900 tracking-tighter uppercase leading-none">
-              Unidades y Directorio de Usuarios
-            </h2>
-          </div>
         </div>
 
-        {/* Global Action Buttons */}
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={handleNewUser}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl shadow-lg shadow-indigo-100 flex items-center gap-2.5 text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 border border-indigo-700"
-          >
-            <UserPlus size={15} strokeWidth={2.5} /> Alta Colaborador
-          </button>
-        </div>
-      </div>
-
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div 
-          onClick={() => setSubView(subView === 'AREAS' ? 'INTEGRAL' : 'AREAS')}
-          className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition-all cursor-pointer group"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <div className="p-3 bg-slate-900 text-white rounded-xl group-hover:scale-105 transition-transform shadow-md">
-              <Building size={18} strokeWidth={2.5} />
-            </div>
-            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">ORGANIZACIÓN</span>
-          </div>
-          <p className="text-2xl font-black text-slate-900 tracking-tighter">{stats.totalAreas}</p>
-          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">Unidades Registradas</p>
-        </div>
-
-        <div 
-          onClick={() => setSubView(subView === 'USERS' ? 'INTEGRAL' : 'USERS')}
-          className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition-all cursor-pointer group"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <div className="p-3 bg-indigo-600 text-white rounded-xl group-hover:scale-105 transition-transform shadow-md shadow-indigo-100">
-              <Users size={18} strokeWidth={2.5} />
-            </div>
-            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">PLANTILLA</span>
-          </div>
-          <p className="text-2xl font-black text-slate-900 tracking-tighter">{stats.totalUsers}</p>
-          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">Total de Colaboradores</p>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition-all group">
-          <div className="flex items-center justify-between mb-2">
-            <div className="p-3 bg-emerald-600 text-white rounded-xl group-hover:scale-105 transition-transform shadow-md shadow-emerald-100">
-              <Activity size={18} strokeWidth={2.5} />
-            </div>
-            <span className="text-[8px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
-              {stats.totalUsers > 0 ? Math.round((stats.activeUsers / stats.totalUsers) * 100) : 0}% ACTIVO
-            </span>
-          </div>
-          <p className="text-2xl font-black text-slate-900 tracking-tighter">{stats.activeUsers}</p>
-          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">Colaboradores en Alta</p>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-center">
-          <div className="flex justify-between items-center mb-1.5">
-            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-              <Database size={10} /> Roles Institucionales
-            </p>
-          </div>
-          <div className="flex gap-1 h-2 w-full rounded-full overflow-hidden bg-slate-100 mb-2">
-            <div className="bg-slate-900 h-full" style={{ width: `${stats.totalUsers > 0 ? (stats.roles.SUPERADMIN / stats.totalUsers) * 100 : 0}%` }} title="SuperAdmin" />
-            <div className="bg-red-600 h-full" style={{ width: `${stats.totalUsers > 0 ? (stats.roles.ADMIN / stats.totalUsers) * 100 : 0}%` }} title="Admin" />
-            <div className="bg-indigo-600 h-full" style={{ width: `${stats.totalUsers > 0 ? (stats.roles.HEAD / stats.totalUsers) * 100 : 0}%` }} title="Jefes" />
-            <div className="bg-slate-400 h-full" style={{ width: `${stats.totalUsers > 0 ? (stats.roles.ANALYST / stats.totalUsers) * 100 : 0}%` }} title="Analistas" />
-          </div>
-          <div className="flex items-center justify-between text-[7px] font-black text-slate-400 uppercase tracking-widest">
-            <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-slate-900" /> {stats.roles.SUPERADMIN} Master</span>
-            <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-red-600" /> {stats.roles.ADMIN} Admins</span>
-            <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-indigo-600" /> {stats.roles.HEAD} Jefes</span>
-            <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-slate-400" /> {stats.roles.ANALYST} Analistas</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Sub-view Switcher Tabs */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
-          <button
-            onClick={() => setSubView('INTEGRAL')}
-            className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
-              subView === 'INTEGRAL'
-                ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-black/5'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            Vista Integral
-          </button>
-          <button
-            onClick={() => setSubView('USERS')}
-            className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
-              subView === 'USERS'
-                ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-black/5'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            Colaboradores ({users.length})
-          </button>
-          <button
-            onClick={() => setSubView('AREAS')}
-            className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
-              subView === 'AREAS'
-                ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-black/5'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            Unidades ({organizationAreas.length})
-          </button>
-        </div>
-
-        {selectedAreaFilter !== 'ALL' && (
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Filtro Activo:</span>
-            <span className="bg-indigo-50 border border-indigo-200 text-indigo-700 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase flex items-center gap-1.5">
-              <Building size={11} /> {selectedAreaFilter}
-              <button 
-                onClick={() => setSelectedAreaFilter('ALL')}
-                className="hover:bg-indigo-200/60 p-0.5 rounded transition-colors text-indigo-900"
-                title="Quitar filtro"
-              >
-                <X size={10} />
-              </button>
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* SECCIÓN 1: GESTIÓN DE UNIDADES ORGANIZACIONALES (Visible en INTEGRAL o AREAS) */}
-      {(subView === 'INTEGRAL' || subView === 'AREAS') && (
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-slate-900 text-white rounded-xl">
-                <Building size={18} strokeWidth={2.5} />
+        {/* NIVEL 1: KPIs DE CAPITAL HUMANO */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-5">
+              <div className="p-4 bg-slate-100 text-slate-600 rounded-2xl shadow-sm">
+                  <Users size={24} />
               </div>
               <div>
-                <h3 className="font-black text-slate-900 uppercase tracking-tight text-sm">
-                  Unidades de la Organización
-                </h3>
-                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
-                  Departamentos funcionales y jurisdicciones operativas
-                </p>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Colaboradores</div>
+                  <div className="text-3xl font-black text-slate-900 tracking-tight">{stats.totalUsers}</div>
+                  <div className="text-[10px] font-bold text-emerald-600 mt-1">{stats.activeUsers} ACTIVOS</div>
               </div>
-            </div>
-
-            {/* Quick Add Area Form */}
-            <form onSubmit={handleAddArea} className="flex items-center gap-2 w-full md:w-auto">
-              <div className="relative flex-1 md:w-64">
-                <input
-                  type="text"
-                  value={newArea}
-                  onChange={(e) => setNewArea(e.target.value)}
-                  placeholder="NUEVA UNIDAD (EJ: MARKETING)..."
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[9px] font-black uppercase tracking-wider focus:outline-none focus:border-indigo-600 focus:bg-white transition-all placeholder:text-slate-300"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={!newArea.trim()}
-                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all shadow-sm shrink-0"
-              >
-                <Plus size={13} strokeWidth={3} /> Agregar
-              </button>
-            </form>
           </div>
 
-          {/* Cards Grid de Unidades */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {stats.areaStats.map((area) => {
-              const isSelected = selectedAreaFilter === area.name;
-              const isEditing = editingArea === area.name;
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-5">
+              <div className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100 shadow-sm">
+                  <Building size={24} />
+              </div>
+              <div>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Unidades Operativas</div>
+                  <div className="text-3xl font-black text-slate-900 tracking-tight">{stats.totalAreas}</div>
+                  <div className="text-[10px] font-bold text-indigo-600 mt-1">ÁREAS REGISTRADAS</div>
+              </div>
+          </div>
 
-              return (
-                <div
-                  key={area.name}
-                  className={`p-4 rounded-2xl border transition-all relative group flex flex-col justify-between ${
-                    isSelected
-                      ? 'bg-indigo-50/70 border-indigo-300 ring-2 ring-indigo-500/20 shadow-sm'
-                      : 'bg-white border-slate-200 hover:border-indigo-200 hover:shadow-sm'
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center">
+            <div className="flex items-center gap-2 mb-2">
+                <Shield size={14} className="text-slate-400" />
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Personal de Gestión</span>
+            </div>
+            <div className="flex items-end gap-3 mb-2">
+                <div className="text-3xl font-black text-slate-900 tracking-tight">{stats.roles.SUPERADMIN + stats.roles.ADMIN}</div>
+                <div className="text-xs font-bold text-slate-500 mb-1">Admins</div>
+            </div>
+            <div className="flex gap-1 h-1.5 w-full rounded-full overflow-hidden bg-slate-100">
+                <div className="bg-slate-900 h-full" style={{ width: `${stats.totalUsers > 0 ? (stats.roles.SUPERADMIN / stats.totalUsers) * 100 : 0}%` }} title="SuperAdmin" />
+                <div className="bg-red-600 h-full" style={{ width: `${stats.totalUsers > 0 ? (stats.roles.ADMIN / stats.totalUsers) * 100 : 0}%` }} title="Admin" />
+                <div className="bg-indigo-600 h-full" style={{ width: `${stats.totalUsers > 0 ? (stats.roles.HEAD / stats.totalUsers) * 100 : 0}%` }} title="Jefes" />
+                <div className="bg-slate-300 h-full" style={{ width: `${stats.totalUsers > 0 ? (stats.roles.ANALYST / stats.totalUsers) * 100 : 0}%` }} title="Analistas" />
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-5">
+              <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl border border-emerald-100 shadow-sm">
+                  <Activity size={24} />
+              </div>
+              <div>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Tasa de Distribución</div>
+                  <div className="text-3xl font-black text-slate-900 tracking-tight">{stats.assignmentRate}%</div>
+                  <div className={`text-[10px] font-bold mt-1 ${stats.unassignedUsers > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                      {stats.unassignedUsers} SIN ASIGNAR
+                  </div>
+              </div>
+          </div>
+
+        </div>
+
+        {/* NIVEL 2: INTERFAZ DIVIDIDA 30/70 */}
+        <div className="flex flex-col xl:flex-row gap-6 items-start">
+          
+          {/* COLUMNA IZQUIERDA: Estructura de Áreas (30%) */}
+          <div className="w-full xl:w-1/3 xl:min-w-[320px] bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[700px]">
+             
+             {/* Área Header & Input */}
+             <div className="p-5 border-b border-slate-100 bg-slate-50/50">
+                <div className="flex items-center gap-2 mb-4">
+                  <Layers size={16} className="text-indigo-600"/>
+                  <h3 className="font-black text-slate-900 uppercase tracking-tight text-sm">
+                    Estructura de Áreas
+                  </h3>
+                </div>
+                <form onSubmit={handleAddArea} className="relative">
+                  <input
+                    type="text"
+                    placeholder="NUEVA UNIDAD..."
+                    value={newArea}
+                    onChange={(e) => setNewArea(e.target.value)}
+                    className="w-full bg-white border border-slate-200 pl-4 pr-10 py-2.5 rounded-xl text-xs font-bold uppercase outline-none focus:border-indigo-600 transition-colors shadow-sm"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newArea.trim()}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-indigo-600 text-white rounded-lg disabled:opacity-50 hover:bg-indigo-700 transition-colors"
+                  >
+                    <Plus size={14} strokeWidth={3} />
+                  </button>
+                </form>
+             </div>
+
+             {/* Lista de Áreas */}
+             <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-1">
+                <div 
+                  onClick={() => setSelectedAreaFilter('ALL')}
+                  className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all ${
+                    selectedAreaFilter === 'ALL' ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-slate-50 border border-transparent'
                   }`}
                 >
-                  {isEditing ? (
-                    <div className="space-y-3">
-                      <input
-                        type="text"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        className="w-full px-3 py-1.5 bg-white border-2 border-indigo-500 rounded-lg text-xs font-black uppercase outline-none"
-                        autoFocus
-                        onKeyDown={(e) => e.key === 'Enter' && handleSaveEditArea()}
-                      />
-                      <div className="flex gap-2 justify-end">
-                        <button
-                          onClick={handleSaveEditArea}
-                          className="px-2.5 py-1 bg-indigo-600 text-white rounded-md text-[8px] font-black uppercase flex items-center gap-1"
-                        >
-                          <Save size={10} /> Guardar
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${selectedAreaFilter === 'ALL' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                      <Building size={14} />
+                    </div>
+                    <span className={`text-xs font-black uppercase ${selectedAreaFilter === 'ALL' ? 'text-indigo-900' : 'text-slate-700'}`}>
+                      Todas las Unidades
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-black bg-slate-100 text-slate-600 px-2 py-1 rounded-md">
+                    {stats.totalUsers} usr
+                  </span>
+                </div>
+
+                {stats.areaStats.map((area) => (
+                   <div 
+                    key={area.name}
+                    className={`group flex items-center justify-between p-3 rounded-xl transition-all ${
+                      selectedAreaFilter === area.name ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-slate-50 border border-transparent'
+                    }`}
+                  >
+                    {editingArea === area.name ? (
+                      <div className="flex items-center gap-2 w-full">
+                        <input
+                          type="text"
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          className="flex-1 bg-white border border-indigo-300 px-2 py-1.5 rounded-lg text-xs font-bold outline-none"
+                          autoFocus
+                          onKeyDown={(e) => e.key === 'Enter' && handleSaveEditArea()}
+                        />
+                        <button onClick={handleSaveEditArea} className="p-1.5 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200">
+                          <Save size={14} />
                         </button>
-                        <button
-                          onClick={() => setEditingArea(null)}
-                          className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-md text-[8px] font-black uppercase"
-                        >
-                          Cancelar
+                        <button onClick={() => setEditingArea(null)} className="p-1.5 bg-slate-100 text-slate-500 rounded hover:bg-slate-200">
+                          <X size={14} />
                         </button>
                       </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div className={`p-2 rounded-lg ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 group-hover:bg-indigo-50 group-hover:text-indigo-600'} transition-colors`}>
-                              <Building size={14} />
-                            </div>
-                            <span className="font-black text-xs text-slate-900 uppercase truncate">
-                              {area.name}
-                            </span>
+                    ) : (
+                      <>
+                        <div 
+                          className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+                          onClick={() => setSelectedAreaFilter(area.name)}
+                        >
+                          <div className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${selectedAreaFilter === area.name ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200'}`}>
+                            <MapPin size={14} />
                           </div>
-
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingArea(area.name);
-                                setEditValue(area.name);
-                              }}
-                              className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
-                              title="Editar nombre"
+                          <span className={`text-xs font-black uppercase truncate ${selectedAreaFilter === area.name ? 'text-indigo-900' : 'text-slate-700'}`}>
+                            {area.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black bg-slate-100 text-slate-600 px-2 py-1 rounded-md shrink-0">
+                            {area.membersCount} usr
+                          </span>
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                              onClick={() => { setEditingArea(area.name); setEditValue(area.name); }}
+                              className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded"
                             >
                               <Edit2 size={12} />
                             </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setAreaToDelete(area.name);
-                              }}
-                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                              title="Eliminar unidad"
+                            <button 
+                              onClick={() => setAreaToDelete(area.name)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"
                             >
                               <Trash2 size={12} />
                             </button>
                           </div>
                         </div>
-
-                        <div className="flex items-center gap-3 text-[8px] font-black text-slate-400 uppercase tracking-widest mt-3">
-                          <span className="flex items-center gap-1 text-slate-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
-                            <Users size={10} className="text-indigo-500" /> {area.membersCount} miembros
-                          </span>
-                          <span className="flex items-center gap-1 text-slate-500">
-                            {area.requestsCount} tickets
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                        <button
-                          onClick={() => {
-                            if (isSelected) {
-                              setSelectedAreaFilter('ALL');
-                            } else {
-                              setSelectedAreaFilter(area.name);
-                              // Si está en modo áreas, cambiar a integral para ver los usuarios filtrados
-                              if (subView === 'AREAS') setSubView('INTEGRAL');
-                            }
-                          }}
-                          className={`text-[8px] font-black uppercase tracking-widest flex items-center gap-1 transition-colors ${
-                            isSelected ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-600'
-                          }`}
-                        >
-                          {isSelected ? '✓ Mostrando Miembros' : 'Ver Colaboradores'} <ArrowRight size={10} />
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-
-            {organizationAreas.length === 0 && (
-              <div className="col-span-full p-8 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
-                No hay unidades registradas en el sistema.
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* SECCIÓN 2: DIRECTORIO DE COLABORADORES (Visible en INTEGRAL o USERS) */}
-      {(subView === 'INTEGRAL' || subView === 'USERS') && (
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden flex flex-col space-y-4 p-6">
-          
-          {/* Header & Filter Controls for Users */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-md shadow-indigo-100">
-                <Users size={18} strokeWidth={2.5} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-black text-slate-900 uppercase tracking-tight text-sm">
-                    Directorio de Colaboradores
-                  </h3>
-                  <span className="bg-slate-100 text-slate-600 text-[8px] font-black uppercase px-2 py-0.5 rounded-full">
-                    {filteredUsers.length} de {users.length}
-                  </span>
-                </div>
-                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
-                  Administración de cuentas, roles y jurisdicciones asignadas
-                </p>
-              </div>
-            </div>
-
-            {/* Filter Bar */}
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Search Bar */}
-              <div className="relative min-w-[220px]">
-                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="BUSCAR POR NOMBRE, CORREO O ÁREA..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 pl-8 pr-7 py-2 rounded-xl text-[9px] font-black uppercase outline-none focus:border-indigo-600 focus:bg-white transition-all shadow-2xs placeholder:text-slate-300"
-                />
-                {searchTerm && (
-                  <button onClick={() => setSearchTerm('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                    <X size={12} />
-                  </button>
-                )}
-              </div>
-
-              {/* Role Filter Selector */}
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                className="bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-[9px] font-black uppercase text-slate-700 outline-none focus:border-indigo-600 transition-all shadow-2xs"
-              >
-                <option value="ALL">TODOS LOS ROLES</option>
-                <option value={UserRole.SUPERADMIN}>MODO AUDITOR (SUPERADMIN)</option>
-                <option value={UserRole.ADMIN}>ADMINISTRADOR</option>
-                <option value={UserRole.HEAD}>JEFE DE ÁREA</option>
-                <option value={UserRole.ANALYST}>ANALISTA</option>
-              </select>
-
-              {/* Area Filter Selector */}
-              <select
-                value={selectedAreaFilter}
-                onChange={(e) => setSelectedAreaFilter(e.target.value)}
-                className="bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-[9px] font-black uppercase text-slate-700 outline-none focus:border-indigo-600 transition-all shadow-2xs"
-              >
-                <option value="ALL">TODAS LAS UNIDADES</option>
-                {organizationAreas.map(a => (
-                  <option key={a} value={a}>UNIDAD: {a.toUpperCase()}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Institutional Users Table with Resizable Columns */}
-          <div className="border border-slate-100 rounded-2xl overflow-x-auto min-w-max">
-            {/* Table Header */}
-            <div 
-              className="grid gap-4 px-6 py-4 bg-slate-50/80 border-b border-slate-100 text-[8px] font-black text-slate-400 uppercase tracking-[0.15em] items-center sticky top-0 z-10"
-              style={{ gridTemplateColumns: gridTemplate }}
-            >
-              <div className="relative h-full flex items-center">
-                <Users size={10} className="text-slate-300 mr-2" /> Identidad Institucional
-                <ResizeHandle index={0} />
-              </div>
-              <div className="relative h-full flex items-center">
-                <Shield size={10} className="inline mr-1 text-slate-300" /> Rol
-                <ResizeHandle index={1} />
-              </div>
-              <div className="relative h-full flex items-center">
-                <MapPin size={10} className="inline mr-1 text-slate-300" /> Jurisdicción
-                <ResizeHandle index={2} />
-              </div>
-              <div className="relative h-full flex items-center">
-                <Activity size={10} className="inline mr-1 text-slate-300" /> Estado
-                <ResizeHandle index={3} />
-              </div>
-              <div className="relative h-full flex items-center">
-                <Calendar size={10} className="inline mr-1 text-slate-300" /> Alta
-                <ResizeHandle index={4} />
-              </div>
-              <div className="relative h-full flex items-center">
-                <Key size={10} className="inline mr-1 text-slate-300" /> Seguridad
-                <ResizeHandle index={5} />
-              </div>
-              <div className="text-right">Acciones</div>
-            </div>
-
-            {/* Rows List */}
-            <div className="divide-y divide-slate-50">
-              {filteredUsers.map(user => (
-                <div 
-                  key={user.id} 
-                  className="grid gap-4 px-6 py-3.5 items-center hover:bg-indigo-50/30 transition-all group"
-                  style={{ gridTemplateColumns: gridTemplate }}
-                >
-                  {/* Identidad */}
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-[10px] shadow-xs border border-white shrink-0 transition-transform group-hover:scale-105 ${
-                        user.role === UserRole.SUPERADMIN ? 'bg-slate-900 text-white' :
-                        user.role === UserRole.ADMIN ? 'bg-red-600 text-white' :
-                        user.role === UserRole.HEAD ? 'bg-indigo-600 text-white' :
-                        'bg-slate-100 text-slate-500'
-                      }`}>
-                        {user.name.substring(0, 2).toUpperCase()}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="font-black text-slate-900 text-[11px] truncate uppercase tracking-tight group-hover:text-indigo-600 transition-colors">
-                          {user.name}
-                        </div>
-                        <div className="text-[9px] text-slate-400 font-bold truncate flex items-center gap-1">
-                          <Mail size={9} className="opacity-40" /> {user.email}
-                        </div>
-                        {(() => {
-                          const assigned = requests.filter(r => r.assignedAnalyst && r.assignedAnalyst.toLowerCase() === user.name.toLowerCase());
-                          const completed = assigned.filter(r => r.status === Status.FINALIZADO).length;
-                          if (assigned.length === 0) return null;
-                          return (
-                            <div className="text-[8px] font-black text-indigo-600 truncate flex items-center gap-1 mt-0.5">
-                              <Zap size={8} className="text-amber-500" /> {assigned.length} asignados • {completed} finalizados
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Rol */}
-                  <div className="truncate">
-                    <span className={`px-2 py-0.5 rounded-lg text-[7px] font-black border flex items-center gap-1.5 w-fit uppercase tracking-widest shadow-2xs truncate ${
-                      user.role === UserRole.SUPERADMIN ? 'bg-slate-900 text-white border-slate-950' :
-                      user.role === UserRole.ADMIN ? 'bg-red-50 text-red-600 border-red-100' :
-                      user.role === UserRole.HEAD ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
-                      'bg-slate-50 text-slate-500 border-slate-200'
-                    }`}>
-                      {user.role === UserRole.SUPERADMIN ? <ShieldCheck size={8} /> : user.role === UserRole.HEAD ? <Briefcase size={8} /> : <Users size={8} />}
-                      {user.role}
-                    </span>
-                  </div>
-
-                  {/* Jurisdicción */}
-                  <div className="truncate">
-                    {(user.areas && user.areas.length > 0) || user.area ? (
-                      <span className="text-[8px] font-black text-indigo-600 bg-indigo-50/60 px-2 py-0.5 rounded-md border border-indigo-100 uppercase tracking-tight truncate block w-fit">
-                        {user.areas?.join(', ') || user.area}
-                      </span>
-                    ) : (
-                      <span className="text-slate-300 font-black text-[8px] tracking-widest uppercase opacity-50 truncate">Global</span>
+                      </>
                     )}
                   </div>
+                ))}
+             </div>
+          </div>
 
-                  {/* Estado */}
-                  <div className="truncate">
-                    <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border w-fit shadow-2xs truncate ${(!user.status || user.status === 'ACTIVE') ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
-                      <div className={`w-1.5 h-1.5 rounded-full ${(!user.status || user.status === 'ACTIVE') ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-                      <span className="text-[7px] font-black uppercase tracking-widest truncate">
-                        {(!user.status || user.status === 'ACTIVE') ? 'Activo' : 'Inactivo'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Fecha Alta */}
-                  <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-500 truncate">
-                    <Calendar size={10} className="text-slate-300" />
-                    {user.joinedAt ? new Date(user.joinedAt).toLocaleDateString() : 'N/A'}
-                  </div>
-
-                  {/* Seguridad */}
-                  <div className="truncate">
-                    <div className="flex items-center gap-1 text-slate-300 font-mono text-[9px] bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100 shadow-inner truncate w-fit">
-                      <Key size={9} /> ••••
-                    </div>
-                  </div>
-
-                  {/* Acciones */}
-                  <div className="flex justify-end gap-1">
-                    <button 
-                      onClick={() => handleEditUser(user)} 
-                      title="Editar Colaborador"
-                      className="p-1.5 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all border border-transparent hover:border-indigo-100 bg-white" 
-                    >
-                      <Edit2 size={13} strokeWidth={2.5} />
+          {/* COLUMNA DERECHA: Directorio de Colaboradores (70%) */}
+          <div className="w-full xl:w-2/3 flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col h-[700px]">
+            
+            {/* Directorio Header & Controles */}
+            <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4 flex-1">
+                <div className="relative flex-1 max-w-md">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="BUSCAR POR NOMBRE, EMAIL O ÁREA..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 pl-9 pr-4 py-2.5 rounded-xl text-xs font-bold uppercase outline-none focus:border-indigo-600 focus:bg-white transition-all shadow-sm placeholder:text-slate-300"
+                  />
+                  {searchTerm && (
+                    <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      <X size={14} />
                     </button>
-                    <button 
-                      onClick={() => handleDeleteUser(user)} 
-                      title="Eliminar Colaborador"
-                      className="p-1.5 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all border border-transparent hover:border-red-100 bg-white" 
-                    >
-                      <Trash2 size={13} strokeWidth={2.5} />
-                    </button>
-                  </div>
+                  )}
                 </div>
-              ))}
+                
+                <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 shadow-sm">
+                  <Shield size={14} className="text-slate-500" />
+                  <select
+                    value={roleFilter}
+                    onChange={(e) => setRoleFilter(e.target.value)}
+                    className="bg-transparent border-0 text-xs font-bold text-slate-700 uppercase outline-none cursor-pointer pr-4"
+                  >
+                    <option value="ALL">Todos los Roles</option>
+                    {Object.values(UserRole).map(role => (
+                      <option key={role} value={role}>{role}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <button
+                onClick={handleNewUser}
+                className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl shadow-sm flex items-center gap-2 text-xs font-black uppercase tracking-widest transition-all active:scale-95 shrink-0"
+              >
+                <UserPlus size={16} /> Colaborador
+              </button>
             </div>
 
-            {filteredUsers.length === 0 && (
-              <div className="p-16 text-center flex flex-col items-center gap-3">
-                <div className="bg-slate-50 p-6 rounded-2xl border border-dashed border-slate-200 text-slate-300">
-                  <Users size={32} />
+            {/* Tabla de Usuarios */}
+            <div className="flex-1 overflow-hidden flex flex-col">
+              {/* Header de Tabla */}
+              <div className="flex bg-slate-50/80 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest px-4 py-3 shrink-0">
+                <div style={{ width: colWidths[0] }} className="relative shrink-0 flex items-center px-3">
+                  Colaborador
+                  <ResizeHandle index={0} />
                 </div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  No se encontraron colaboradores con los criterios seleccionados
-                </p>
-                {(searchTerm || roleFilter !== 'ALL' || selectedAreaFilter !== 'ALL') && (
-                  <button
-                    onClick={() => {
-                      setSearchTerm('');
-                      setRoleFilter('ALL');
-                      setSelectedAreaFilter('ALL');
-                    }}
-                    className="text-[9px] font-black text-indigo-600 uppercase tracking-wider hover:underline"
-                  >
-                    Restablecer Filtros
-                  </button>
-                )}
+                <div style={{ width: colWidths[1] }} className="relative shrink-0 flex items-center px-3">
+                  Rol & Permisos
+                  <ResizeHandle index={1} />
+                </div>
+                <div style={{ width: colWidths[2] }} className="relative shrink-0 flex items-center px-3">
+                  Unidad Asignada
+                  <ResizeHandle index={2} />
+                </div>
+                <div style={{ width: colWidths[3] }} className="relative shrink-0 flex items-center px-3">
+                  Estado
+                  <ResizeHandle index={3} />
+                </div>
+                <div style={{ width: colWidths[4] }} className="relative shrink-0 flex items-center px-3">
+                  Seguridad
+                  <ResizeHandle index={4} />
+                </div>
+                <div style={{ width: colWidths[5] }} className="relative shrink-0 flex items-center justify-end px-3">
+                  Acciones
+                </div>
               </div>
-            )}
+
+              {/* Cuerpo de Tabla */}
+              <div className="flex-1 overflow-auto custom-scrollbar">
+                <div className="min-w-fit px-4 pb-4">
+                  {filteredUsers.length === 0 ? (
+                    <div className="py-20 text-center flex flex-col items-center gap-3">
+                      <div className="bg-slate-50 p-6 rounded-2xl border border-dashed border-slate-200 text-slate-300">
+                        <Users size={32} />
+                      </div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        No se encontraron colaboradores
+                      </p>
+                    </div>
+                  ) : (
+                    filteredUsers.map(user => (
+                      <div 
+                        key={user.id} 
+                        className="flex items-center border-b border-slate-100 py-3 hover:bg-slate-50/50 transition-colors group"
+                      >
+                        {/* Identidad */}
+                        <div style={{ width: colWidths[0] }} className="shrink-0 px-3 truncate">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 font-black text-xs shrink-0">
+                              {user.name.substring(0, 2).toUpperCase()}
+                            </div>
+                            <div className="truncate">
+                              <p className="text-xs font-black text-slate-900 uppercase truncate" title={user.name}>{user.name}</p>
+                              <p className="text-[9px] font-bold text-slate-400 truncate" title={user.email}>{user.email || 'Sin correo registrado'}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Rol */}
+                        <div style={{ width: colWidths[1] }} className="shrink-0 px-3 truncate flex items-center">
+                          <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded border flex items-center gap-1 w-fit ${
+                            user.role === UserRole.SUPERADMIN ? 'bg-slate-900 text-white border-slate-800' :
+                            user.role === UserRole.ADMIN ? 'bg-red-50 text-red-700 border-red-200' :
+                            user.role === UserRole.HEAD ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                            'bg-slate-50 text-slate-600 border-slate-200'
+                          }`}>
+                            {user.role === UserRole.SUPERADMIN && <ShieldAlert size={10} />}
+                            {user.role === UserRole.ADMIN && <ShieldCheck size={10} />}
+                            {user.role}
+                          </span>
+                        </div>
+
+                        {/* Unidad */}
+                        <div style={{ width: colWidths[2] }} className="shrink-0 px-3 truncate">
+                           {(user.area || (user.areas && user.areas.length > 0)) ? (
+                            <div className="flex flex-col gap-1 truncate">
+                              {user.area && (
+                                <span className="text-[9px] font-bold text-slate-700 uppercase flex items-center gap-1 truncate w-fit" title={user.area}>
+                                  <MapPin size={10} className="text-slate-400 shrink-0" /> {user.area}
+                                </span>
+                              )}
+                              {user.areas && user.areas.length > 0 && user.areas.map(a => (
+                                <span key={a} className="text-[9px] font-bold text-slate-500 uppercase flex items-center gap-1 truncate w-fit bg-slate-50 px-1 rounded border border-slate-100" title={a}>
+                                  <Building size={9} className="text-slate-300 shrink-0" /> {a}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-[9px] font-bold text-slate-300 uppercase italic">No asignado</span>
+                          )}
+                        </div>
+
+                        {/* Estado */}
+                        <div style={{ width: colWidths[3] }} className="shrink-0 px-3 truncate">
+                          <span className={`text-[9px] font-black uppercase tracking-widest flex items-center gap-1 w-fit ${
+                            (!user.status || user.status === 'ACTIVE') ? 'text-emerald-600' : 'text-slate-400'
+                          }`}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${(!user.status || user.status === 'ACTIVE') ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                            {(!user.status || user.status === 'ACTIVE') ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </div>
+
+                        {/* Seguridad */}
+                        <div style={{ width: colWidths[4] }} className="shrink-0 px-3 truncate">
+                          <div className="flex items-center gap-1 text-slate-400 font-mono text-[9px] bg-slate-50 px-2 py-1 rounded border border-slate-200 w-fit">
+                            <Key size={10} /> ••••
+                          </div>
+                        </div>
+
+                        {/* Acciones */}
+                        <div style={{ width: colWidths[5] }} className="shrink-0 px-3 flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => handleEditUser(user)} 
+                            title="Editar Colaborador"
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" 
+                          >
+                            <Edit2 size={14} strokeWidth={2.5} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteUser(user)} 
+                            title="Eliminar Colaborador"
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" 
+                          >
+                            <Trash2 size={14} strokeWidth={2.5} />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Modal de Creación / Edición de Usuario */}
       <NewUserModal 

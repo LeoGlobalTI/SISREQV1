@@ -136,7 +136,7 @@ class DatabaseService {
 
             const { error: reqError } = await this.supabase
                 .from(STORE_REQUESTS)
-                .select('*', { count: 'exact', head: true });
+                .select('id, "responsibleHeadId", "assignedAnalystId"', { count: 'exact', head: true });
 
             if (reqError) {
                 const msg = reqError.message || "";
@@ -218,6 +218,8 @@ class DatabaseService {
   priority text NOT NULL,
   "responsibleHead" text,
   "assignedAnalyst" text,
+  "responsibleHeadId" text,
+  "assignedAnalystId" text,
   logs jsonb DEFAULT '[]'::jsonb,
   "createdAt" timestamp with time zone DEFAULT now(),
   "lastUpdated" timestamp with time zone DEFAULT now(),
@@ -248,7 +250,7 @@ CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`
             return {
                 status: 'SETUP_REQUIRED',
                 message: `Estructura obsoleta en '${table}'`,
-                sqlSuggestion: `-- Migración de integridad:\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "isDeleted" boolean DEFAULT false;\nALTER TABLE public.users ADD COLUMN IF NOT EXISTS "canSupervise" boolean DEFAULT false;\nALTER TABLE public.users ADD COLUMN IF NOT EXISTS "canReceiveAndDerive" boolean DEFAULT false;`
+                sqlSuggestion: `-- Migración de integridad:\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "isDeleted" boolean DEFAULT false;\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "responsibleHeadId" text;\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "assignedAnalystId" text;\nALTER TABLE public.users ADD COLUMN IF NOT EXISTS "canSupervise" boolean DEFAULT false;\nALTER TABLE public.users ADD COLUMN IF NOT EXISTS "canReceiveAndDerive" boolean DEFAULT false;`
             };
         }
 
@@ -275,7 +277,7 @@ CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`
         try {
             const { data, error } = await this.supabase
                 .from(STORE_REQUESTS)
-                .select('id, title, detail, requester, area, status, priority, "responsibleHead", "assignedAnalyst", logs, "createdAt", "lastUpdated", "finishedAt", "isReturned", "isDeleted", "deletedAt", "deletedBy"')
+                .select('id, title, detail, requester, area, status, priority, "responsibleHead", "assignedAnalyst", "responsibleHeadId", "assignedAnalystId", logs, "createdAt", "lastUpdated", "finishedAt", "isReturned", "isDeleted", "deletedAt", "deletedBy"')
                 .order('lastUpdated', { ascending: false });
             if (error) {
                 console.warn('Aviso al obtener requerimientos desde Supabase:', error.message || error);

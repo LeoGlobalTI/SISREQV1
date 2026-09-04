@@ -2,12 +2,10 @@
 import React, { useState } from 'react';
 import { ReportsView } from './ReportsView';
 import { OrganizationUsersView } from './OrganizationUsersView';
-import { QAView } from './QAView';
-import { DocumentationView } from './DocumentationView';
-import { VersioningView } from './VersioningView';
-import { BarChart3, Users, ShieldCheck, TerminalSquare, BookOpen, Building, GitBranch } from 'lucide-react';
+import { GovernanceView } from './GovernanceView';
+import { BarChart3, Users, ShieldCheck, GitBranch } from 'lucide-react';
 
-type Tab = 'reports' | 'organization' | 'versioning' | 'qa' | 'docs';
+type Tab = 'reports' | 'organization' | 'governance';
 
 export const SuperAdminView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('reports');
@@ -28,11 +26,11 @@ export const SuperAdminView: React.FC = () => {
                                 Auditoría Master
                             </span>
                             <button
-                                onClick={() => setActiveTab('versioning')}
+                                onClick={() => setActiveTab('governance')}
                                 className="text-[10px] font-semibold text-indigo-500 hover:text-indigo-600 uppercase tracking-wider flex items-center gap-1 transition-all"
                                 title="Ver control de versiones"
                             >
-                                <GitBranch size={10} /> v3.5.0
+                                <GitBranch size={10} /> v4.0.0-BENTO
                             </button>
                             <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider hidden sm:inline">
                                 • Powered by Global TI 2026
@@ -65,34 +63,14 @@ export const SuperAdminView: React.FC = () => {
                         <Users size={16} strokeWidth={2.5}/> Organización
                     </button>
                     <button
-                        onClick={() => setActiveTab('versioning')}
+                        onClick={() => setActiveTab('governance')}
                         className={`flex items-center gap-2 pb-3 text-xs font-semibold uppercase tracking-wider transition-all border-b-2 whitespace-nowrap ${
-                            activeTab === 'versioning'
+                            activeTab === 'governance'
                             ? 'border-indigo-600 text-indigo-600'
                             : 'border-transparent text-slate-400 hover:text-slate-600'
                         }`}
                     >
-                        <GitBranch size={16} strokeWidth={2.5}/> Versiones
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('qa')}
-                        className={`flex items-center gap-2 pb-3 text-xs font-semibold uppercase tracking-wider transition-all border-b-2 whitespace-nowrap ${
-                            activeTab === 'qa'
-                            ? 'border-indigo-600 text-indigo-600'
-                            : 'border-transparent text-slate-400 hover:text-slate-600'
-                        }`}
-                    >
-                        <ShieldCheck size={16} strokeWidth={2.5}/> Auditoría
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('docs')}
-                        className={`flex items-center gap-2 pb-3 text-xs font-semibold uppercase tracking-wider transition-all border-b-2 whitespace-nowrap ${
-                            activeTab === 'docs'
-                            ? 'border-indigo-600 text-indigo-600'
-                            : 'border-transparent text-slate-400 hover:text-slate-600'
-                        }`}
-                    >
-                        <BookOpen size={16} strokeWidth={2.5}/> Docs
+                        <ShieldCheck size={16} strokeWidth={2.5}/> Gobernanza
                     </button>
                 </div>
             </div>
@@ -102,9 +80,7 @@ export const SuperAdminView: React.FC = () => {
         <div className="flex-1 overflow-hidden flex flex-col">
             {activeTab === 'reports' && <ReportsView />}
             {activeTab === 'organization' && <OrganizationUsersView />}
-            {activeTab === 'versioning' && <VersioningView />}
-            {activeTab === 'qa' && <QAView />}
-            {activeTab === 'docs' && <DocumentationView />}
+            {activeTab === 'governance' && <GovernanceView />}
         </div>
     </div>
   );

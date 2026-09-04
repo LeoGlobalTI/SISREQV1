@@ -110,13 +110,6 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 >
                     <Calculator size={18} className={viewMode === 'calculator' ? 'text-indigo-600' : ''}/>
                 </button>
-                <button
-                    onClick={() => setViewMode(viewMode === 'documentation' ? 'work' : 'documentation')}
-                    className={`relative p-2.5 rounded-full transition-all border ${viewMode === 'documentation' ? 'bg-indigo-50 border-indigo-200 text-indigo-600 shadow-inner' : 'bg-white border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-100 hover:bg-indigo-50/50 shadow-sm'}`}
-                    title="Manual de Usuario y Técnico"
-                >
-                    <Book size={18} className={viewMode === 'documentation' ? 'fill-indigo-100' : ''}/>
-                </button>
                 <NotificationBell />
                 
                 <div className="flex items-center gap-4 ml-3 border-l border-slate-100 pl-4">
