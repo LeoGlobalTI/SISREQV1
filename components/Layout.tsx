@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useSisreq } from '../context/SisreqContext';
 import { UserRole, Area } from '../types';
-import { LayoutDashboard, Plus, Briefcase, LogOut, Shield, ArrowLeftRight, Book, Calculator } from 'lucide-react';
+import { LayoutDashboard, Plus, Briefcase, LogOut, Shield, ArrowLeftRight, Book, Calculator, CalendarDays } from 'lucide-react';
 import { NewRequestModal } from './NewRequestModal';
 import { RequestDetailModal } from './RequestDetailModal';
 import { NotificationBell } from './NotificationBell';
@@ -103,6 +103,15 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <div className="h-8 w-px bg-slate-200 mx-1"></div>
 
             <div className="flex items-center gap-2">
+                {(currentUser.role === UserRole.SUPERADMIN || currentUser.role === UserRole.HEAD) && (
+                    <button
+                        onClick={() => setViewMode(viewMode === 'planner' ? 'work' : 'planner')}
+                        className={`relative p-2.5 rounded-full transition-all border ${viewMode === 'planner' ? 'bg-indigo-50 border-indigo-200 text-indigo-600 shadow-inner' : 'bg-white border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-100 hover:bg-indigo-50/50 shadow-sm'}`}
+                        title="Planificador Táctico"
+                    >
+                        <CalendarDays size={18} className={viewMode === 'planner' ? 'text-indigo-600' : ''}/>
+                    </button>
+                )}
                 <button
                     onClick={() => setViewMode(viewMode === 'calculator' ? 'work' : 'calculator')}
                     className={`relative p-2.5 rounded-full transition-all border ${viewMode === 'calculator' ? 'bg-indigo-50 border-indigo-200 text-indigo-600 shadow-inner' : 'bg-white border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-100 hover:bg-indigo-50/50 shadow-sm'}`}

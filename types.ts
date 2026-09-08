@@ -29,7 +29,7 @@ export enum Priority {
 }
 
 export type UserStatus = 'ACTIVE' | 'INACTIVE';
-export type ViewMode = 'work' | 'superadmin' | 'documentation' | 'calculator';
+export type ViewMode = 'work' | 'superadmin' | 'calculator' | 'planner';
 
 export type NotificationType = 'INFO' | 'SUCCESS' | 'WARNING' | 'PROCESS';
 
@@ -96,6 +96,28 @@ export interface RequestCard {
   isDeleted?: boolean;
   deletedAt?: string;
   deletedBy?: string;
+  sourceType?: 'EXTERNAL' | 'INTERNAL_ROUTINE';
+}
+
+export interface ProcessAlert {
+  id: string;
+  title: string;
+  description: string;
+  assignedToId: string | null;
+  triggerDate: string; // ISO string YYYY-MM-DD
+  visibilityWindowDays: number;
+  linkedRequestId: string | null;
+  status: 'WAITING' | 'TRIGGERED';
+}
+
+export interface ScheduledProcess {
+  id: string;
+  processName: string;
+  area: string;
+  globalStartDate: string; // ISO string YYYY-MM-DD
+  globalEndDate: string; // ISO string YYYY-MM-DD
+  status: 'ACTIVE' | 'ARCHIVED';
+  alerts: ProcessAlert[];
 }
 
 export interface TransitionRule {

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { RequestCard as RequestCardType, Status } from '../types';
 import { useSisreq } from '../context/SisreqContext';
 import { PRIORITY_STYLES } from '../constants';
-import { User as UserIcon, GripVertical, MapPin, ChevronUp, ChevronDown, Clock, Hash, Building2, AlertCircle, FileText } from 'lucide-react';
+import { User as UserIcon, GripVertical, MapPin, ChevronUp, ChevronDown, Clock, Hash, Building2, AlertCircle, FileText, Settings } from 'lucide-react';
 
 interface Props {
   data: RequestCardType;
@@ -41,7 +41,10 @@ export const RequestCard: React.FC<Props> = ({ data }) => {
     setSelectedRequestId(data.id);
   };
 
-  const getStatusColors = (status: Status) => {
+  const getStatusColors = (status: Status, isRoutine: boolean = false) => {
+    if (isRoutine) {
+        return { border: 'border-purple-600', outline: 'border-purple-600/30', text: 'text-purple-700', bg: 'bg-purple-600', light: 'bg-purple-50' };
+    }
     switch (status) {
         case Status.RECIBIDO: 
             return { border: 'border-indigo-600', outline: 'border-indigo-600/30', text: 'text-indigo-600', bg: 'bg-indigo-600', light: 'bg-indigo-50' };
@@ -56,7 +59,7 @@ export const RequestCard: React.FC<Props> = ({ data }) => {
     }
   };
 
-  const colors = getStatusColors(data.status);
+  const colors = getStatusColors(data.status, data.sourceType === 'INTERNAL_ROUTINE');
 
   return (
     <div 
@@ -147,7 +150,7 @@ export const RequestCard: React.FC<Props> = ({ data }) => {
                         <MapPin size={9} strokeWidth={3} /> {data.area}
                     </div>
                     <div className="flex items-center gap-1 text-[8px] font-semibold text-slate-400 uppercase tracking-tighter max-w-[130px]">
-                        <Building2 size={9} className="opacity-40" />
+                        {data.sourceType === 'INTERNAL_ROUTINE' ? <Settings size={9} className="opacity-40" /> : <Building2 size={9} className="opacity-40" />}
                         <span className="truncate">{data.requester}</span>
                     </div>
                 </div>

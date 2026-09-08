@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { RequestCard, User, Status } from '../types';
+import { RequestCard, User, Status, ScheduledProcess } from '../types';
 import { INITIAL_USERS, INITIAL_REQUESTS } from '../constants';
 
 const RAW_SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://giwyowsqmgwsaliiduqi.supabase.co';
@@ -8,10 +8,12 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publisha
 const STORE_REQUESTS = 'requests';
 const STORE_USERS = 'users';
 const STORE_AREAS = 'organization_areas';
+const STORE_PROCESSES = 'scheduled_processes';
 
 const CACHE_REQUESTS = 'sisreq_cache_requests';
 const CACHE_USERS = 'sisreq_cache_users';
 const CACHE_AREAS = 'sisreq_cache_areas';
+const CACHE_PROCESSES = 'sisreq_cache_routines';
 
 export interface DbDiagnostic {
     status: 'READY' | 'ERROR' | 'SETUP_REQUIRED';
@@ -497,6 +499,48 @@ CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`
         }
         const cached = this.getCached<RequestCard[]>(CACHE_REQUESTS, INITIAL_REQUESTS);
         return cached.find(r => r.id === id) || null;
+    }
+
+    public async getScheduledProcesses(): Promise<ScheduledProcess[]> {
+        if (!this.isConnected) return this.getCached<ScheduledProcess[]>(CACHE_PROCESSES, []);
+        try {
+            const { data, error } = await this.supabase.from(STORE_PROCESSES).select('*').order('globalStartDate', { ascending: true });
+            if (error) {
+                console.warn('Aviso al obtener rutinas:', error.message);
+                return this.getCached<ScheduledProcess[]>(CACHE_PROCESSES, []);
+            }
+            if (data) {
+                this.setCached(CACHE_PROCESSES, data);
+                return data;
+            }
+            return [];
+        } catch (e) {
+            return this.getCached<ScheduledProcess[]>(CACHE_PROCESSES, []);
+        }
+    }
+
+    public async saveScheduledProcess(routine: ScheduledProcess): Promise<void> {
+        const cached = this.getCached<ScheduledProcess[]>(CACHE_PROCESSES, []);
+        const idx = cached.findIndex(r => r.id === routine.id);
+        const updated = idx >= 0 ? cached.map(r => r.id === routine.id ? routine : r) : [routine, ...cached];
+        this.setCached(CACHE_PROCESSES, updated);
+        try {
+            const { error } = await this.supabase.from(STORE_PROCESSES).upsert(routine);
+            if (error) console.warn('Aviso al guardar rutina:', error.message);
+        } catch (e) {
+            console.warn('Excepción de red al guardar rutina:', e);
+        }
+    }
+
+    public async deleteScheduledProcess(id: string): Promise<void> {
+        const cached = this.getCached<ScheduledProcess[]>(CACHE_PROCESSES, []);
+        this.setCached(CACHE_PROCESSES, cached.filter(r => r.id !== id));
+        try {
+            const { error } = await this.supabase.from(STORE_PROCESSES).delete().eq('id', id);
+            if (error) console.warn('Aviso al eliminar rutina:', error.message);
+        } catch (e) {
+            console.warn('Excepción de red al eliminar rutina:', e);
+        }
     }
 
     public subscribeToRequests(callback: (payload: any) => void) {

@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { User, RequestCard, Status, Priority, Area, UserRole, ViewMode, TransitionRule, LogEntry, Notification, NotificationType, NotificationSettings } from '../types';
+import { User, RequestCard, Status, Priority, Area, UserRole, ViewMode, TransitionRule, LogEntry, Notification, NotificationType, NotificationSettings, ScheduledProcess } from '../types';
+
 import { AREA_HEADS } from '../constants';
 import { db, DbDiagnostic } from '../services/storage';
 import { canSupervise, canReceiveAndDerive } from '../src/lib/auth';
@@ -9,6 +10,7 @@ interface SisreqContextType {
   currentUser: User | null;
   users: User[];
   requests: RequestCard[];
+  scheduledProcesses: ScheduledProcess[];
   notifications: Notification[];
   notificationSettings: NotificationSettings;
   isAuthenticated: boolean;
@@ -47,6 +49,10 @@ interface SisreqContextType {
   deleteRequest: (id: string) => Promise<void>;
   hardDeleteAllRequests: () => Promise<void>;
   
+  addProcess: (routine: Omit<ScheduledProcess, 'id' | 'status' | 'linkedRequestId'>) => Promise<void>;
+  updateProcess: (updatedRoutine: ScheduledProcess) => Promise<void>;
+  deleteProcess: (id: string) => Promise<void>;
+
   addNotification: (type: NotificationType, title: string, message: string, requestId?: string) => void;
   updateNotificationSettings: (settings: Partial<NotificationSettings>) => void;
   markNotificationAsRead: (id: string) => void;
@@ -94,6 +100,7 @@ const WORKFLOW_MATRIX: TransitionRule[] = [
 export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [requests, setRequests] = useState<RequestCard[]>([]);
+  const [scheduledProcesses, setScheduledProcesss] = useState<ScheduledProcess[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(() => {
     try {
@@ -264,10 +271,11 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const loadData = useCallback(async () => {
       try {
-          const [loadedUsers, loadedRequests, loadedAreas] = await Promise.all([
+          const [loadedUsers, loadedRequests, loadedAreas, loadedRoutines] = await Promise.all([
             db.getUsers(),
             db.getRequests(),
-            db.getAreas()
+            db.getAreas(),
+            db.getScheduledProcesses()
           ]);
           if (loadedUsers && loadedUsers.length > 0) {
               setUsers(loadedUsers);
@@ -279,6 +287,89 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
           if (loadedAreas && loadedAreas.length > 0) {
               setOrganizationAreas(loadedAreas);
+          }
+          if (loadedRoutines && loadedRoutines.length >= 0) {
+              setScheduledProcesss(loadedRoutines);
+              
+              // Synchronization Logic
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+
+              for (const process of loadedRoutines) {
+                  if (process.status === 'ACTIVE') {
+                      let processUpdated = false;
+                      const newAlerts = [...process.alerts];
+                      
+                      for (let i = 0; i < newAlerts.length; i++) {
+                          const alert = newAlerts[i];
+                          if (alert.status === 'WAITING' && !alert.linkedRequestId) {
+                              const triggerDate = new Date(alert.triggerDate + 'T00:00:00');
+                              const spawnDate = new Date(triggerDate);
+                              spawnDate.setDate(spawnDate.getDate() - alert.visibilityWindowDays);
+                              
+                              if (today >= spawnDate) {
+                                  const newId = genUUID();
+                                  const timestamp = new Date().toISOString();
+                                  
+                                  const newReq: RequestCard = {
+                                      id: newId,
+                                      title: `[Proceso: ${process.processName}] ${alert.title}`,
+                                      detail: alert.description,
+                                      requester: "Sistema: Alerta Automatizada",
+                                      area: process.area || '',
+                                      status: alert.assignedToId ? Status.EJECUCION : Status.RECIBIDO,
+                                      priority: Priority.MEDIUM,
+                                      assignedAnalystId: alert.assignedToId,
+                                      assignedAnalyst: loadedUsers.find(u => u.id === alert.assignedToId)?.name || null,
+                                      responsibleHead: alert.assignedToId ? (loadedUsers.find(u => u.role === UserRole.HEAD && u.areas?.includes(process.area || ''))?.name || 'Asignación Automática') : undefined,
+                                      responsibleHeadId: alert.assignedToId ? (loadedUsers.find(u => u.role === UserRole.HEAD && u.areas?.includes(process.area || ''))?.id || null) : undefined,
+                                      logs: [],
+                                      createdAt: timestamp,
+                                      lastUpdated: timestamp,
+                                      sourceType: 'INTERNAL_ROUTINE'
+                                  };
+                                  
+                                  await db.saveRequest(newReq);
+                                  
+                                  newAlerts[i] = {
+                                      ...alert,
+                                      status: 'TRIGGERED',
+                                      linkedRequestId: newId
+                                  };
+                                  processUpdated = true;
+                              }
+                          }
+                      }
+                      
+                      const allTriggered = newAlerts.every(a => a.status === 'TRIGGERED');
+                      const endDate = new Date(process.globalEndDate + 'T23:59:59');
+                      let shouldArchive = false;
+                      
+                      if (allTriggered && today > endDate) {
+                          shouldArchive = true;
+                          processUpdated = true;
+                      }
+                      
+                      if (processUpdated) {
+                          const updatedProcess: ScheduledProcess = {
+                              ...process,
+                              status: shouldArchive ? 'ARCHIVED' : process.status,
+                              alerts: newAlerts
+                          };
+                          await db.saveScheduledProcess(updatedProcess);
+                      }
+                  }
+              }
+              
+              // Re-fetch routines if any were updated during sync
+              const syncedRoutines = await db.getScheduledProcesses();
+              setScheduledProcesss(syncedRoutines);
+              
+              // Re-fetch requests if any were added during sync
+              const syncedRequests = await db.getRequests();
+              setRequests(syncedRequests.sort((a, b) => 
+                new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()
+              ));
           }
       } catch (e) {
           console.warn("Aviso al sincronizar datos:", e);
@@ -764,6 +855,40 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const addProcess = async (routineData: Omit<ScheduledProcess, 'id' | 'status' | 'linkedRequestId'>) => {
+      if (!currentUser || (currentUser.role !== UserRole.SUPERADMIN && currentUser.role !== UserRole.HEAD)) {
+          addNotification('ERROR', 'Acceso Denegado', 'No tienes permisos para crear rutinas.');
+          return;
+      }
+      const newRoutine: ScheduledProcess = {
+          ...routineData,
+          id: genUUID(),
+          status: 'PENDING',
+          linkedRequestId: null
+      };
+      await db.saveScheduledProcess(newRoutine);
+      await loadData();
+      addNotification('INFO', 'Rutina Programada', `La tarea "${routineData.title}" ha sido planificada.`);
+  };
+
+  const updateProcess = async (updatedRoutine: ScheduledProcess) => {
+      if (!currentUser || (currentUser.role !== UserRole.SUPERADMIN && currentUser.role !== UserRole.HEAD)) {
+          addNotification('ERROR', 'Acceso Denegado', 'No tienes permisos para modificar rutinas.');
+          return;
+      }
+      await db.saveScheduledProcess(updatedRoutine);
+      await loadData();
+  };
+
+  const deleteProcess = async (id: string) => {
+      if (!currentUser || (currentUser.role !== UserRole.SUPERADMIN && currentUser.role !== UserRole.HEAD)) {
+          addNotification('ERROR', 'Acceso Denegado', 'No tienes permisos para eliminar rutinas.');
+          return;
+      }
+      await db.deleteProcess(id);
+      await loadData();
+  };
+
   const bypassConnectionError = useCallback(() => {
     setInitError(null);
     setDbDiagnostic({ status: 'READY', message: 'Modo local de contingencia activo.' });
@@ -772,11 +897,12 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   return (
     <SisreqContext.Provider value={{
-      currentUser, users, requests, notifications, notificationSettings, isAuthenticated, isLoading, initError, dbDiagnostic, activeRole, viewMode, globalFilterArea, selectedRequestId, organizationAreas, isSupervisorMode,
+      currentUser, users, requests, scheduledProcesses, notifications, notificationSettings, isAuthenticated, isLoading, initError, dbDiagnostic, activeRole, viewMode, globalFilterArea, selectedRequestId, organizationAreas, isSupervisorMode,
       bypassConnectionError,
       login, logout, setActiveRole, toggleSupervisorMode, setViewMode, addUser, updateUser, deleteUser,
       addOrganizationArea, updateOrganizationArea, deleteOrganizationArea,
       setSelectedRequestId, setGlobalFilterArea, addRequest, updateStatus, returnRequest, assignAnalyst, addLog, updateRequestDetails, deleteRequest, hardDeleteAllRequests,
+      addProcess, updateProcess, deleteProcess,
       addNotification, updateNotificationSettings, markNotificationAsRead, clearNotifications,
       canUserTransition, canUserSeeRequest, isActionable
     }}>
