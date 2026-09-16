@@ -70,7 +70,7 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
         title, detail, area, priority, requester,
         clientType, 
         clientType === 'ONE_OFF' ? paymentProportion : undefined,
-        clientType === 'ONE_OFF' ? Number(paymentAmount) : undefined
+        paymentAmount ? Number(paymentAmount) : undefined
       );
       setTitle('');
       setDetail('');
@@ -255,37 +255,74 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                 onClick={() => setClientType('FREQUENT')}
                                 className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${clientType === 'FREQUENT' ? 'bg-white shadow-sm border border-slate-200 text-indigo-700' : 'text-slate-400 hover:text-slate-600'}`}
                             >
-                                🤝 Cliente
+                                🔄 Recurrente
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setClientType('ONE_OFF')}
-                                className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${clientType === 'ONE_OFF' ? 'bg-white shadow-sm border border-slate-200 text-indigo-700' : 'text-slate-400 hover:text-slate-600'}`}
+                                className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${clientType === 'ONE_OFF' ? 'bg-white shadow-sm border border-slate-200 text-amber-700' : 'text-slate-400 hover:text-slate-600'}`}
                             >
                                 🎯 Único
                             </button>
                         </div>
                         
-                        {/* Sub-Panel Condicional */}
-                        {clientType === 'ONE_OFF' && (
-                            <div className="mt-4 bg-white rounded-xl p-5 border border-amber-200 shadow-sm animate-in slide-in-from-top-2 fade-in space-y-5">
-                                <div className="space-y-2">
+                        {/* Sub-Panel Condicional para Recurrente */}
+                        {clientType === 'FREQUENT' && (
+                            <div className="mt-4 bg-white rounded-xl p-4 border border-indigo-200 shadow-sm animate-in slide-in-from-top-2 fade-in space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[9px] font-black uppercase text-indigo-700 tracking-wider">
+                                        Modalidad: Recurrente (Cliente Habitual)
+                                    </span>
+                                    <span className="text-[8px] bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded border border-indigo-100">
+                                        Periódico
+                                    </span>
+                                </div>
+                                <div className="space-y-1.5">
                                     <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                                        Monto del Servicio
+                                        Valor del Pago / Honorario Recurrente (Opcional, en CLP)
                                     </label>
                                     <div className="relative">
                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
                                         <input
                                             type="number"
-                                            required={clientType === 'ONE_OFF'}
-                                            className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg pl-8 pr-4 py-3 focus:outline-none focus:border-amber-500 focus:bg-white transition-all font-semibold"
+                                            className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg pl-8 pr-4 py-2.5 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all font-semibold"
+                                            value={paymentAmount}
+                                            onChange={(e) => setPaymentAmount(e.target.value)}
+                                            placeholder="0.00 (opcional si es cuota regular)"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Sub-Panel Condicional para Único */}
+                        {clientType === 'ONE_OFF' && (
+                            <div className="mt-4 bg-white rounded-xl p-4 border border-amber-200 shadow-sm animate-in slide-in-from-top-2 fade-in space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[9px] font-black uppercase text-amber-800 tracking-wider">
+                                        Modalidad: Servicio Único
+                                    </span>
+                                    <span className="text-[8px] bg-amber-50 text-amber-700 font-bold px-2 py-0.5 rounded border border-amber-100">
+                                        Esporádico
+                                    </span>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                                        Valor del Pago / Monto Total (CLP)
+                                    </label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+                                        <input
+                                            type="number"
+                                            required
+                                            className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg pl-8 pr-4 py-2.5 focus:outline-none focus:border-amber-500 focus:bg-white transition-all font-semibold"
                                             value={paymentAmount}
                                             onChange={(e) => setPaymentAmount(e.target.value)}
                                             placeholder="0.00"
                                         />
                                     </div>
                                 </div>
-                                <div className="space-y-2">
+                                <div className="space-y-1.5">
                                     <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
                                         Esquema de Anticipo
                                     </label>
@@ -293,14 +330,14 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                         <button
                                             type="button"
                                             onClick={() => setPaymentProportion('50')}
-                                            className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${paymentProportion === '50' ? 'bg-white shadow-sm border border-slate-200 text-amber-700' : 'text-slate-400 hover:text-slate-600'}`}
+                                            className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${paymentProportion === '50' ? 'bg-white shadow-sm border border-slate-200 text-amber-700' : 'text-slate-400 hover:text-slate-600'}`}
                                         >
                                             50% Anticipo
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setPaymentProportion('100')}
-                                            className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${paymentProportion === '100' ? 'bg-white shadow-sm border border-slate-200 text-amber-700' : 'text-slate-400 hover:text-slate-600'}`}
+                                            className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${paymentProportion === '100' ? 'bg-white shadow-sm border border-slate-200 text-amber-700' : 'text-slate-400 hover:text-slate-600'}`}
                                         >
                                             100% Pago
                                         </button>

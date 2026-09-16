@@ -151,7 +151,7 @@ export const RequestDetailModal: React.FC = () => {
                 editDetail,
                 editClientType,
                 editClientType === 'ONE_OFF' ? editPaymentProportion : undefined,
-                editClientType === 'ONE_OFF' && editPaymentAmount ? parseFloat(editPaymentAmount) : undefined
+                editPaymentAmount ? parseFloat(editPaymentAmount) : undefined
             );
             setIsEditing(false);
         } catch (e: any) {
@@ -222,7 +222,8 @@ export const RequestDetailModal: React.FC = () => {
                           : 'bg-indigo-50 text-indigo-700 border-indigo-200'
                     }`}>
                         <BadgeDollarSign size={10} />
-                        MODALIDAD: {data.clientType === 'ONE_OFF' ? 'ÚNICO' : 'CLIENTE'}
+                        MODALIDAD: {data.clientType === 'ONE_OFF' ? 'ÚNICO' : 'RECURRENTE'}
+                        {data.paymentAmount ? ` · $${data.paymentAmount.toLocaleString()}` : ''}
                     </span>
                 </div>
                 {isEditing ? (
@@ -284,7 +285,7 @@ export const RequestDetailModal: React.FC = () => {
                                     onClick={() => setEditClientType('FREQUENT')}
                                     className={`flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-md transition-all ${editClientType === 'FREQUENT' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                                 >
-                                    🤝 Cliente
+                                    🔄 Recurrente
                                 </button>
                                 <button
                                     type="button"
@@ -295,10 +296,25 @@ export const RequestDetailModal: React.FC = () => {
                                 </button>
                             </div>
 
+                            {editClientType === 'FREQUENT' && (
+                                <div className="pt-1">
+                                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">
+                                        Valor del Pago / Cuota Recurrente (Opcional, en CLP)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={editPaymentAmount}
+                                        onChange={e => setEditPaymentAmount(e.target.value)}
+                                        placeholder="0.00 (opcional)"
+                                        className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
+                                    />
+                                </div>
+                            )}
+
                             {editClientType === 'ONE_OFF' && (
                                 <div className="grid grid-cols-2 gap-2 pt-1">
                                     <div>
-                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Monto ($ CLP)</label>
+                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Monto Total ($ CLP)</label>
                                         <input
                                             type="number"
                                             value={editPaymentAmount}
@@ -334,11 +350,11 @@ export const RequestDetailModal: React.FC = () => {
                                         </span>
                                     </div>
                                     <p className="text-[9px] text-amber-700/80 font-medium mt-1">
-                                        Servicio esporádico con liquidación por evento.
+                                        Servicio esporádico con liquidación unitaria.
                                     </p>
                                 </div>
                                 <div className="text-right pl-3 border-l border-amber-200 shrink-0">
-                                    <p className="text-[8px] font-black text-amber-600 uppercase tracking-widest">Monto Total</p>
+                                    <p className="text-[8px] font-black text-amber-600 uppercase tracking-widest">Valor del Pago</p>
                                     <p className="text-sm font-black text-amber-900">${data.paymentAmount?.toLocaleString() || '0'}</p>
                                 </div>
                             </div>
@@ -347,19 +363,28 @@ export const RequestDetailModal: React.FC = () => {
                                 <div>
                                     <div className="flex items-center gap-1.5">
                                         <span className="text-[8px] font-black uppercase tracking-widest bg-indigo-600 text-white px-2 py-0.5 rounded shadow-xs">
-                                            CLIENTE
+                                            RECURRENTE
                                         </span>
                                         <span className="text-[9px] font-bold text-indigo-900">
                                             Gestión Regular / Proceso Recurrente
                                         </span>
                                     </div>
                                     <p className="text-[9px] text-slate-500 font-medium mt-1">
-                                        Operación bajo cuenta de cliente recurrente o proceso interno estándar.
+                                        Operación periódica bajo modalidad recurrente sin cobro por evento individual.
                                     </p>
                                 </div>
                                 <div className="text-right pl-3 border-l border-indigo-100 shrink-0">
-                                    <p className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Condición</p>
-                                    <p className="text-[11px] font-black text-slate-800">Recurrente</p>
+                                    {data.paymentAmount ? (
+                                        <>
+                                            <p className="text-[8px] font-black text-indigo-600 uppercase tracking-widest">Valor Pago</p>
+                                            <p className="text-sm font-black text-indigo-950">${data.paymentAmount.toLocaleString()}</p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <p className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Condición</p>
+                                            <p className="text-[11px] font-black text-slate-800">Recurrente</p>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         )

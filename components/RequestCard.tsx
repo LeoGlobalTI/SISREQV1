@@ -104,7 +104,8 @@ export const RequestCard: React.FC<Props> = ({ data }) => {
                         ? 'bg-amber-50 text-amber-700 border-amber-200' 
                         : 'bg-indigo-50 text-indigo-700 border-indigo-200'
                 }`}>
-                    {data.clientType === 'ONE_OFF' ? 'Único' : 'Cliente'}
+                    {data.clientType === 'ONE_OFF' ? 'Único' : 'Recurrente'}
+                    {data.paymentAmount ? ` · $${data.paymentAmount.toLocaleString()}` : ''}
                 </span>
                 <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded-md border shadow-sm transition-all uppercase tracking-widest ${PRIORITY_STYLES[data.priority]}`}>
                     {data.priority}

@@ -344,11 +344,41 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                                   
                                   await db.saveRequest(newReq);
                                   
-                                  newAlerts[i] = {
-                                      ...alert,
-                                      status: 'TRIGGERED',
-                                      linkedRequestId: newId
-                                  };
+                                  // Manejo de frecuencia: Semanal, Mensual, Anual o Puntual
+                                  if (alert.frequency && alert.frequency !== 'ONCE') {
+                                      const nextDate = new Date(triggerDate);
+                                      if (alert.frequency === 'WEEKLY') {
+                                          nextDate.setDate(nextDate.getDate() + 7);
+                                      } else if (alert.frequency === 'MONTHLY') {
+                                          nextDate.setMonth(nextDate.getMonth() + 1);
+                                      } else if (alert.frequency === 'YEARLY') {
+                                          nextDate.setFullYear(nextDate.getFullYear() + 1);
+                                      }
+                                      
+                                      const nextDateStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
+                                      const endDate = new Date(process.globalEndDate + 'T23:59:59');
+                                      
+                                      if (nextDate <= endDate) {
+                                          newAlerts[i] = {
+                                              ...alert,
+                                              triggerDate: nextDateStr,
+                                              status: 'WAITING',
+                                              linkedRequestId: null
+                                          };
+                                      } else {
+                                          newAlerts[i] = {
+                                              ...alert,
+                                              status: 'TRIGGERED',
+                                              linkedRequestId: newId
+                                          };
+                                      }
+                                  } else {
+                                      newAlerts[i] = {
+                                          ...alert,
+                                          status: 'TRIGGERED',
+                                          linkedRequestId: newId
+                                      };
+                                  }
                                   processUpdated = true;
                               }
                           }
@@ -656,9 +686,9 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       title, detail, area, status: initialStatus, priority, requester,
       responsibleHead,
       responsibleHeadId,
-      clientType,
-      paymentProportion,
-      paymentAmount,
+      clientType: clientType || 'FREQUENT',
+      paymentProportion: clientType === 'ONE_OFF' ? (paymentProportion || '50') : undefined,
+      paymentAmount: (paymentAmount !== undefined && paymentAmount !== null && !isNaN(paymentAmount)) ? paymentAmount : undefined,
       createdAt: now, lastUpdated: now,
       logs: [createAuditLog(`APERTURA: Registro inicializado en fase ${initialStatus}`)]
     };
@@ -783,7 +813,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         detail, 
         clientType: clientType !== undefined ? clientType : (req.clientType || 'FREQUENT'),
         paymentProportion: clientType === 'ONE_OFF' ? (paymentProportion || req.paymentProportion || '50') : undefined,
-        paymentAmount: clientType === 'ONE_OFF' ? (paymentAmount !== undefined ? paymentAmount : req.paymentAmount) : undefined,
+        paymentAmount: (paymentAmount !== undefined && paymentAmount !== null && !isNaN(paymentAmount)) ? paymentAmount : (clientType === 'ONE_OFF' ? req.paymentAmount : undefined),
         lastUpdated: new Date().toISOString(), 
         logs: [...req.logs, createAuditLog(`MODIFICACIÓN: Actualización de metadatos del expediente (Título/Alcance/Modalidad Comercial).`)] 
     };

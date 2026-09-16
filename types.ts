@@ -102,12 +102,15 @@ export interface RequestCard {
   paymentAmount?: number;
 }
 
+export type AlertFrequency = 'ONCE' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+
 export interface ProcessAlert {
   id: string;
   title: string;
   description: string;
   assignedToId: string | null;
   triggerDate: string; // ISO string YYYY-MM-DD
+  frequency?: AlertFrequency;
   visibilityWindowDays: number;
   linkedRequestId: string | null;
   status: 'WAITING' | 'TRIGGERED';

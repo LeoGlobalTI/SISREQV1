@@ -524,13 +524,12 @@ export const Board: React.FC = () => {
 
                                   <div className="truncate">
                                       <span className={`text-[8px] font-black px-2.5 py-1 rounded-lg border transition-all uppercase tracking-widest shadow-sm ${
-                                          req.clientType === 'FREQUENT' 
-                                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200' 
-                                            : req.clientType === 'ONE_OFF'
-                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                            : 'bg-slate-50 text-slate-500 border-slate-200'
+                                          req.clientType === 'ONE_OFF' 
+                                            ? 'bg-amber-50 text-amber-800 border-amber-300' 
+                                            : 'bg-indigo-50 text-indigo-700 border-indigo-200'
                                       } truncate block w-fit`}>
-                                          {req.clientType === 'FREQUENT' ? 'Cliente' : req.clientType === 'ONE_OFF' ? 'Prospecto' : 'No Definido'}
+                                          {req.clientType === 'ONE_OFF' ? 'Único' : 'Recurrente'}
+                                          {req.paymentAmount ? ` · $${req.paymentAmount.toLocaleString()}` : ''}
                                       </span>
                                   </div>
 
