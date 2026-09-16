@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useSisreq } from '../context/SisreqContext';
 import { ScheduledProcess, ProcessAlert, User } from '../types';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Clock, MapPin, User as UserIcon, Tag, AlignLeft, Send, Trash2, CheckCircle2 } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Clock, MapPin, User as UserIcon, Tag, AlignLeft, Send, Trash2, CheckCircle2, Info } from 'lucide-react';
 
 export const PlannerView: React.FC = () => {
     const { scheduledProcesses, addProcess, deleteProcess, users, organizationAreas, currentUser, addNotification } = useSisreq();
@@ -238,6 +238,18 @@ export const PlannerView: React.FC = () => {
                         </div>
                         
                         <form id="new-process-form" onSubmit={handleCreateProcess} className="p-6 flex-1 overflow-y-auto space-y-8">
+                            <div className="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-4 flex items-start gap-3">
+                                <div className="p-2 bg-white rounded-xl text-indigo-600 shadow-sm border border-indigo-100/50 shrink-0">
+                                    <Info size={16} />
+                                </div>
+                                <div className="text-xs text-slate-600 space-y-1">
+                                    <div className="font-bold text-slate-800">Parámetros Automáticos de Gestión Interna</div>
+                                    <p className="text-[11px] leading-relaxed text-slate-500">
+                                        Cada alerta generada para esta rutina se inyectará en el flujo Kanban con nivel de urgencia <strong className="text-red-700 font-bold">Alto</strong>, modalidad comercial <strong className="text-indigo-700 font-bold">Cliente</strong> y solicitante el propio <strong className="text-slate-800 font-bold">Sistema</strong>.
+                                    </p>
+                                </div>
+                            </div>
+
                             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
                                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                     <Tag size={12} className="text-indigo-500"/> Definición del Proceso Maestro
@@ -310,6 +322,17 @@ export const PlannerView: React.FC = () => {
                                                         </select>
                                                         <input required type="number" min="0" value={alert.visibilityWindowDays} onChange={e => handleUpdateAlert(index, 'visibilityWindowDays', parseInt(e.target.value) || 0)} className="w-20 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs font-semibold focus:outline-none focus:border-indigo-500 text-center" title="Días de anticipación en Kanban" />
                                                     </div>
+                                                    <div className="flex flex-wrap items-center gap-1.5 md:col-span-2 pt-2 border-t border-slate-100">
+                                                        <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-red-50 text-red-700 border border-red-200">
+                                                            Urgencia: Alto
+                                                        </span>
+                                                        <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                            Modalidad: Cliente
+                                                        </span>
+                                                        <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                                            Origen: Sistema
+                                                        </span>
+                                                    </div>
                                                 </div>
                                                 <button type="button" onClick={() => handleRemoveAlert(index)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                                                     <Trash2 size={16} />
@@ -378,6 +401,17 @@ export const PlannerView: React.FC = () => {
                                                 <div className="text-xs font-bold text-slate-800 truncate">{alert.title}</div>
                                                 <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
                                                     Día D: {alert.triggerDate}
+                                                </div>
+                                                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                                    <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded bg-red-50 text-red-700 border border-red-200">
+                                                        Urgencia: Alto
+                                                    </span>
+                                                    <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                        Modalidad: Cliente
+                                                    </span>
+                                                    <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                                        Origen: Sistema
+                                                    </span>
                                                 </div>
                                             </div>
                                             <div className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded border ${

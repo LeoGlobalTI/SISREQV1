@@ -319,15 +319,24 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                                       id: newId,
                                       title: `[Proceso: ${process.processName}] ${alert.title}`,
                                       detail: alert.description,
-                                      requester: "Sistema: Alerta Automatizada",
+                                      requester: "Sistema",
                                       area: process.area || '',
                                       status: isValidAssignee ? Status.EJECUCION : Status.RECIBIDO,
-                                      priority: Priority.MEDIUM,
+                                      priority: Priority.HIGH,
+                                      clientType: 'FREQUENT',
                                       assignedAnalystId: isValidAssignee ? assignedUser.id : null,
                                       assignedAnalyst: isValidAssignee ? assignedUser.name : null,
                                       responsibleHead: isValidAssignee ? (loadedUsers.find(u => u.role === UserRole.HEAD && u.areas?.includes(process.area || ''))?.name || 'Asignación Automática') : 'Pendiente de asignación',
                                       responsibleHeadId: isValidAssignee ? (loadedUsers.find(u => u.role === UserRole.HEAD && u.areas?.includes(process.area || ''))?.id || null) : null,
-                                      logs: [],
+                                      logs: [
+                                          {
+                                              id: genUUID(),
+                                              timestamp,
+                                              message: 'GENERACIÓN AUTOMÁTICA: Proceso interno. Urgencia: ALTO | Modalidad: CLIENTE | Solicitante: SISTEMA.',
+                                              actor: 'Sistema',
+                                              role: UserRole.SUPERADMIN
+                                          }
+                                      ],
                                       createdAt: timestamp,
                                       lastUpdated: timestamp,
                                       sourceType: 'INTERNAL_PROCESS'
