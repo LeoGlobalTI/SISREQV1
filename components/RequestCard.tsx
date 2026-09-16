@@ -149,7 +149,7 @@ export const RequestCard: React.FC<Props> = ({ data }) => {
         )}
       </div>
 
-      {/* Footer (Expanded Only) */}
+      {/* Footer (Expanded Only)  */}
       {!isMinimized && (
           <div className="mt-auto p-4 pt-3 border-t border-slate-100 bg-slate-50/30 flex flex-col gap-2 shrink-0">
              <div className="flex items-center justify-between">
