@@ -7,7 +7,7 @@ import {
     Search, Inbox, GitPullRequest, PlayCircle, CheckCircle2, 
     ChevronDown, LayoutGrid, ShieldAlert, FileStack, List, 
     Table, Clock, User, Building2, MapPin, AlertCircle, Eye,
-    Hash, FileDown, FilterX, FileSpreadsheet
+    Hash, FileDown, FilterX, FileSpreadsheet, BadgeDollarSign
 } from 'lucide-react';
 import { PRIORITY_STYLES, STATUS_BADGE_COLORS } from '../constants';
 import { canReceiveAndDerive } from '../src/lib/auth';
@@ -64,7 +64,7 @@ export const Board: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
 
   // Resizable Columns State
-  const [colWidths, setColWidths] = useState<number[]>([80, 400, 120, 120, 140, 140, 100, 120, 60]);
+  const [colWidths, setColWidths] = useState<number[]>([80, 380, 120, 120, 130, 130, 100, 140, 60]);
   const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
 
   const handleMouseDown = (index: number, e: React.MouseEvent) => {
@@ -452,7 +452,7 @@ export const Board: React.FC = () => {
                             <ResizeHandle index={6} />
                           </div>
                           <div className="relative h-full flex items-center">
-                            <User size={12} className="inline mr-1 text-slate-300"/> Modalidad
+                            <BadgeDollarSign size={12} className="inline mr-1 text-slate-300"/> Modalidad
                             <ResizeHandle index={7} />
                           </div>
                           <div className="text-right">Detalle</div>
@@ -529,7 +529,7 @@ export const Board: React.FC = () => {
                                             : 'bg-indigo-50 text-indigo-700 border-indigo-200'
                                       } truncate block w-fit`}>
                                           {req.clientType === 'ONE_OFF' ? 'Único' : 'Recurrente'}
-                                          {req.paymentAmount ? ` · $${req.paymentAmount.toLocaleString()}` : ''}
+                                          {req.clientType === 'ONE_OFF' && req.paymentAmount ? ` · $${req.paymentAmount.toLocaleString()}` : ''}
                                       </span>
                                   </div>
 

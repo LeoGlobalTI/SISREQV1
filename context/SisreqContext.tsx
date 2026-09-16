@@ -681,16 +681,21 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const responsibleHead = 'Pendiente de asignación';
     const responsibleHeadId = null;
 
+    const isOneOff = clientType === 'ONE_OFF';
+    const finalClientType: 'FREQUENT' | 'ONE_OFF' = isOneOff ? 'ONE_OFF' : 'FREQUENT';
+    const finalPaymentAmount = isOneOff && (paymentAmount !== undefined && paymentAmount !== null && !isNaN(paymentAmount) && paymentAmount > 0) ? paymentAmount : undefined;
+    const finalPaymentProportion = isOneOff ? (paymentProportion || '50') : undefined;
+
     const newReq: RequestCard = {
       id: genUUID(),
       title, detail, area, status: initialStatus, priority, requester,
       responsibleHead,
       responsibleHeadId,
-      clientType: clientType || 'FREQUENT',
-      paymentProportion: clientType === 'ONE_OFF' ? (paymentProportion || '50') : undefined,
-      paymentAmount: (paymentAmount !== undefined && paymentAmount !== null && !isNaN(paymentAmount)) ? paymentAmount : undefined,
+      clientType: finalClientType,
+      paymentProportion: finalPaymentProportion,
+      paymentAmount: finalPaymentAmount,
       createdAt: now, lastUpdated: now,
-      logs: [createAuditLog(`APERTURA: Registro inicializado en fase ${initialStatus}`)]
+      logs: [createAuditLog(`APERTURA: Registro inicializado en fase ${initialStatus} (Modalidad: ${isOneOff ? 'Único' : 'Recurrente'})`)]
     };
     await db.saveRequest(newReq);
     setRequests(prev => [newReq, ...prev]);
@@ -807,15 +812,20 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (req.status === Status.FINALIZADO && activeRole !== UserRole.SUPERADMIN)
         throw new Error("Registro inmutable: El expediente ya ha sido finalizado.");
 
+    const isOneOff = (clientType !== undefined ? clientType : req.clientType) === 'ONE_OFF';
+    const finalClientType: 'FREQUENT' | 'ONE_OFF' = isOneOff ? 'ONE_OFF' : 'FREQUENT';
+    const finalPaymentAmount = isOneOff && (paymentAmount !== undefined && paymentAmount !== null && !isNaN(paymentAmount) && paymentAmount > 0) ? paymentAmount : undefined;
+    const finalPaymentProportion = isOneOff ? (paymentProportion || req.paymentProportion || '50') : undefined;
+
     const updated: RequestCard = { 
         ...req, 
         title, 
         detail, 
-        clientType: clientType !== undefined ? clientType : (req.clientType || 'FREQUENT'),
-        paymentProportion: clientType === 'ONE_OFF' ? (paymentProportion || req.paymentProportion || '50') : undefined,
-        paymentAmount: (paymentAmount !== undefined && paymentAmount !== null && !isNaN(paymentAmount)) ? paymentAmount : (clientType === 'ONE_OFF' ? req.paymentAmount : undefined),
+        clientType: finalClientType,
+        paymentProportion: finalPaymentProportion,
+        paymentAmount: finalPaymentAmount,
         lastUpdated: new Date().toISOString(), 
-        logs: [...req.logs, createAuditLog(`MODIFICACIÓN: Actualización de metadatos del expediente (Título/Alcance/Modalidad Comercial).`)] 
+        logs: [...req.logs, createAuditLog(`MODIFICACIÓN: Actualización de metadatos del expediente (Título/Alcance/Modalidad Comercial: ${isOneOff ? 'Único' : 'Recurrente'}).`)] 
     };
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));

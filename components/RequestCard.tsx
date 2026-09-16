@@ -105,7 +105,7 @@ export const RequestCard: React.FC<Props> = ({ data }) => {
                         : 'bg-indigo-50 text-indigo-700 border-indigo-200'
                 }`}>
                     {data.clientType === 'ONE_OFF' ? 'Único' : 'Recurrente'}
-                    {data.paymentAmount ? ` · $${data.paymentAmount.toLocaleString()}` : ''}
+                    {data.clientType === 'ONE_OFF' && data.paymentAmount ? ` · $${data.paymentAmount.toLocaleString()}` : ''}
                 </span>
                 <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded-md border shadow-sm transition-all uppercase tracking-widest ${PRIORITY_STYLES[data.priority]}`}>
                     {data.priority}
@@ -141,12 +141,21 @@ export const RequestCard: React.FC<Props> = ({ data }) => {
         )}
 
         {isMinimized && (
-             <button 
-                onClick={(e) => { e.stopPropagation(); setIsMinimized(false); }}
-                className="absolute right-4 p-1 text-slate-300 hover:text-slate-500 hover:bg-slate-100 rounded-md transition-all"
-            >
-                <ChevronDown size={14}/>
-            </button>
+             <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                 <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded-md border shadow-sm transition-all uppercase tracking-widest ${
+                     data.clientType === 'ONE_OFF' 
+                         ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                         : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                 }`}>
+                     {data.clientType === 'ONE_OFF' ? 'Único' : 'Recurrente'}
+                 </span>
+                 <button 
+                    onClick={(e) => { e.stopPropagation(); setIsMinimized(false); }}
+                    className="p-1 text-slate-300 hover:text-slate-500 hover:bg-slate-100 rounded-md transition-all"
+                >
+                    <ChevronDown size={14}/>
+                </button>
+             </div>
         )}
       </div>
 

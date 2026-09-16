@@ -143,15 +143,21 @@ export const RequestDetailModal: React.FC = () => {
 
   const handleSaveChanges = async () => {
     if (editTitle.trim() && editDetail.trim()) {
+        const isOneOff = editClientType === 'ONE_OFF';
+        if (isOneOff && (!editPaymentAmount || isNaN(parseFloat(editPaymentAmount)) || parseFloat(editPaymentAmount) <= 0)) {
+            setActionError('Debe ingresar un monto válido mayor a 0 para modalidad Única.');
+            return;
+        }
+
         setActionError(null);
         try {
             await updateRequestDetails(
                 data.id, 
-                editTitle, 
-                editDetail,
-                editClientType,
-                editClientType === 'ONE_OFF' ? editPaymentProportion : undefined,
-                editPaymentAmount ? parseFloat(editPaymentAmount) : undefined
+                editTitle.trim(), 
+                editDetail.trim(),
+                isOneOff ? 'ONE_OFF' : 'FREQUENT',
+                isOneOff ? editPaymentProportion : undefined,
+                isOneOff && editPaymentAmount ? parseFloat(editPaymentAmount) : undefined
             );
             setIsEditing(false);
         } catch (e: any) {
@@ -223,7 +229,7 @@ export const RequestDetailModal: React.FC = () => {
                     }`}>
                         <BadgeDollarSign size={10} />
                         MODALIDAD: {data.clientType === 'ONE_OFF' ? 'ÚNICO' : 'RECURRENTE'}
-                        {data.paymentAmount ? ` · $${data.paymentAmount.toLocaleString()}` : ''}
+                        {data.clientType === 'ONE_OFF' && data.paymentAmount ? ` · $${data.paymentAmount.toLocaleString()}` : ''}
                     </span>
                 </div>
                 {isEditing ? (
@@ -282,7 +288,10 @@ export const RequestDetailModal: React.FC = () => {
                             <div className="flex bg-white p-1 rounded-lg border border-slate-200">
                                 <button
                                     type="button"
-                                    onClick={() => setEditClientType('FREQUENT')}
+                                    onClick={() => {
+                                        setEditClientType('FREQUENT');
+                                        setEditPaymentAmount('');
+                                    }}
                                     className={`flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-md transition-all ${editClientType === 'FREQUENT' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                                 >
                                     🔄 Recurrente
@@ -297,38 +306,34 @@ export const RequestDetailModal: React.FC = () => {
                             </div>
 
                             {editClientType === 'FREQUENT' && (
-                                <div className="pt-1">
-                                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">
-                                        Valor del Pago / Cuota Recurrente (Opcional, en CLP)
-                                    </label>
-                                    <input
-                                        type="number"
-                                        value={editPaymentAmount}
-                                        onChange={e => setEditPaymentAmount(e.target.value)}
-                                        placeholder="0.00 (opcional)"
-                                        className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
-                                    />
+                                <div className="p-2.5 bg-indigo-50/50 rounded-lg border border-indigo-100 text-slate-600 text-[10px] space-y-1">
+                                    <p className="font-bold text-indigo-700 flex items-center gap-1 uppercase tracking-wider text-[9px]">
+                                        <Info size={11} /> Modalidad Recurrente (Cliente Habitual)
+                                    </p>
+                                    <p className="text-[10px] text-slate-500 leading-snug">
+                                        No aplica ingreso de monto monetario por expediente. El trabajo se procesa dentro del convenio de servicio regular.
+                                    </p>
                                 </div>
                             )}
 
                             {editClientType === 'ONE_OFF' && (
                                 <div className="grid grid-cols-2 gap-2 pt-1">
                                     <div>
-                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Monto Total ($ CLP)</label>
+                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Monto Total ($ CLP) *</label>
                                         <input
                                             type="number"
                                             value={editPaymentAmount}
                                             onChange={e => setEditPaymentAmount(e.target.value)}
-                                            placeholder="0"
-                                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
+                                            placeholder="Ej. 150000"
+                                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-amber-500"
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Esquema Pago</label>
+                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Esquema Anticipo</label>
                                         <select
                                             value={editPaymentProportion}
                                             onChange={e => setEditPaymentProportion(e.target.value as '50' | '100')}
-                                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
+                                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-amber-500"
                                         >
                                             <option value="50">50% Anticipo</option>
                                             <option value="100">100% Pago Total</option>
@@ -374,17 +379,9 @@ export const RequestDetailModal: React.FC = () => {
                                     </p>
                                 </div>
                                 <div className="text-right pl-3 border-l border-indigo-100 shrink-0">
-                                    {data.paymentAmount ? (
-                                        <>
-                                            <p className="text-[8px] font-black text-indigo-600 uppercase tracking-widest">Valor Pago</p>
-                                            <p className="text-sm font-black text-indigo-950">${data.paymentAmount.toLocaleString()}</p>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <p className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Condición</p>
-                                            <p className="text-[11px] font-black text-slate-800">Recurrente</p>
-                                        </>
-                                    )}
+                                    <span className="text-[8px] font-black text-indigo-600 bg-white px-2.5 py-1 rounded-lg border border-indigo-100 uppercase tracking-widest shadow-xs">
+                                        Sin monto unitario
+                                    </span>
                                 </div>
                             </div>
                         )

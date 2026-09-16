@@ -283,7 +283,7 @@ CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`
         try {
             const { data, error } = await this.supabase
                 .from(STORE_REQUESTS)
-                .select('id, title, detail, requester, area, status, priority, "responsibleHead", "assignedAnalyst", "responsibleHeadId", "assignedAnalystId", logs, "createdAt", "lastUpdated", "finishedAt", "isReturned", "isDeleted", "deletedAt", "deletedBy"')
+                .select('*')
                 .order('lastUpdated', { ascending: false });
             if (error) {
                 console.warn('Aviso al obtener requerimientos desde Supabase:', error.message || error);
