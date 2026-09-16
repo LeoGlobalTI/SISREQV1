@@ -45,7 +45,7 @@ interface SisreqContextType {
   returnRequest: (id: string, reason: string) => Promise<void>;
   assignAnalyst: (id: string, analystName: string) => Promise<void>;
   addLog: (id: string, message: string) => Promise<void>;
-  updateRequestDetails: (id: string, title: string, detail: string) => Promise<void>;
+  updateRequestDetails: (id: string, title: string, detail: string, clientType?: 'FREQUENT' | 'ONE_OFF', paymentProportion?: '50' | '100', paymentAmount?: number) => Promise<void>;
   deleteRequest: (id: string) => Promise<void>;
   hardDeleteAllRequests: () => Promise<void>;
   
@@ -766,7 +766,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setRequests(prev => prev.map(r => r.id === id ? updated : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
   };
 
-  const updateRequestDetails = async (id: string, title: string, detail: string) => {
+  const updateRequestDetails = async (id: string, title: string, detail: string, clientType?: 'FREQUENT' | 'ONE_OFF', paymentProportion?: '50' | '100', paymentAmount?: number) => {
     const localReq = requests.find(r => r.id === id);
     if (!localReq || localReq.isDeleted) return;
     const req = await db.getRequestById(id) || localReq;
@@ -777,12 +777,15 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (req.status === Status.FINALIZADO && activeRole !== UserRole.SUPERADMIN)
         throw new Error("Registro inmutable: El expediente ya ha sido finalizado.");
 
-    const updated = { 
+    const updated: RequestCard = { 
         ...req, 
         title, 
         detail, 
+        clientType: clientType !== undefined ? clientType : (req.clientType || 'FREQUENT'),
+        paymentProportion: clientType === 'ONE_OFF' ? (paymentProportion || req.paymentProportion || '50') : undefined,
+        paymentAmount: clientType === 'ONE_OFF' ? (paymentAmount !== undefined ? paymentAmount : req.paymentAmount) : undefined,
         lastUpdated: new Date().toISOString(), 
-        logs: [...req.logs, createAuditLog(`MODIFICACIÓN: Actualización de metadatos de cabecera.`)] 
+        logs: [...req.logs, createAuditLog(`MODIFICACIÓN: Actualización de metadatos del expediente (Título/Alcance/Modalidad Comercial).`)] 
     };
     await db.saveRequest(updated);
     setRequests(prev => prev.map(r => r.id === id ? updated : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));

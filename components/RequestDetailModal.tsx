@@ -33,6 +33,9 @@ export const RequestDetailModal: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editDetail, setEditDetail] = useState('');
+  const [editClientType, setEditClientType] = useState<'FREQUENT' | 'ONE_OFF'>('FREQUENT');
+  const [editPaymentProportion, setEditPaymentProportion] = useState<'50' | '100'>('50');
+  const [editPaymentAmount, setEditPaymentAmount] = useState<string>('');
   const [newComment, setNewComment] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -63,6 +66,9 @@ export const RequestDetailModal: React.FC = () => {
      if (data) {
         setEditTitle(data.title);
         setEditDetail(data.detail);
+        setEditClientType(data.clientType === 'ONE_OFF' ? 'ONE_OFF' : 'FREQUENT');
+        setEditPaymentProportion(data.paymentProportion === '100' ? '100' : '50');
+        setEditPaymentAmount(data.paymentAmount ? String(data.paymentAmount) : '');
         setIsEditing(false);
         setShowReturnInput(false);
         setShowAnalystSelect(false);
@@ -139,7 +145,14 @@ export const RequestDetailModal: React.FC = () => {
     if (editTitle.trim() && editDetail.trim()) {
         setActionError(null);
         try {
-            await updateRequestDetails(data.id, editTitle, editDetail);
+            await updateRequestDetails(
+                data.id, 
+                editTitle, 
+                editDetail,
+                editClientType,
+                editClientType === 'ONE_OFF' ? editPaymentProportion : undefined,
+                editClientType === 'ONE_OFF' && editPaymentAmount ? parseFloat(editPaymentAmount) : undefined
+            );
             setIsEditing(false);
         } catch (e: any) {
             setActionError(e.message);
@@ -203,6 +216,14 @@ export const RequestDetailModal: React.FC = () => {
                     <span className="text-[9px] text-slate-400 font-mono font-black bg-white px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1 uppercase">
                         #{data.id.split('-')[1]?.toUpperCase() || 'SYS'}
                     </span>
+                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border flex items-center gap-1 shadow-xs ${
+                        data.clientType === 'ONE_OFF' 
+                          ? 'bg-amber-50 text-amber-800 border-amber-300' 
+                          : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                    }`}>
+                        <BadgeDollarSign size={10} />
+                        MODALIDAD: {data.clientType === 'ONE_OFF' ? 'ÚNICO' : 'CLIENTE'}
+                    </span>
                 </div>
                 {isEditing ? (
                     <input value={editTitle} onChange={e => setEditTitle(e.target.value)} className="text-base font-black text-slate-900 w-full bg-white border-b-2 border-indigo-600 outline-none uppercase tracking-tight" />
@@ -249,22 +270,101 @@ export const RequestDetailModal: React.FC = () => {
                     )}
                 </div>
 
-                {data.clientType === 'ONE_OFF' && (
-                    <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl flex items-center justify-between">
-                        <div>
-                            <p className="text-[8px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-1.5">
-                                <BadgeDollarSign size={10} /> Servicio Único (Esporádico)
-                            </p>
-                            <p className="text-[10px] font-black text-amber-800 uppercase mt-0.5">
-                                Esquema: {data.paymentProportion}% Anticipo
-                            </p>
+                {/* Bloque de Modalidad Comercial - Visible en todo momento */}
+                <div className="space-y-2">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <BadgeDollarSign size={11} className="text-indigo-600"/> MODALIDAD COMERCIAL
+                    </label>
+
+                    {isEditing ? (
+                        <div className="bg-slate-50 border border-indigo-100 p-3.5 rounded-xl space-y-3 animate-in fade-in">
+                            <div className="flex bg-white p-1 rounded-lg border border-slate-200">
+                                <button
+                                    type="button"
+                                    onClick={() => setEditClientType('FREQUENT')}
+                                    className={`flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-md transition-all ${editClientType === 'FREQUENT' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                                >
+                                    🤝 Cliente
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditClientType('ONE_OFF')}
+                                    className={`flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-md transition-all ${editClientType === 'ONE_OFF' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                                >
+                                    🎯 Único
+                                </button>
+                            </div>
+
+                            {editClientType === 'ONE_OFF' && (
+                                <div className="grid grid-cols-2 gap-2 pt-1">
+                                    <div>
+                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Monto ($ CLP)</label>
+                                        <input
+                                            type="number"
+                                            value={editPaymentAmount}
+                                            onChange={e => setEditPaymentAmount(e.target.value)}
+                                            placeholder="0"
+                                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Esquema Pago</label>
+                                        <select
+                                            value={editPaymentProportion}
+                                            onChange={e => setEditPaymentProportion(e.target.value as '50' | '100')}
+                                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
+                                        >
+                                            <option value="50">50% Anticipo</option>
+                                            <option value="100">100% Pago Total</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                        <div className="text-right">
-                            <p className="text-[8px] font-black text-amber-500 uppercase tracking-widest">Monto Total</p>
-                            <p className="text-sm font-black text-amber-700">${data.paymentAmount?.toLocaleString()}</p>
-                        </div>
-                    </div>
-                )}
+                    ) : (
+                        data.clientType === 'ONE_OFF' ? (
+                            <div className="bg-amber-50/80 border border-amber-200 p-3 rounded-xl flex items-center justify-between shadow-xs">
+                                <div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-[8px] font-black uppercase tracking-widest bg-amber-600 text-white px-2 py-0.5 rounded shadow-xs">
+                                            SERVICIO ÚNICO
+                                        </span>
+                                        <span className="text-[9px] font-bold text-amber-800">
+                                            Esquema: {data.paymentProportion || '50'}% Anticipo
+                                        </span>
+                                    </div>
+                                    <p className="text-[9px] text-amber-700/80 font-medium mt-1">
+                                        Servicio esporádico con liquidación por evento.
+                                    </p>
+                                </div>
+                                <div className="text-right pl-3 border-l border-amber-200 shrink-0">
+                                    <p className="text-[8px] font-black text-amber-600 uppercase tracking-widest">Monto Total</p>
+                                    <p className="text-sm font-black text-amber-900">${data.paymentAmount?.toLocaleString() || '0'}</p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="bg-indigo-50/60 border border-indigo-100 p-3 rounded-xl flex items-center justify-between shadow-xs">
+                                <div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-[8px] font-black uppercase tracking-widest bg-indigo-600 text-white px-2 py-0.5 rounded shadow-xs">
+                                            CLIENTE
+                                        </span>
+                                        <span className="text-[9px] font-bold text-indigo-900">
+                                            Gestión Regular / Proceso Recurrente
+                                        </span>
+                                    </div>
+                                    <p className="text-[9px] text-slate-500 font-medium mt-1">
+                                        Operación bajo cuenta de cliente recurrente o proceso interno estándar.
+                                    </p>
+                                </div>
+                                <div className="text-right pl-3 border-l border-indigo-100 shrink-0">
+                                    <p className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Condición</p>
+                                    <p className="text-[11px] font-black text-slate-800">Recurrente</p>
+                                </div>
+                            </div>
+                        )
+                    )}
+                </div>
 
                 <div className="grid grid-cols-2 gap-3">
                     <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
