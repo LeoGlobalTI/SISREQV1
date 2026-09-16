@@ -1,5 +1,5 @@
 
-import { Area, Status, User, UserRole, Priority, RequestCard } from './types';
+import { Area, Status, User, UserRole, Priority, RequestCard, VersionEntry } from './types';
 
 export const INITIAL_USERS: User[] = [
   { id: '11111111-1111-4111-a111-111111111111', name: 'Leandro', email: 'leandro@sisreq.com', status: 'ACTIVE', joinedAt: '2023-01-01T10:00:00Z', role: UserRole.SUPERADMIN, password: '123' },
@@ -105,27 +105,61 @@ export const STATUS_BADGE_COLORS: Record<Status, string> = {
   [Status.FINALIZADO]: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-500/20',
 };
 
-export const VERSIONS = [
+export const VERSIONS: VersionEntry[] = [
+  {
+    version: 'v4.2.0-PLANNER',
+    codename: 'Process Engine & Operational Resilience',
+    date: '16 de Septiembre 2026',
+    type: 'MAJOR',
+    highlights: [
+      'Planificador de Procesos Maestro: Automatización visual de procesos y programación de alertas temporales Just-In-Time.',
+      'Inyección Automática a Kanban: Despacho inteligente de tickets según ventana de visibilidad y asignación directa a analistas.',
+      'Blindaje Estructural e Integridad: Candados anti-orfandad al eliminar Áreas o Usuarios y saneamiento al retornar requerimientos.',
+      'Sincronización Institucional del Sistema: Centralización del Registro de Versiones y enlace corporativo a Global TI (www.gtitech.cl).'
+    ]
+  },
+  {
+    version: 'v4.1.0-SECURITY',
+    codename: 'Data Integrity & Cloud Resilience',
+    date: '10 de Septiembre 2026',
+    type: 'MINOR',
+    highlights: [
+      'Persistencia Híbrida: Conexión con Supabase y respaldo en caché local resiliente para operación continua tolerante a fallos.',
+      'Control de Transiciones RBAC: Restricción estricta en expedientes finalizados y validación de jurisdicción de áreas.',
+      'Módulo de Auditoría: Registro cronológico de eventos, borrado lógico con trazabilidad y marcas de tiempo.'
+    ]
+  },
   {
     version: 'v4.0.0-BENTO',
     codename: 'Governance & Bento Architecture',
     date: '04 de Septiembre 2026',
     type: 'MAJOR',
-    highlights: ['Consolidación del Master Panel en arquitectura Bento Grid.', 'Centro de Mando Organizacional.', 'Módulo de Gobernanza Unificada.']
+    highlights: [
+      'Consolidación del Master Panel en arquitectura Bento Grid modular.',
+      'Centro de Mando Organizacional y gestión de usuarios multi-área.',
+      'Módulo de Gobernanza Unificada con exportación de manuales técnicos en PDF.'
+    ]
   },
   {
     version: 'v3.5.0-MASTER',
     codename: 'Executive Insight & Governance',
     date: '27 de Agosto 2026',
     type: 'MINOR',
-    highlights: ['Inteligencia Operativa y desempeño.', 'Control Maestro para SuperAdmin.', 'Enfoque Sistémico y calibración ergonómica.']
+    highlights: [
+      'Inteligencia Operativa y métricas de desempeño por analista y departamento.',
+      'Control Maestro para SuperAdmin con alternancia de perfiles y supervisión.',
+      'Enfoque Sistémico y calibración ergonómica.'
+    ]
   },
   {
     version: 'v3.4.2-MASTER',
     codename: 'Ergonomic Workspace Layout',
     date: '27 de Agosto 2026',
     type: 'PATCH',
-    highlights: ['Rediseño a dos columnas del expediente técnico.', 'Calibración matemática del ancho modal.']
+    highlights: [
+      'Rediseño a dos columnas del expediente técnico con registro cronológico de eventos (logs).',
+      'Calibración matemática del ancho modal y diseño responsive.'
+    ]
   }
 ];
 

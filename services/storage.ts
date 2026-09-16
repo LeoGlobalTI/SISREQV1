@@ -223,6 +223,9 @@ class DatabaseService {
   "assignedAnalyst" text,
   "responsibleHeadId" text,
   "assignedAnalystId" text,
+  "clientType" text DEFAULT 'FREQUENT',
+  "paymentProportion" text,
+  "paymentAmount" numeric,
   logs jsonb DEFAULT '[]'::jsonb,
   "createdAt" timestamp with time zone DEFAULT now(),
   "lastUpdated" timestamp with time zone DEFAULT now(),
@@ -253,7 +256,7 @@ CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`
             return {
                 status: 'SETUP_REQUIRED',
                 message: `Estructura obsoleta en '${table}'`,
-                sqlSuggestion: `-- Migración de integridad:\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "isDeleted" boolean DEFAULT false;\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "responsibleHeadId" text;\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "assignedAnalystId" text;\nALTER TABLE public.users ADD COLUMN IF NOT EXISTS "canSupervise" boolean DEFAULT false;\nALTER TABLE public.users ADD COLUMN IF NOT EXISTS "canReceiveAndDerive" boolean DEFAULT false;`
+                sqlSuggestion: `-- Migración de integridad:\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "isDeleted" boolean DEFAULT false;\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "responsibleHeadId" text;\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "assignedAnalystId" text;\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "clientType" text DEFAULT 'FREQUENT';\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "paymentProportion" text;\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "paymentAmount" numeric;\nALTER TABLE public.users ADD COLUMN IF NOT EXISTS "canSupervise" boolean DEFAULT false;\nALTER TABLE public.users ADD COLUMN IF NOT EXISTS "canReceiveAndDerive" boolean DEFAULT false;`
             };
         }
 
@@ -341,6 +344,20 @@ CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`
             if (error) console.warn('Aviso al eliminar área en Supabase:', error.message);
         } catch (e) {
             console.warn('Excepción de red al eliminar área:', e);
+        }
+    }
+
+    public async updateArea(oldName: string, newName: string): Promise<void> {
+        const cached = this.getCached<string[]>(CACHE_AREAS, []);
+        this.setCached(CACHE_AREAS, cached.map(a => a === oldName ? newName : a));
+        try {
+            const { error } = await this.supabase
+                .from(STORE_AREAS)
+                .update({ name: newName })
+                .eq('name', oldName);
+            if (error) console.warn('Aviso al actualizar área en Supabase:', error.message);
+        } catch (e) {
+            console.warn('Excepción de red al actualizar área:', e);
         }
     }
 

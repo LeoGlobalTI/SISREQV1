@@ -30,6 +30,11 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
     return (organizationAreas && organizationAreas.length > 0 ? organizationAreas[0] : 'Contabilidad') as Area;
   });
   const [priority, setPriority] = useState<Priority>(Priority.MEDIUM);
+  
+  const [clientType, setClientType] = useState<'FREQUENT' | 'ONE_OFF'>('FREQUENT');
+  const [paymentProportion, setPaymentProportion] = useState<'50' | '100'>('50');
+  const [paymentAmount, setPaymentAmount] = useState<string>('');
+
   const [error, setError] = useState<string | null>(null);
 
   // Efecto para auto-seleccionar el área si el usuario es Jefatura, o validar el área actual
@@ -53,12 +58,26 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !detail || !requester) return;
+    
+    if (clientType === 'ONE_OFF' && !paymentAmount) {
+      setError('Debe ingresar un monto para servicios únicos');
+      return;
+    }
+
     setError(null);
     try {
-      await addRequest(title, detail, area, priority, requester);
+      await addRequest(
+        title, detail, area, priority, requester,
+        clientType, 
+        clientType === 'ONE_OFF' ? paymentProportion : undefined,
+        clientType === 'ONE_OFF' ? Number(paymentAmount) : undefined
+      );
       setTitle('');
       setDetail('');
       setRequester('');
+      setClientType('FREQUENT');
+      setPaymentAmount('');
+      setPaymentProportion('50');
       onClose();
     } catch (err: any) {
       setError(err.message || 'Error al guardar el requerimiento');
@@ -223,6 +242,72 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                 {p}
                             </button>
                         ))}
+                    </div>
+
+                    {/* Tipo de Cliente / Servicio */}
+                    <div className="space-y-3 pt-2">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <BadgeDollarSign size={12} className="text-indigo-500" /> Modalidad Comercial
+                        </label>
+                        <div className="flex bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+                            <button
+                                type="button"
+                                onClick={() => setClientType('FREQUENT')}
+                                className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${clientType === 'FREQUENT' ? 'bg-white shadow-sm border border-slate-200 text-indigo-700' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                                🤝 Cliente
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setClientType('ONE_OFF')}
+                                className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${clientType === 'ONE_OFF' ? 'bg-white shadow-sm border border-slate-200 text-indigo-700' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                                🎯 Único
+                            </button>
+                        </div>
+                        
+                        {/* Sub-Panel Condicional */}
+                        {clientType === 'ONE_OFF' && (
+                            <div className="mt-4 bg-white rounded-xl p-5 border border-amber-200 shadow-sm animate-in slide-in-from-top-2 fade-in space-y-5">
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                                        Monto del Servicio
+                                    </label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+                                        <input
+                                            type="number"
+                                            required={clientType === 'ONE_OFF'}
+                                            className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg pl-8 pr-4 py-3 focus:outline-none focus:border-amber-500 focus:bg-white transition-all font-semibold"
+                                            value={paymentAmount}
+                                            onChange={(e) => setPaymentAmount(e.target.value)}
+                                            placeholder="0.00"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                                        Esquema de Anticipo
+                                    </label>
+                                    <div className="flex bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+                                        <button
+                                            type="button"
+                                            onClick={() => setPaymentProportion('50')}
+                                            className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${paymentProportion === '50' ? 'bg-white shadow-sm border border-slate-200 text-amber-700' : 'text-slate-400 hover:text-slate-600'}`}
+                                        >
+                                            50% Anticipo
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setPaymentProportion('100')}
+                                            className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${paymentProportion === '100' ? 'bg-white shadow-sm border border-slate-200 text-amber-700' : 'text-slate-400 hover:text-slate-600'}`}
+                                        >
+                                            100% Pago
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

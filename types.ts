@@ -97,6 +97,9 @@ export interface RequestCard {
   deletedAt?: string;
   deletedBy?: string;
   sourceType?: 'EXTERNAL' | 'INTERNAL_PROCESS' | 'INTERNAL_ROUTINE';
+  clientType?: 'FREQUENT' | 'ONE_OFF';
+  paymentProportion?: '50' | '100';
+  paymentAmount?: number;
 }
 
 export interface ProcessAlert {
@@ -126,4 +129,12 @@ export interface TransitionRule {
   allowedRoles: UserRole[];
   requiresAnalyst?: boolean;
   checkAreaJurisdiction?: boolean;
+}
+
+export interface VersionEntry {
+  version: string;
+  codename: string;
+  date: string;
+  type: 'MAJOR' | 'MINOR' | 'PATCH';
+  highlights: string[];
 }

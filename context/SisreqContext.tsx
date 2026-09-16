@@ -40,7 +40,7 @@ interface SisreqContextType {
   
   setSelectedRequestId: (id: string | null) => void;
   setGlobalFilterArea: (area: Area | 'ALL') => void;
-  addRequest: (title: string, detail: string, area: Area, priority: Priority, requester: string) => Promise<void>;
+  addRequest: (title: string, detail: string, area: Area, priority: Priority, requester: string, clientType?: 'FREQUENT' | 'ONE_OFF', paymentProportion?: '50' | '100', paymentAmount?: number) => Promise<void>;
   updateStatus: (id: string, newStatus: Status) => Promise<void>;
   returnRequest: (id: string, reason: string) => Promise<void>;
   assignAnalyst: (id: string, analystName: string) => Promise<void>;
@@ -193,8 +193,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const updateOrganizationArea = async (oldName: string, newName: string) => {
-      await db.deleteArea(oldName);
-      await db.addArea(newName);
+      await db.updateArea(oldName, newName);
       
       for (const user of users) {
           let updated = false;
@@ -636,7 +635,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return Object.values(Status).some(s => s !== req.status && canUserTransition(req, s).allowed);
   }, [activeRole, canUserTransition]);
 
-  const addRequest = async (title: string, detail: string, area: Area, priority: Priority, requester: string) => {
+  const addRequest = async (title: string, detail: string, area: Area, priority: Priority, requester: string, clientType?: 'FREQUENT' | 'ONE_OFF', paymentProportion?: '50' | '100', paymentAmount?: number) => {
     const now = new Date().toISOString();
     const initialStatus = (activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN || canReceiveAndDerive(currentUser)) ? Status.RECIBIDO : Status.DERIVACION;
     
@@ -648,6 +647,9 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       title, detail, area, status: initialStatus, priority, requester,
       responsibleHead,
       responsibleHeadId,
+      clientType,
+      paymentProportion,
+      paymentAmount,
       createdAt: now, lastUpdated: now,
       logs: [createAuditLog(`APERTURA: Registro inicializado en fase ${initialStatus}`)]
     };

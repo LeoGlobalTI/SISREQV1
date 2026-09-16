@@ -89,7 +89,7 @@ export const RequestCard: React.FC<Props> = ({ data }) => {
                         EXPEDIENTE
                     </span>
                     <span className="text-[10px] text-slate-600 font-mono font-bold tracking-tighter leading-none">
-                        #{data.id.split('-')[1].toUpperCase()}
+                        #{data.id ? (data.id.includes('-') && data.id.split('-')[1] ? data.id.split('-')[1].toUpperCase() : data.id.substring(0, 6).toUpperCase()) : 'N/A'}
                     </span>
                 </div>
             </div>

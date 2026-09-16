@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { VERSIONS } from '../constants';
+import { VERSIONS, CURRENT_VERSION } from '../constants';
 
 export const GovernanceView: React.FC = () => {
   const { requests, users, organizationAreas } = useSisreq();
@@ -92,17 +92,19 @@ export const GovernanceView: React.FC = () => {
           doc.setFont('helvetica', 'normal');
           doc.text('Arquitectura: React + Vite + Tailwind CSS', 20, yPos + 10);
           doc.text('Gestión de Estado: Context API (useSisreq)', 20, yPos + 18);
-          doc.text('Versión Actual: v4.0.0-BENTO', 20, yPos + 26);
+          doc.text(`Versión Actual: ${CURRENT_VERSION}`, 20, yPos + 26);
           yPos += 40;
       }
 
       autoTable(doc, {
         startY: yPos,
-        head: [['#', 'Sección', 'Descripción']],
+        head: [['#', 'Módulo', 'Descripción']],
         body: [
-          ['1', 'Reportes', 'Dashboard analítico con KPIs.'],
-          ['2', 'Organización', 'Gestión de áreas y usuarios.'],
-          ['3', 'Gobernanza', 'Auditoría, versiones y documentación.'],
+          ['1', 'Tablero Kanban', 'Gestión visual de expedientes y transiciones operativas auditadas.'],
+          ['2', 'Planificador de Procesos', 'Automatización de procesos maestros y alertas temporales Just-In-Time.'],
+          ['3', 'Reportes y Analítica', 'Dashboard analítico con KPIs, métricas de rendimiento y SLAs.'],
+          ['4', 'Organización y Usuarios', 'Gestión de departamentos y usuarios con asignación multi-área.'],
+          ['5', 'Gobernanza y Auditoría', 'Trazabilidad de eventos, salud del sistema y registro de versiones.'],
         ],
         theme: 'grid',
         headStyles: { fillColor: [79, 70, 229] }
@@ -135,7 +137,7 @@ export const GovernanceView: React.FC = () => {
                     Auditoría • Versiones • Documentación
                   </span>
                   <span className="bg-indigo-100 text-indigo-700 text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-indigo-200 flex items-center gap-1">
-                      <GitBranch size={10} /> v4.0.0-BENTO
+                      <GitBranch size={10} /> {CURRENT_VERSION}
                   </span>
               </div>
             </div>
@@ -240,7 +242,6 @@ export const GovernanceView: React.FC = () => {
                       </div>
                   </div>
               </div>
-
           </div>
 
           {/* RIGHT COLUMN (40%) */}
@@ -319,36 +320,58 @@ export const GovernanceView: React.FC = () => {
                           Registro de Versiones
                         </h3>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-black text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                          Actual: {CURRENT_VERSION}
+                        </span>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded-full">
+                          {VERSIONS.length} Entregas
+                        </span>
+                      </div>
                   </div>
                   
-                  <div className="p-6 overflow-y-auto flex-1">
+                  <div className="p-6 overflow-y-auto flex-1 max-h-[600px] custom-scrollbar">
                       <div className="relative border-l-2 border-indigo-100 ml-3 space-y-8">
-                          {VERSIONS.map((v, idx) => (
-                              <div key={idx} className="relative pl-6">
-                                  <div className={`absolute -left-[11px] top-0 w-5 h-5 rounded-full border-4 border-white ${
-                                      idx === 0 ? 'bg-indigo-600' : 'bg-slate-300'
-                                  }`} />
-                                  <div className="flex items-baseline gap-2 mb-1">
-                                      <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight">{v.version}</h4>
-                                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest bg-slate-100 px-1.5 py-0.5 rounded">
-                                          {v.type}
-                                      </span>
-                                  </div>
-                                  <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-2 flex items-center gap-1">
-                                      <Clock size={10} /> {v.date}
-                                  </div>
-                                  <p className="text-xs font-bold text-slate-700 italic mb-3">"{v.codename}"</p>
-                                  
-                                  <ul className="space-y-1.5">
-                                      {v.highlights.map((h, i) => (
-                                          <li key={i} className="text-xs text-slate-600 flex items-start gap-2">
-                                              <CheckCircle2 size={12} className="text-emerald-500 shrink-0 mt-0.5" />
-                                              <span className="leading-relaxed">{h}</span>
-                                          </li>
-                                      ))}
-                                  </ul>
-                              </div>
-                          ))}
+                          {VERSIONS.map((v, idx) => {
+                              const isCurrent = v.version === CURRENT_VERSION;
+                              const badgeColor = 
+                                v.type === 'MAJOR' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                                v.type === 'MINOR' ? 'bg-sky-50 text-sky-700 border-sky-200' :
+                                'bg-emerald-50 text-emerald-700 border-emerald-200';
+
+                              return (
+                                <div key={idx} className="relative pl-6">
+                                    <div className={`absolute -left-[11px] top-0 w-5 h-5 rounded-full border-4 border-white ${
+                                        isCurrent ? 'bg-indigo-600 ring-4 ring-indigo-100 animate-pulse' : 'bg-slate-300'
+                                    }`} />
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                        <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight">{v.version}</h4>
+                                        <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border ${badgeColor}`}>
+                                            {v.type}
+                                        </span>
+                                        {isCurrent && (
+                                            <span className="text-[8px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                                                Versión Activa
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                                        <Clock size={10} /> {v.date}
+                                    </div>
+                                    <p className="text-xs font-bold text-slate-700 italic mb-3">"{v.codename}"</p>
+                                    
+                                    <ul className="space-y-1.5">
+                                        {v.highlights.map((h, i) => (
+                                            <li key={i} className="text-xs text-slate-600 flex items-start gap-2">
+                                                <CheckCircle2 size={12} className="text-emerald-500 shrink-0 mt-0.5" />
+                                                <span className="leading-relaxed">{h}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                              );
+                          })}
                       </div>
                   </div>
               </div>

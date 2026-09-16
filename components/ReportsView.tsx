@@ -6,7 +6,7 @@ import {
     Zap, Layers, Target, PieChart,
     Users, Award, Search, X, UserCheck,
     Printer, Building, CheckCircle, FileSpreadsheet, AlertOctagon,
-    ArrowUpRight
+    ArrowUpRight, BadgeDollarSign
 } from 'lucide-react';
 
 export const ReportsView: React.FC = () => {
@@ -18,7 +18,7 @@ export const ReportsView: React.FC = () => {
   // No more perspective state. We show everything in one Bento grid.
 
   const filteredRequests = useMemo(() => {
-    let list = requests;
+    let list = requests.filter(r => !r.isDeleted && !r.deletedAt);
     if (selectedArea !== 'ALL') {
       list = list.filter(r => r.area === selectedArea);
     }
@@ -84,7 +84,16 @@ export const ReportsView: React.FC = () => {
       .filter(item => item.riskLevel !== 'NORMAL')
       .sort((a, b) => b.ageDays - a.ageDays);
 
-    return { total, completed, pending, completionRate, byStatus, avgDays, slaComplianceRate, byPriority, slaBottlenecks };
+    const oneOffRequests = filteredRequests.filter(r => r.clientType === 'ONE_OFF');
+    const oneOffRevenue = oneOffRequests.reduce((sum, r) => sum + (r.paymentAmount || 0), 0);
+    const oneOffFifty = oneOffRequests.filter(r => r.paymentProportion === '50').length;
+    const oneOffHundred = oneOffRequests.filter(r => r.paymentProportion === '100').length;
+
+    return { 
+        total, completed, pending, completionRate, byStatus, avgDays, 
+        slaComplianceRate, byPriority, slaBottlenecks,
+        oneOff: { count: oneOffRequests.length, revenue: oneOffRevenue, fifty: oneOffFifty, hundred: oneOffHundred }
+    };
   }, [filteredRequests]);
 
   // Desglose por Unidades Operativas
@@ -145,6 +154,9 @@ export const ReportsView: React.FC = () => {
       'Estado',
       'Prioridad',
       'Unidad_Organica',
+      'Tipo_Cliente',
+      'Modalidad_Pago',
+      'Monto_Cobrado_CLP',
       'Analista_Asignado',
       'Solicitante',
       'Fecha_Creacion',
@@ -159,6 +171,9 @@ export const ReportsView: React.FC = () => {
       const compliesSla = r.status === Status.FINALIZADO 
         ? (Number(days) <= 5 ? 'SI (<=5d)' : 'NO (>5d)') 
         : (Number(days) <= 5 ? 'EN PLAZO' : 'EXCEDIDO');
+      const clientTypeLabel = r.clientType === 'ONE_OFF' ? 'Único' : 'Cliente';
+      const paymentProportionLabel = r.clientType === 'ONE_OFF' ? `${r.paymentProportion || '0'}%` : 'N/A';
+      const paymentAmountVal = r.clientType === 'ONE_OFF' && r.paymentAmount ? r.paymentAmount : 0;
       return [
         `"${r.id}"`,
         `"#${r.id.substring(0, 6).toUpperCase()}"`,
@@ -166,6 +181,9 @@ export const ReportsView: React.FC = () => {
         `"${r.status}"`,
         `"${r.priority}"`,
         `"${r.area}"`,
+        `"${clientTypeLabel}"`,
+        `"${paymentProportionLabel}"`,
+        `"${paymentAmountVal}"`,
         `"${r.assignedAnalyst || 'Sin Asignar'}"`,
         `"${r.requester || 'Anónimo'}"`,
         `"${new Date(r.createdAt).toISOString()}"`,
@@ -387,6 +405,39 @@ export const ReportsView: React.FC = () => {
                                 </div>
                              );
                         })}
+                    </div>
+                </div>
+            </div>
+
+            {/* NIVEL 3.5: AUDITORÍA FINANCIERA */}
+            <div className="bg-amber-50 rounded-3xl border border-amber-200 shadow-sm flex flex-col overflow-hidden">
+                <div className="p-5 border-b border-amber-200 bg-amber-100/50 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <BadgeDollarSign size={16} className="text-amber-600"/>
+                        <h3 className="font-black text-amber-900 uppercase tracking-tight text-sm">
+                            Auditoría Financiera: Servicios Únicos
+                        </h3>
+                    </div>
+                </div>
+                
+                <div className="p-5">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <div className="col-span-2 sm:col-span-1 p-4 bg-white rounded-2xl border border-amber-100 shadow-sm">
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Volumen</p>
+                            <p className="text-2xl font-black text-slate-900 tracking-tight">{stats.oneOff.count}</p>
+                        </div>
+                        <div className="col-span-2 sm:col-span-1 p-4 bg-white rounded-2xl border border-amber-100 shadow-sm">
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Impacto (Monto)</p>
+                            <p className="text-2xl font-black text-emerald-600 tracking-tight">${stats.oneOff.revenue.toLocaleString()}</p>
+                        </div>
+                        <div className="p-4 bg-white rounded-2xl border border-amber-100 shadow-sm">
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Anticipo 50%</p>
+                            <p className="text-2xl font-black text-amber-600 tracking-tight">{stats.oneOff.fifty}</p>
+                        </div>
+                        <div className="p-4 bg-white rounded-2xl border border-amber-100 shadow-sm">
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pago 100%</p>
+                            <p className="text-2xl font-black text-indigo-600 tracking-tight">{stats.oneOff.hundred}</p>
+                        </div>
                     </div>
                 </div>
             </div>

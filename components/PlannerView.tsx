@@ -4,7 +4,7 @@ import { ScheduledProcess, ProcessAlert, User } from '../types';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Clock, MapPin, User as UserIcon, Tag, AlignLeft, Send, Trash2, CheckCircle2 } from 'lucide-react';
 
 export const PlannerView: React.FC = () => {
-    const { scheduledProcesses, addProcess, deleteProcess, users, organizationAreas, currentUser } = useSisreq();
+    const { scheduledProcesses, addProcess, deleteProcess, users, organizationAreas, currentUser, addNotification } = useSisreq();
 
     const [currentDate, setCurrentDate] = useState(new Date());
     
@@ -79,26 +79,26 @@ export const PlannerView: React.FC = () => {
         e.preventDefault();
         
         if (alerts.length === 0) {
-            alert('Debe agregar al menos una alerta al proceso.');
+            addNotification('WARNING', 'Alerta Requerida', 'Debe agregar al menos una alerta al proceso.');
             return;
         }
 
         const start = new Date(globalStartDate + 'T00:00:00');
         const end = new Date(globalEndDate + 'T23:59:59');
         if (end < start) {
-            alert('La fecha límite (Hasta) no puede ser anterior a la fecha de inicio (Desde).');
+            addNotification('WARNING', 'Rango Inválido', 'La fecha límite (Hasta) no puede ser anterior a la fecha de inicio (Desde).');
             return;
         }
         
         // Asegurar que todas las fechas de alertas sean válidas
         for (const alert of alerts) {
              if(!alert.title || !alert.triggerDate) {
-                 window.alert('Todas las alertas deben tener título y fecha programada.');
+                 addNotification('WARNING', 'Datos Incompletos', 'Todas las alertas deben tener título y fecha programada.');
                  return;
              }
              const trigger = new Date(alert.triggerDate + 'T00:00:00');
              if (trigger < start || trigger > end) {
-                 window.alert(`La alerta "${alert.title}" tiene una fecha (${alert.triggerDate}) que está fuera del rango global del proceso (${globalStartDate} a ${globalEndDate}).`);
+                 addNotification('WARNING', 'Fecha Fuera de Rango', `La alerta "${alert.title}" tiene una fecha (${alert.triggerDate}) fuera del rango global (${globalStartDate} a ${globalEndDate}).`);
                  return;
              }
         }

@@ -7,7 +7,7 @@ import {
     X, User, Building, Clock, Save, Send, 
     RotateCcw, CheckCircle2, Hash, PlayCircle, Trash2,
     ShieldAlert, UserCheck, History, ClipboardList, PenTool,
-    ShieldCheck, MapPin, Loader2, Info, FileStack, Archive
+    ShieldCheck, MapPin, Loader2, Info, FileStack, Archive, BadgeDollarSign
 } from 'lucide-react';
 
 export const RequestDetailModal: React.FC = () => {
@@ -248,6 +248,23 @@ export const RequestDetailModal: React.FC = () => {
                         </div>
                     )}
                 </div>
+
+                {data.clientType === 'ONE_OFF' && (
+                    <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl flex items-center justify-between">
+                        <div>
+                            <p className="text-[8px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-1.5">
+                                <BadgeDollarSign size={10} /> Servicio Único (Esporádico)
+                            </p>
+                            <p className="text-[10px] font-black text-amber-800 uppercase mt-0.5">
+                                Esquema: {data.paymentProportion}% Anticipo
+                            </p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-[8px] font-black text-amber-500 uppercase tracking-widest">Monto Total</p>
+                            <p className="text-sm font-black text-amber-700">${data.paymentAmount?.toLocaleString()}</p>
+                        </div>
+                    </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-3">
                     <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
