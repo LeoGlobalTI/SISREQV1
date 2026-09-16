@@ -6,6 +6,7 @@ import { LayoutDashboard, Plus, Briefcase, LogOut, Shield, ArrowLeftRight, Book,
 import { NewRequestModal } from './NewRequestModal';
 import { RequestDetailModal } from './RequestDetailModal';
 import { NotificationBell } from './NotificationBell';
+import { CURRENT_VERSION } from '../constants';
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser, logout, viewMode, setViewMode, activeRole, toggleSupervisorMode, isSupervisorMode, setSelectedRequestId } = useSisreq();
@@ -58,7 +59,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 </div>
                 <div className="flex flex-col">
                     <h1 className="text-lg font-black tracking-tighter text-slate-900 leading-none">SISREQ</h1>
-                    <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mt-0.5">by Global TI 2026</span>
+                    <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mt-0.5">by Global TI</span>
                 </div>
             </div>
 
@@ -152,13 +153,13 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       <footer className="h-7 bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-6 flex items-center justify-between text-[9px] font-black text-slate-400 uppercase tracking-widest shrink-0 select-none z-20">
         <div className="flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-          <span>SISREQ v3.5.0</span>
+          <span>SISREQ {CURRENT_VERSION}</span>
           <span className="text-slate-300 hidden sm:inline">•</span>
           <span className="text-slate-500 hidden sm:inline">SISTEMA INTEGRAL DE GESTIÓN DE REQUERIMIENTOS</span>
         </div>
         <div className="flex items-center gap-1.5 text-slate-500 font-black">
           <span>Powered by</span>
-          <span className="text-indigo-600 font-extrabold tracking-wider">Global TI 2026</span>
+          <a href="https://www.gtitech.cl" target="_blank" rel="noopener noreferrer" className="text-indigo-600 font-extrabold tracking-wider hover:text-indigo-400 transition-colors">Global TI</a>
         </div>
       </footer>
 

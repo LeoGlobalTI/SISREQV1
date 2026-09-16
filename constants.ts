@@ -104,3 +104,29 @@ export const STATUS_BADGE_COLORS: Record<Status, string> = {
   [Status.EJECUCION]: 'bg-amber-50 text-amber-800 ring-1 ring-amber-500/20',
   [Status.FINALIZADO]: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-500/20',
 };
+
+export const VERSIONS = [
+  {
+    version: 'v4.0.0-BENTO',
+    codename: 'Governance & Bento Architecture',
+    date: '04 de Septiembre 2026',
+    type: 'MAJOR',
+    highlights: ['Consolidación del Master Panel en arquitectura Bento Grid.', 'Centro de Mando Organizacional.', 'Módulo de Gobernanza Unificada.']
+  },
+  {
+    version: 'v3.5.0-MASTER',
+    codename: 'Executive Insight & Governance',
+    date: '27 de Agosto 2026',
+    type: 'MINOR',
+    highlights: ['Inteligencia Operativa y desempeño.', 'Control Maestro para SuperAdmin.', 'Enfoque Sistémico y calibración ergonómica.']
+  },
+  {
+    version: 'v3.4.2-MASTER',
+    codename: 'Ergonomic Workspace Layout',
+    date: '27 de Agosto 2026',
+    type: 'PATCH',
+    highlights: ['Rediseño a dos columnas del expediente técnico.', 'Calibración matemática del ancho modal.']
+  }
+];
+
+export const CURRENT_VERSION = VERSIONS[0].version;

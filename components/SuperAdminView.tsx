@@ -4,6 +4,7 @@ import { ReportsView } from './ReportsView';
 import { OrganizationUsersView } from './OrganizationUsersView';
 import { GovernanceView } from './GovernanceView';
 import { BarChart3, Users, ShieldCheck, GitBranch } from 'lucide-react';
+import { CURRENT_VERSION } from '../constants';
 
 type Tab = 'reports' | 'organization' | 'governance';
 
@@ -30,10 +31,10 @@ export const SuperAdminView: React.FC = () => {
                                 className="text-[10px] font-semibold text-indigo-500 hover:text-indigo-600 uppercase tracking-wider flex items-center gap-1 transition-all"
                                 title="Ver control de versiones"
                             >
-                                <GitBranch size={10} /> v4.0.0-BENTO
+                                <GitBranch size={10} /> {CURRENT_VERSION}
                             </button>
-                            <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider hidden sm:inline">
-                                • Powered by Global TI 2026
+                            <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider hidden sm:flex items-center gap-1">
+                                • Powered by <a href="https://www.gtitech.cl" target="_blank" rel="noopener noreferrer" className="font-extrabold text-indigo-500 hover:text-indigo-600">Global TI</a>
                             </span>
                             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse ml-1"></div>
                         </div>

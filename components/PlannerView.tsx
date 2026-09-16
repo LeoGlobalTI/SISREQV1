@@ -8,7 +8,7 @@ export const PlannerView: React.FC = () => {
 
     const [currentDate, setCurrentDate] = useState(new Date());
     
-    // Form state
+    // Estado del formulario
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedProcess, setSelectedProcess] = useState<ScheduledProcess | null>(null);
     const [processName, setProcessName] = useState('');
@@ -90,7 +90,7 @@ export const PlannerView: React.FC = () => {
             return;
         }
         
-        // Ensure all alert dates are valid
+        // Asegurar que todas las fechas de alertas sean válidas
         for (const alert of alerts) {
              if(!alert.title || !alert.triggerDate) {
                  window.alert('Todas las alertas deben tener título y fecha programada.');

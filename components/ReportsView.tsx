@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useSisreq } from '../context/SisreqContext';
-import { Status, Area, Priority, UserRole, RequestItem } from '../types';
+import { Status, Area, Priority, UserRole, RequestCard } from '../types';
 import { 
     BarChart3, CheckCircle2, Clock, 
     Zap, Layers, Target, PieChart,

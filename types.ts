@@ -96,7 +96,7 @@ export interface RequestCard {
   isDeleted?: boolean;
   deletedAt?: string;
   deletedBy?: string;
-  sourceType?: 'EXTERNAL' | 'INTERNAL_ROUTINE';
+  sourceType?: 'EXTERNAL' | 'INTERNAL_PROCESS' | 'INTERNAL_ROUTINE';
 }
 
 export interface ProcessAlert {

@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { RequestCard, User, Status, ScheduledProcess } from '../types';
 import { INITIAL_USERS, INITIAL_REQUESTS } from '../constants';
@@ -188,7 +189,7 @@ class DatabaseService {
         const msg = error.message || "";
         const code = error.code || "";
 
-        // Handle network/connection errors
+        // Manejar errores de red/conexión
         if (msg.includes('Failed to fetch') || error instanceof TypeError) {
             return {
                 status: 'READY',
@@ -495,14 +496,13 @@ CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`
             const { data, error } = await this.supabase.from(STORE_REQUESTS).select('*').eq('id', id).single();
             if (!error && data) return data as RequestCard;
         } catch (e) {
-            // fallback
+            // usar caché como reserva
         }
         const cached = this.getCached<RequestCard[]>(CACHE_REQUESTS, INITIAL_REQUESTS);
         return cached.find(r => r.id === id) || null;
     }
 
     public async getScheduledProcesses(): Promise<ScheduledProcess[]> {
-        if (!this.isConnected) return this.getCached<ScheduledProcess[]>(CACHE_PROCESSES, []);
         try {
             const { data, error } = await this.supabase.from(STORE_PROCESSES).select('*').order('globalStartDate', { ascending: true });
             if (error) {
@@ -558,7 +558,7 @@ CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`
                 try {
                     this.supabase.removeChannel(channel); 
                 } catch {
-                    // ignore
+                    // ignorar
                 }
             };
         } catch (e) {

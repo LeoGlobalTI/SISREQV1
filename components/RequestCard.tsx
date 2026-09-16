@@ -41,8 +41,8 @@ export const RequestCard: React.FC<Props> = ({ data }) => {
     setSelectedRequestId(data.id);
   };
 
-  const getStatusColors = (status: Status, isRoutine: boolean = false) => {
-    if (isRoutine) {
+  const getStatusColors = (status: Status, isInternalProcess: boolean = false) => {
+    if (isInternalProcess) {
         return { border: 'border-purple-600', outline: 'border-purple-600/30', text: 'text-purple-700', bg: 'bg-purple-600', light: 'bg-purple-50' };
     }
     switch (status) {
@@ -59,7 +59,8 @@ export const RequestCard: React.FC<Props> = ({ data }) => {
     }
   };
 
-  const colors = getStatusColors(data.status, data.sourceType === 'INTERNAL_ROUTINE');
+  const isSystemGenerated = data.sourceType === 'INTERNAL_PROCESS' || data.sourceType === 'INTERNAL_ROUTINE';
+  const colors = getStatusColors(data.status, isSystemGenerated);
 
   return (
     <div 
@@ -150,7 +151,7 @@ export const RequestCard: React.FC<Props> = ({ data }) => {
                         <MapPin size={9} strokeWidth={3} /> {data.area}
                     </div>
                     <div className="flex items-center gap-1 text-[8px] font-semibold text-slate-400 uppercase tracking-tighter max-w-[130px]">
-                        {data.sourceType === 'INTERNAL_ROUTINE' ? <Settings size={9} className="opacity-40" /> : <Building2 size={9} className="opacity-40" />}
+                        {isSystemGenerated ? <Settings size={9} className="opacity-40" /> : <Building2 size={9} className="opacity-40" />}
                         <span className="truncate">{data.requester}</span>
                     </div>
                 </div>

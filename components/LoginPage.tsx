@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useSisreq } from '../context/SisreqContext';
 import { UserRole, User } from '../types';
 import { LayoutDashboard, User as UserIcon, Shield, Briefcase, KeyRound, LogIn, ChevronDown, Check, Sparkles, AlertCircle } from 'lucide-react';
+import { CURRENT_VERSION } from '../constants';
 
 const getRoleLabel = (role: UserRole) => {
   switch (role) {
@@ -227,7 +228,9 @@ export const LoginPage: React.FC = () => {
                 </div>
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center justify-center gap-1">
                     <span>Powered by</span>
-                    <span className="text-indigo-600 font-extrabold">Global TI 2026</span>
+                    <a href="https://www.gtitech.cl" target="_blank" rel="noopener noreferrer" className="text-indigo-600 font-extrabold hover:text-indigo-400 transition-colors">Global TI</a>
+                    <span className="mx-1">•</span>
+                    <span>{CURRENT_VERSION}</span>
                 </p>
             </div>
         </div>

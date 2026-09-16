@@ -8,30 +8,7 @@ import {
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-
-const VERSIONS = [
-  {
-    version: 'v4.0.0-BENTO',
-    codename: 'Governance & Bento Architecture',
-    date: '04 de Septiembre 2026',
-    type: 'MAJOR',
-    highlights: ['Consolidación del Master Panel en arquitectura Bento Grid.', 'Centro de Mando Organizacional.', 'Módulo de Gobernanza Unificada.']
-  },
-  {
-    version: 'v3.5.0-MASTER',
-    codename: 'Executive Insight & Governance',
-    date: '27 de Agosto 2026',
-    type: 'MINOR',
-    highlights: ['Inteligencia Operativa y desempeño.', 'Control Maestro para SuperAdmin.', 'Enfoque Sistémico y calibración ergonómica.']
-  },
-  {
-    version: 'v3.4.2-MASTER',
-    codename: 'Ergonomic Workspace Layout',
-    date: '27 de Agosto 2026',
-    type: 'PATCH',
-    highlights: ['Rediseño a dos columnas del expediente técnico.', 'Calibración matemática del ancho modal.']
-  }
-];
+import { VERSIONS } from '../constants';
 
 export const GovernanceView: React.FC = () => {
   const { requests, users, organizationAreas } = useSisreq();
@@ -47,7 +24,7 @@ export const GovernanceView: React.FC = () => {
     let slaBreaches = 0;
     const now = new Date();
     active.forEach(r => {
-      if (r.status !== Status.FINALIZADO && r.status !== Status.CANCELADO) {
+      if (r.status !== Status.FINALIZADO) {
         const daysOpen = Math.floor((now.getTime() - new Date(r.createdAt).getTime()) / (1000 * 3600 * 24));
         if (daysOpen > 30) slaBreaches++; // Example SLA logic
       }
@@ -55,7 +32,7 @@ export const GovernanceView: React.FC = () => {
 
     // Orphans / Unassigned
     const noAnalyst = active.filter(r => 
-      (r.status === Status.EN_EJECUCION || r.status === Status.DERIVADO) && !r.assignedToId
+      (r.status === Status.EJECUCION || r.status === Status.DERIVACION) && !r.assignedAnalystId
     ).length;
     
     const unassignedUsers = users.filter(u => !u.area && (!u.areas || u.areas.length === 0)).length;
@@ -102,7 +79,7 @@ export const GovernanceView: React.FC = () => {
       doc.text(title, 20, 25);
       
       doc.setFontSize(10);
-      doc.text('Global TI Sisreq 2026 • Generado Automáticamente', 20, 32);
+      doc.text(`Global TI Sisreq ${new Date().getFullYear()} • Generado Automáticamente`, 20, 32);
 
       doc.setTextColor(50, 50, 50);
       doc.setFontSize(12);
@@ -349,7 +326,7 @@ export const GovernanceView: React.FC = () => {
                           {VERSIONS.map((v, idx) => (
                               <div key={idx} className="relative pl-6">
                                   <div className={`absolute -left-[11px] top-0 w-5 h-5 rounded-full border-4 border-white ${
-                                      v.status === 'CURRENT' || idx === 0 ? 'bg-indigo-600' : 'bg-slate-300'
+                                      idx === 0 ? 'bg-indigo-600' : 'bg-slate-300'
                                   }`} />
                                   <div className="flex items-baseline gap-2 mb-1">
                                       <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight">{v.version}</h4>

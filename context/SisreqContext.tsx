@@ -49,8 +49,8 @@ interface SisreqContextType {
   deleteRequest: (id: string) => Promise<void>;
   hardDeleteAllRequests: () => Promise<void>;
   
-  addProcess: (routine: Omit<ScheduledProcess, 'id' | 'status' | 'linkedRequestId'>) => Promise<void>;
-  updateProcess: (updatedRoutine: ScheduledProcess) => Promise<void>;
+  addProcess: (processData: Omit<ScheduledProcess, 'id' | 'status'>) => Promise<void>;
+  updateProcess: (updatedProcess: ScheduledProcess) => Promise<void>;
   deleteProcess: (id: string) => Promise<void>;
 
   addNotification: (type: NotificationType, title: string, message: string, requestId?: string) => void;
@@ -145,7 +145,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
         localStorage.setItem('sisreq_view_mode', mode);
     } catch (e) {
-        // ignore
+        // ignorar
     }
   }, []);
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -233,8 +233,10 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const deleteOrganizationArea = async (areaName: string) => {
       const anyRequests = requests.some(r => r.area === areaName);
-      if (anyRequests) {
-          addNotification('WARNING', 'Acción Denegada', `No se puede eliminar el área ${areaName} porque tiene expedientes históricos asociados. Para preservar la integridad de datos, no se permite su eliminación.`);
+      const anyProcesses = scheduledProcesses.some(p => p.area === areaName);
+      
+      if (anyRequests || anyProcesses) {
+          addNotification('WARNING', 'Acción Denegada', `No se puede eliminar el área ${areaName} porque tiene expedientes históricos o procesos planificados asociados. Para preservar la integridad de datos, no se permite su eliminación.`);
           return;
       }
 
@@ -291,7 +293,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           if (loadedRoutines && loadedRoutines.length >= 0) {
               setScheduledProcesss(loadedRoutines);
               
-              // Synchronization Logic
+              // Lógica de Sincronización
               const today = new Date();
               today.setHours(0, 0, 0, 0);
 
@@ -311,22 +313,25 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                                   const newId = genUUID();
                                   const timestamp = new Date().toISOString();
                                   
+                                  const assignedUser = alert.assignedToId ? loadedUsers.find(u => u.id === alert.assignedToId) : null;
+                                  const isValidAssignee = !!assignedUser;
+                                  
                                   const newReq: RequestCard = {
                                       id: newId,
                                       title: `[Proceso: ${process.processName}] ${alert.title}`,
                                       detail: alert.description,
                                       requester: "Sistema: Alerta Automatizada",
                                       area: process.area || '',
-                                      status: alert.assignedToId ? Status.EJECUCION : Status.RECIBIDO,
+                                      status: isValidAssignee ? Status.EJECUCION : Status.RECIBIDO,
                                       priority: Priority.MEDIUM,
-                                      assignedAnalystId: alert.assignedToId,
-                                      assignedAnalyst: loadedUsers.find(u => u.id === alert.assignedToId)?.name || null,
-                                      responsibleHead: alert.assignedToId ? (loadedUsers.find(u => u.role === UserRole.HEAD && u.areas?.includes(process.area || ''))?.name || 'Asignación Automática') : undefined,
-                                      responsibleHeadId: alert.assignedToId ? (loadedUsers.find(u => u.role === UserRole.HEAD && u.areas?.includes(process.area || ''))?.id || null) : undefined,
+                                      assignedAnalystId: isValidAssignee ? assignedUser.id : null,
+                                      assignedAnalyst: isValidAssignee ? assignedUser.name : null,
+                                      responsibleHead: isValidAssignee ? (loadedUsers.find(u => u.role === UserRole.HEAD && u.areas?.includes(process.area || ''))?.name || 'Asignación Automática') : 'Pendiente de asignación',
+                                      responsibleHeadId: isValidAssignee ? (loadedUsers.find(u => u.role === UserRole.HEAD && u.areas?.includes(process.area || ''))?.id || null) : null,
                                       logs: [],
                                       createdAt: timestamp,
                                       lastUpdated: timestamp,
-                                      sourceType: 'INTERNAL_ROUTINE'
+                                      sourceType: 'INTERNAL_PROCESS'
                                   };
                                   
                                   await db.saveRequest(newReq);
@@ -361,11 +366,11 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                   }
               }
               
-              // Re-fetch routines if any were updated during sync
+              // Refrescar procesos si se actualizaron durante la sincronización
               const syncedRoutines = await db.getScheduledProcesses();
               setScheduledProcesss(syncedRoutines);
               
-              // Re-fetch requests if any were added during sync
+              // Refrescar requerimientos si se añadieron durante la sincronización
               const syncedRequests = await db.getRequests();
               setRequests(syncedRequests.sort((a, b) => 
                 new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()
@@ -689,6 +694,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         status: Status.RECIBIDO, 
         isReturned: true, 
         assignedAnalyst: null, 
+        assignedAnalystId: null,
         lastUpdated: now, 
         finishedAt: null, 
         logs: [...req.logs, createAuditLog(`DEVOLUCIÓN: Retornado a Central. Motivo: ${reason}`)] 
@@ -841,8 +847,13 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (userToDelete) {
         const hasActiveRequests = requests.some(r => r.assignedAnalyst === userToDelete.name && r.status !== Status.FINALIZADO && !r.isDeleted);
         const isResponsibleForActiveRequests = requests.some(r => r.responsibleHead === userToDelete.name && r.status !== Status.FINALIZADO && !r.isDeleted);
+        const hasFutureAlerts = scheduledProcesses.some(p => p.status === 'ACTIVE' && p.alerts.some(a => a.status === 'WAITING' && a.assignedToId === id));
+        
         if (hasActiveRequests || isResponsibleForActiveRequests) {
             throw new Error("El usuario tiene requerimientos activos asignados como Analista o Jefatura Responsable. Reasígnelos antes de eliminar.");
+        }
+        if (hasFutureAlerts) {
+            throw new Error("El usuario está asignado a alertas futuras en el Planificador de Procesos. Elimine o modifique los procesos antes de eliminar al usuario.");
         }
     }
 
@@ -855,37 +866,36 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const addProcess = async (routineData: Omit<ScheduledProcess, 'id' | 'status' | 'linkedRequestId'>) => {
+  const addProcess = async (processData: Omit<ScheduledProcess, 'id' | 'status'>) => {
       if (!currentUser || (currentUser.role !== UserRole.SUPERADMIN && currentUser.role !== UserRole.HEAD)) {
-          addNotification('ERROR', 'Acceso Denegado', 'No tienes permisos para crear rutinas.');
+          addNotification('ERROR', 'Acceso Denegado', 'No tienes permisos para crear procesos.');
           return;
       }
-      const newRoutine: ScheduledProcess = {
-          ...routineData,
+      const newProcess: ScheduledProcess = {
+          ...processData,
           id: genUUID(),
-          status: 'PENDING',
-          linkedRequestId: null
+          status: 'ACTIVE'
       };
-      await db.saveScheduledProcess(newRoutine);
+      await db.saveScheduledProcess(newProcess);
       await loadData();
-      addNotification('INFO', 'Rutina Programada', `La tarea "${routineData.title}" ha sido planificada.`);
+      addNotification('INFO', 'Proceso Programado', `El proceso "${processData.processName}" ha sido planificado.`);
   };
 
-  const updateProcess = async (updatedRoutine: ScheduledProcess) => {
+  const updateProcess = async (updatedProcess: ScheduledProcess) => {
       if (!currentUser || (currentUser.role !== UserRole.SUPERADMIN && currentUser.role !== UserRole.HEAD)) {
-          addNotification('ERROR', 'Acceso Denegado', 'No tienes permisos para modificar rutinas.');
+          addNotification('ERROR', 'Acceso Denegado', 'No tienes permisos para modificar procesos.');
           return;
       }
-      await db.saveScheduledProcess(updatedRoutine);
+      await db.saveScheduledProcess(updatedProcess);
       await loadData();
   };
 
   const deleteProcess = async (id: string) => {
       if (!currentUser || (currentUser.role !== UserRole.SUPERADMIN && currentUser.role !== UserRole.HEAD)) {
-          addNotification('ERROR', 'Acceso Denegado', 'No tienes permisos para eliminar rutinas.');
+          addNotification('ERROR', 'Acceso Denegado', 'No tienes permisos para eliminar procesos.');
           return;
       }
-      await db.deleteProcess(id);
+      await db.deleteScheduledProcess(id);
       await loadData();
   };
 
