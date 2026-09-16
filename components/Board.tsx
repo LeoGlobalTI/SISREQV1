@@ -64,7 +64,7 @@ export const Board: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
 
   // Resizable Columns State
-  const [colWidths, setColWidths] = useState<number[]>([80, 400, 120, 120, 140, 140, 100, 60]);
+  const [colWidths, setColWidths] = useState<number[]>([80, 400, 120, 120, 140, 140, 100, 120, 60]);
   const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
 
   const handleMouseDown = (index: number, e: React.MouseEvent) => {
@@ -451,6 +451,10 @@ export const Board: React.FC = () => {
                             <AlertCircle size={12} className="inline mr-1 text-slate-300"/> Urgencia
                             <ResizeHandle index={6} />
                           </div>
+                          <div className="relative h-full flex items-center">
+                            <User size={12} className="inline mr-1 text-slate-300"/> Modalidad
+                            <ResizeHandle index={7} />
+                          </div>
                           <div className="text-right">Detalle</div>
                       </div>
 
@@ -515,6 +519,18 @@ export const Board: React.FC = () => {
                                   <div className="truncate">
                                       <span className={`text-[8px] font-black px-2.5 py-1 rounded-lg border transition-all uppercase tracking-widest shadow-sm ${PRIORITY_STYLES[req.priority]} truncate block w-fit`}>
                                           {req.priority}
+                                      </span>
+                                  </div>
+
+                                  <div className="truncate">
+                                      <span className={`text-[8px] font-black px-2.5 py-1 rounded-lg border transition-all uppercase tracking-widest shadow-sm ${
+                                          req.clientType === 'FREQUENT' 
+                                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200' 
+                                            : req.clientType === 'ONE_OFF'
+                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                            : 'bg-slate-50 text-slate-500 border-slate-200'
+                                      } truncate block w-fit`}>
+                                          {req.clientType === 'FREQUENT' ? 'Cliente' : req.clientType === 'ONE_OFF' ? 'Prospecto' : 'No Definido'}
                                       </span>
                                   </div>
 
