@@ -695,57 +695,109 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       createdAt: now, lastUpdated: now,
       logs: [createAuditLog(`APERTURA: Registro inicializado en fase ${initialStatus} (Modalidad: ${isOneOff ? 'Único' : 'Recurrente'})`)]
     };
-    await db.saveRequest(newReq);
+    
+    // Actualización Optimista
     setRequests(prev => [newReq, ...prev]);
     addNotification('SUCCESS', 'Nuevo Expediente', `Ticket registrado: ${title}`, newReq.id);
+
+    // Sincronización en segundo plano
+    db.saveRequest(newReq).catch(console.error);
   };
 
   const updateStatus = async (id: string, newStatus: Status) => {
     const localReq = requests.find(r => r.id === id);
     if (!localReq) return;
-    const req = await db.getRequestById(id) || localReq;
     
-    const check = canUserTransition(req, newStatus);
+    const check = canUserTransition(localReq, newStatus);
     if (!check.allowed) throw new Error(check.reason);
     
     const now = new Date().toISOString();
-    const finishedAt = newStatus === Status.FINALIZADO ? now : (req.status === Status.FINALIZADO ? null : req.finishedAt);
-    const isReturned = newStatus !== Status.RECIBIDO ? false : req.isReturned;
-    const updated = { 
-        ...req, 
+    const finishedAt = newStatus === Status.FINALIZADO ? now : (localReq.status === Status.FINALIZADO ? null : localReq.finishedAt);
+    const isReturned = newStatus !== Status.RECIBIDO ? false : localReq.isReturned;
+    const newLog = createAuditLog(`TRANSICIÓN: Cambio de fase operativa a ${newStatus}`);
+    
+    // Actualización Optimista
+    const updatedLocal = { 
+        ...localReq, 
         status: newStatus, 
         isReturned,
         lastUpdated: now, 
         finishedAt: finishedAt, 
-        logs: [...req.logs, createAuditLog(`TRANSICIÓN: Cambio de fase operativa a ${newStatus}`)] 
+        logs: [...localReq.logs, newLog] 
     };
-    await db.saveRequest(updated);
-    setRequests(prev => prev.map(r => r.id === id ? updated : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
+    setRequests(prev => prev.map(r => r.id === id ? updatedLocal : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
     addNotification('PROCESS', 'Fase Actualizada', `Expediente en ${newStatus}`, id);
+
+    // Sincronización en segundo plano para evitar sobreescritura de logs
+    (async () => {
+        try {
+            const serverReq = await db.getRequestById(id);
+            const reqToUpdate = serverReq || localReq;
+            const finalUpdated = {
+                ...reqToUpdate,
+                status: newStatus,
+                isReturned,
+                lastUpdated: now,
+                finishedAt: finishedAt,
+                logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs
+            };
+            await db.saveRequest(finalUpdated);
+            if (serverReq) {
+                setRequests(prev => prev.map(r => r.id === id ? finalUpdated : r));
+            }
+        } catch (e) {
+            console.error("DB Sync Error:", e);
+        }
+    })();
   };
 
   const returnRequest = async (id: string, reason: string) => {
     const localReq = requests.find(r => r.id === id);
     if (!localReq) return;
-    const req = await db.getRequestById(id) || localReq;
     
-    const check = canUserTransition(req, Status.RECIBIDO);
+    const check = canUserTransition(localReq, Status.RECIBIDO);
     if (!check.allowed) throw new Error(check.reason);
     
     const now = new Date().toISOString();
-    const updated = { 
-        ...req, 
+    const newLog = createAuditLog(`DEVOLUCIÓN: Retornado a Central. Motivo: ${reason}`);
+    
+    // Actualización Optimista
+    const updatedLocal = { 
+        ...localReq, 
         status: Status.RECIBIDO, 
         isReturned: true, 
         assignedAnalyst: null, 
         assignedAnalystId: null,
         lastUpdated: now, 
         finishedAt: null, 
-        logs: [...req.logs, createAuditLog(`DEVOLUCIÓN: Retornado a Central. Motivo: ${reason}`)] 
+        logs: [...localReq.logs, newLog] 
     };
-    await db.saveRequest(updated);
-    setRequests(prev => prev.map(r => r.id === id ? updated : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
+    setRequests(prev => prev.map(r => r.id === id ? updatedLocal : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
     addNotification('WARNING', 'Devolución Técnica', `Ticket retornado: ${reason}`, id);
+
+    // Sincronización en segundo plano
+    (async () => {
+        try {
+            const serverReq = await db.getRequestById(id);
+            const reqToUpdate = serverReq || localReq;
+            const finalUpdated = {
+                ...reqToUpdate,
+                status: Status.RECIBIDO,
+                isReturned: true,
+                assignedAnalyst: null,
+                assignedAnalystId: null,
+                lastUpdated: now,
+                finishedAt: null,
+                logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs
+            };
+            await db.saveRequest(finalUpdated);
+            if (serverReq) {
+                setRequests(prev => prev.map(r => r.id === id ? finalUpdated : r));
+            }
+        } catch (e) {
+            console.error("DB Sync Error:", e);
+        }
+    })();
   };
 
   const assignAnalyst = async (id: string, name: string) => {
@@ -754,79 +806,147 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     const localReq = requests.find(r => r.id === id);
     if (!localReq) return;
-    const req = await db.getRequestById(id) || localReq;
     
-    if (!checkEditJurisdiction(req)) {
+    if (!checkEditJurisdiction(localReq)) {
         throw new Error("No tiene jurisdicción para editar este expediente.");
     }
-    
-    // Bloqueo de asignación si no está en la fase correcta
-    if (req.status !== Status.DERIVACION && req.status !== Status.EJECUCION) 
+    if (localReq.status !== Status.DERIVACION && localReq.status !== Status.EJECUCION) 
         throw new Error("Acción denegada: El expediente debe estar en fase de DERIVACIÓN o EJECUCIÓN.");
         
     const now = new Date().toISOString();
     const targetAnalyst = users.find(u => u.name === name);
-    const updated = { 
-        ...req, 
+    const newLog = createAuditLog(`DESIGNACIÓN: Responsable Técnico asignado: ${name}`);
+    
+    // Actualización Optimista
+    const updatedLocal = { 
+        ...localReq, 
         assignedAnalyst: name, 
         assignedAnalystId: targetAnalyst?.id || null,
-        responsibleHead: activeRole === UserRole.HEAD && currentUser ? currentUser.name : req.responsibleHead,
-        responsibleHeadId: activeRole === UserRole.HEAD && currentUser ? currentUser.id : req.responsibleHeadId,
+        responsibleHead: activeRole === UserRole.HEAD && currentUser ? currentUser.name : localReq.responsibleHead,
+        responsibleHeadId: activeRole === UserRole.HEAD && currentUser ? currentUser.id : localReq.responsibleHeadId,
         status: Status.EJECUCION, 
         lastUpdated: now, 
-        logs: [...req.logs, createAuditLog(`DESIGNACIÓN: Responsable Técnico asignado: ${name}`)] 
+        logs: [...localReq.logs, newLog] 
     };
-    await db.saveRequest(updated);
-    setRequests(prev => prev.map(r => r.id === id ? updated : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
+    setRequests(prev => prev.map(r => r.id === id ? updatedLocal : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
     addNotification('SUCCESS', 'Personal Designado', `${name} asume la responsabilidad del ticket.`, id);
+
+    // Sincronización en segundo plano
+    (async () => {
+        try {
+            const serverReq = await db.getRequestById(id);
+            const reqToUpdate = serverReq || localReq;
+            const finalUpdated = {
+                ...reqToUpdate,
+                assignedAnalyst: name,
+                assignedAnalystId: targetAnalyst?.id || null,
+                responsibleHead: activeRole === UserRole.HEAD && currentUser ? currentUser.name : reqToUpdate.responsibleHead,
+                responsibleHeadId: activeRole === UserRole.HEAD && currentUser ? currentUser.id : reqToUpdate.responsibleHeadId,
+                status: Status.EJECUCION,
+                lastUpdated: now,
+                logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs
+            };
+            await db.saveRequest(finalUpdated);
+            if (serverReq) {
+                setRequests(prev => prev.map(r => r.id === id ? finalUpdated : r));
+            }
+        } catch (e) {
+            console.error("DB Sync Error:", e);
+        }
+    })();
   };
 
   const addLog = async (id: string, msg: string) => {
     const localReq = requests.find(r => r.id === id);
     if (!localReq || localReq.isDeleted) return;
-    const req = await db.getRequestById(id) || localReq;
     
-    if (!checkEditJurisdiction(req)) {
+    if (!checkEditJurisdiction(localReq)) {
         throw new Error("No tiene jurisdicción para comentar en este expediente.");
     }
-    
-    // Auditoría: Bloqueo de comentarios en tickets finalizados (solo lectura)
-    if (req.status === Status.FINALIZADO && activeRole !== UserRole.SUPERADMIN)
+    if (localReq.status === Status.FINALIZADO && activeRole !== UserRole.SUPERADMIN)
         throw new Error("El historial está bloqueado por cierre de expediente.");
 
-    const updated = { ...req, lastUpdated: new Date().toISOString(), logs: [...req.logs, createAuditLog(msg)] };
-    await db.saveRequest(updated);
-    setRequests(prev => prev.map(r => r.id === id ? updated : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
+    const now = new Date().toISOString();
+    const newLog = createAuditLog(msg);
+    
+    // Actualización Optimista
+    const updatedLocal = { ...localReq, lastUpdated: now, logs: [...localReq.logs, newLog] };
+    setRequests(prev => prev.map(r => r.id === id ? updatedLocal : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
+
+    // Sincronización en segundo plano
+    (async () => {
+        try {
+            const serverReq = await db.getRequestById(id);
+            const reqToUpdate = serverReq || localReq;
+            const finalUpdated = {
+                ...reqToUpdate,
+                lastUpdated: now,
+                logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs
+            };
+            await db.saveRequest(finalUpdated);
+            if (serverReq) {
+                setRequests(prev => prev.map(r => r.id === id ? finalUpdated : r));
+            }
+        } catch (e) {
+            console.error("DB Sync Error:", e);
+        }
+    })();
   };
 
   const updateRequestDetails = async (id: string, title: string, detail: string, clientType?: 'FREQUENT' | 'ONE_OFF', paymentProportion?: '50' | '100', paymentAmount?: number) => {
     const localReq = requests.find(r => r.id === id);
     if (!localReq || localReq.isDeleted) return;
-    const req = await db.getRequestById(id) || localReq;
     
     if (activeRole !== UserRole.ADMIN && activeRole !== UserRole.SUPERADMIN && activeRole !== UserRole.HEAD) 
         throw new Error("Privilegios insuficientes para editar metadatos. Solo Administradores y Jefaturas pueden modificar la solicitud original.");
     
-    if (req.status === Status.FINALIZADO && activeRole !== UserRole.SUPERADMIN)
+    if (localReq.status === Status.FINALIZADO && activeRole !== UserRole.SUPERADMIN)
         throw new Error("Registro inmutable: El expediente ya ha sido finalizado.");
 
-    const isOneOff = (clientType !== undefined ? clientType : req.clientType) === 'ONE_OFF';
+    const isOneOff = (clientType !== undefined ? clientType : localReq.clientType) === 'ONE_OFF';
     const finalClientType: 'FREQUENT' | 'ONE_OFF' = isOneOff ? 'ONE_OFF' : 'FREQUENT';
     const finalPaymentAmount = isOneOff && (paymentAmount !== undefined && paymentAmount !== null && !isNaN(paymentAmount) && paymentAmount > 0) ? paymentAmount : undefined;
-    const finalPaymentProportion = isOneOff ? (paymentProportion || req.paymentProportion || '50') : undefined;
+    const finalPaymentProportion = isOneOff ? (paymentProportion || localReq.paymentProportion || '50') : undefined;
 
-    const updated: RequestCard = { 
-        ...req, 
+    const now = new Date().toISOString();
+    const newLog = createAuditLog(`MODIFICACIÓN: Actualización de metadatos del expediente (Título/Alcance/Modalidad Comercial: ${isOneOff ? 'Único' : 'Recurrente'}).`);
+
+    // Actualización Optimista
+    const updatedLocal: RequestCard = { 
+        ...localReq, 
         title, 
         detail, 
         clientType: finalClientType,
         paymentProportion: finalPaymentProportion,
         paymentAmount: finalPaymentAmount,
-        lastUpdated: new Date().toISOString(), 
-        logs: [...req.logs, createAuditLog(`MODIFICACIÓN: Actualización de metadatos del expediente (Título/Alcance/Modalidad Comercial: ${isOneOff ? 'Único' : 'Recurrente'}).`)] 
+        lastUpdated: now, 
+        logs: [...localReq.logs, newLog] 
     };
-    await db.saveRequest(updated);
-    setRequests(prev => prev.map(r => r.id === id ? updated : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
+    setRequests(prev => prev.map(r => r.id === id ? updatedLocal : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
+
+    // Sincronización en segundo plano
+    (async () => {
+        try {
+            const serverReq = await db.getRequestById(id);
+            const reqToUpdate = serverReq || localReq;
+            const finalUpdated = {
+                ...reqToUpdate,
+                title,
+                detail,
+                clientType: finalClientType,
+                paymentProportion: finalPaymentProportion,
+                paymentAmount: finalPaymentAmount,
+                lastUpdated: now,
+                logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs
+            };
+            await db.saveRequest(finalUpdated);
+            if (serverReq) {
+                setRequests(prev => prev.map(r => r.id === id ? finalUpdated : r));
+            }
+        } catch (e) {
+            console.error("DB Sync Error:", e);
+        }
+    })();
   };
 
   const deleteRequest = useCallback(async (id: string) => {
@@ -835,8 +955,8 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         
     const actorName = currentUser?.name || 'Sistema';
     const now = new Date().toISOString();
-    await db.deleteRequest(id, actorName);
     
+    // Actualización Optimista
     setRequests(prev => prev.map(r => r.id === id ? { 
         ...r, 
         isDeleted: true, 
@@ -845,6 +965,9 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         logs: [...r.logs, createAuditLog(`AUDITORÍA: Registro movido al archivo inmutable.`)] 
     } : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
     addNotification('WARNING', 'Expediente Archivado', `Registro enviado al archivo de auditoría.`);
+
+    // Sincronización en segundo plano (Fire and Forget)
+    db.deleteRequest(id, actorName).catch(console.error);
   }, [addNotification, currentUser, createAuditLog, activeRole]);
 
   const hardDeleteAllRequests = async () => {
@@ -928,9 +1051,15 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           id: genUUID(),
           status: 'ACTIVE'
       };
-      await db.saveScheduledProcess(newProcess);
-      await loadData();
+      
+      // Actualización Optimista
+      setScheduledProcesss(prev => [...prev, newProcess]);
       addNotification('INFO', 'Proceso Programado', `El proceso "${processData.processName}" ha sido planificado.`);
+      
+      // Sincronización
+      db.saveScheduledProcess(newProcess).then(() => {
+          loadData(); // Correr loadData después para generar tickets si aplican hoy
+      }).catch(console.error);
   };
 
   const updateProcess = async (updatedProcess: ScheduledProcess) => {
@@ -938,8 +1067,14 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           addNotification('ERROR', 'Acceso Denegado', 'No tienes permisos para modificar procesos.');
           return;
       }
-      await db.saveScheduledProcess(updatedProcess);
-      await loadData();
+      
+      // Actualización Optimista
+      setScheduledProcesss(prev => prev.map(p => p.id === updatedProcess.id ? updatedProcess : p));
+      
+      // Sincronización
+      db.saveScheduledProcess(updatedProcess).then(() => {
+          loadData(); // Re-evaluar generación de tickets tras la actualización
+      }).catch(console.error);
   };
 
   const deleteProcess = async (id: string) => {
@@ -947,8 +1082,12 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           addNotification('ERROR', 'Acceso Denegado', 'No tienes permisos para eliminar procesos.');
           return;
       }
-      await db.deleteScheduledProcess(id);
-      await loadData();
+      
+      // Actualización Optimista (Instantánea y sin bloqueos)
+      setScheduledProcesss(prev => prev.filter(p => p.id !== id));
+      
+      // Sincronización en segundo plano (Fire and Forget)
+      db.deleteScheduledProcess(id).catch(console.error);
   };
 
   const bypassConnectionError = useCallback(() => {
