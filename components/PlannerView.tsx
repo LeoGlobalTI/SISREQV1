@@ -83,8 +83,8 @@ export const PlannerView: React.FC = () => {
             description: '',
             assignedToId: null,
             triggerDate: '',
-            frequency: 'ONCE',
-            visibilityWindowDays: 5
+            frequency: 'MONTHLY',
+            visibilityWindowDays: 0
         }]);
     };
 
@@ -108,6 +108,9 @@ export const PlannerView: React.FC = () => {
             return;
         }
 
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
         const start = new Date(globalStartDate + 'T00:00:00');
         const end = new Date(globalEndDate + 'T23:59:59');
         if (end < start) {
@@ -122,6 +125,12 @@ export const PlannerView: React.FC = () => {
                  return;
              }
              const trigger = new Date(alert.triggerDate + 'T00:00:00');
+             
+             if (trigger < today) {
+                 addNotification('WARNING', 'Fecha Pasada', `No se pueden crear requerimientos con fechas pasadas. La alerta "${alert.title}" tiene fecha ${alert.triggerDate}.`);
+                 return;
+             }
+
              if (trigger < start || trigger > end) {
                  addNotification('WARNING', 'Fecha Fuera de Rango', `La alerta "${alert.title}" tiene una fecha (${alert.triggerDate}) fuera del rango global (${globalStartDate} a ${globalEndDate}).`);
                  return;
@@ -138,8 +147,8 @@ export const PlannerView: React.FC = () => {
                     description: a.description,
                     assignedToId: a.assignedToId,
                     triggerDate: a.triggerDate,
-                    frequency: (a.frequency as AlertFrequency) || 'ONCE',
-                    visibilityWindowDays: a.visibilityWindowDays,
+                    frequency: (a.frequency as AlertFrequency) || 'MONTHLY',
+                    visibilityWindowDays: 0,
                     status: existingAlert ? existingAlert.status : 'WAITING',
                     linkedRequestId: existingAlert ? existingAlert.linkedRequestId : null
                 };
@@ -167,8 +176,8 @@ export const PlannerView: React.FC = () => {
                     description: a.description,
                     assignedToId: a.assignedToId,
                     triggerDate: a.triggerDate,
-                    frequency: (a.frequency as AlertFrequency) || 'ONCE',
-                    visibilityWindowDays: a.visibilityWindowDays,
+                    frequency: (a.frequency as AlertFrequency) || 'MONTHLY',
+                    visibilityWindowDays: 0,
                     status: 'WAITING',
                     linkedRequestId: null
                 }))
@@ -407,7 +416,7 @@ export const PlannerView: React.FC = () => {
                                                         <div className="flex-1 space-y-1">
                                                             <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Frecuencia</label>
                                                             <select 
-                                                                value={alert.frequency || 'ONCE'} 
+                                                                value={alert.frequency || 'MONTHLY'} 
                                                                 onChange={e => handleUpdateAlert(index, 'frequency', e.target.value)}
                                                                 className="w-full bg-slate-50 border border-slate-100 rounded-lg px-2 py-2 text-xs font-bold text-indigo-700 focus:outline-none focus:border-indigo-500"
                                                             >
@@ -423,10 +432,6 @@ export const PlannerView: React.FC = () => {
                                                                 <option value="">Opcional</option>
                                                                 {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                                                             </select>
-                                                        </div>
-                                                        <div className="w-20 space-y-1">
-                                                            <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block text-center" title="Días antes de Día D para aparecer en Kanban">Ventana</label>
-                                                            <input required type="number" min="0" value={alert.visibilityWindowDays} onChange={e => handleUpdateAlert(index, 'visibilityWindowDays', parseInt(e.target.value) || 0)} className="w-full bg-slate-50 border border-slate-100 rounded-lg px-2 py-2 text-xs font-semibold focus:outline-none focus:border-indigo-500 text-center" title="Días de anticipación en Kanban" />
                                                         </div>
                                                     </div>
                                                     <div className="flex flex-wrap items-center gap-1.5 md:col-span-2 pt-2 border-t border-slate-100">

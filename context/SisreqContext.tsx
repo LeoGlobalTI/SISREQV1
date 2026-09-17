@@ -305,10 +305,8 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                           const alert = newAlerts[i];
                           if (alert.status === 'WAITING' && !alert.linkedRequestId) {
                               const triggerDate = new Date(alert.triggerDate + 'T00:00:00');
-                              const spawnDate = new Date(triggerDate);
-                              spawnDate.setDate(spawnDate.getDate() - alert.visibilityWindowDays);
                               
-                              if (today >= spawnDate) {
+                              if (today >= triggerDate) {
                                   const newId = genUUID();
                                   const timestamp = new Date().toISOString();
                                   
