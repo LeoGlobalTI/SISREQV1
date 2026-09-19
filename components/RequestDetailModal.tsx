@@ -34,8 +34,9 @@ export const RequestDetailModal: React.FC = () => {
   const [editTitle, setEditTitle] = useState('');
   const [editDetail, setEditDetail] = useState('');
   const [editClientType, setEditClientType] = useState<'FREQUENT' | 'ONE_OFF'>('FREQUENT');
-  const [editPaymentProportion, setEditPaymentProportion] = useState<'50' | '100'>('50');
+  const [editPaymentProportion, setEditPaymentProportion] = useState<'ADVANCE' | 'FULL'>('ADVANCE');
   const [editPaymentAmount, setEditPaymentAmount] = useState<string>('');
+  const [editRemainingAmount, setEditRemainingAmount] = useState<string>('');
   const [newComment, setNewComment] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -67,8 +68,10 @@ export const RequestDetailModal: React.FC = () => {
         setEditTitle(data.title);
         setEditDetail(data.detail);
         setEditClientType(data.clientType === 'ONE_OFF' ? 'ONE_OFF' : 'FREQUENT');
-        setEditPaymentProportion(data.paymentProportion === '100' ? '100' : '50');
+        setEditPaymentProportion(data.paymentProportion === 'FULL' ? 'FULL' : 'ADVANCE');
         setEditPaymentAmount(data.paymentAmount ? String(data.paymentAmount) : '');
+        const remaining = data.totalAmount && data.paymentAmount ? data.totalAmount - data.paymentAmount : 0;
+        setEditRemainingAmount(remaining > 0 ? String(remaining) : '');
         setIsEditing(false);
         setShowReturnInput(false);
         setShowAnalystSelect(false);
@@ -92,6 +95,15 @@ export const RequestDetailModal: React.FC = () => {
   const handleTransition = async (targetStatus: Status) => {
     setActionError(null);
     try {
+        if (targetStatus === Status.FINALIZADO && data.clientType === 'ONE_OFF') {
+            const total = data.totalAmount || 0;
+            const message = data.paymentProportion === 'ADVANCE' 
+                ? `Confirmación de Pago Final: Se requiere confirmar la recepción del monto total de $${total.toLocaleString()} (incluyendo el anticipo ya recibido) para cerrar el expediente.`
+                : `Confirmación de Pago: Se requiere confirmar la recepción del monto total de $${total.toLocaleString()} para cerrar el expediente.`;
+            
+            const confirmed = confirm(message);
+            if (!confirmed) return;
+        }
         await updateStatus(data.id, targetStatus);
         handleClose();
     } catch (e: any) {
@@ -144,10 +156,23 @@ export const RequestDetailModal: React.FC = () => {
   const handleSaveChanges = async () => {
     if (editTitle.trim() && editDetail.trim()) {
         const isOneOff = editClientType === 'ONE_OFF';
-        if (isOneOff && (!editPaymentAmount || isNaN(parseFloat(editPaymentAmount)) || parseFloat(editPaymentAmount) <= 0)) {
-            setActionError('Debe ingresar un monto válido mayor a 0 para modalidad Única.');
-            return;
+        if (isOneOff) {
+            if (editPaymentProportion === 'ADVANCE' && (!editPaymentAmount || isNaN(parseFloat(editPaymentAmount)) || parseFloat(editPaymentAmount) <= 0)) {
+                setActionError('Debe ingresar un monto de anticipo válido.');
+                return;
+            }
+            if (!editRemainingAmount || isNaN(parseFloat(editRemainingAmount)) || parseFloat(editRemainingAmount) <= 0) {
+                setActionError('Debe ingresar el monto total del servicio.');
+                return;
+            }
+            if (editPaymentProportion === 'ADVANCE' && parseFloat(editPaymentAmount) >= parseFloat(editRemainingAmount)) {
+                setActionError('El monto del anticipo debe ser menor al monto total.');
+                return;
+            }
         }
+
+        const pAmount = editPaymentProportion === 'FULL' ? parseFloat(editRemainingAmount) : parseFloat(editPaymentAmount);
+        const tAmount = parseFloat(editRemainingAmount);
 
         setActionError(null);
         try {
@@ -157,7 +182,8 @@ export const RequestDetailModal: React.FC = () => {
                 editDetail.trim(),
                 isOneOff ? 'ONE_OFF' : 'FREQUENT',
                 isOneOff ? editPaymentProportion : undefined,
-                isOneOff && editPaymentAmount ? parseFloat(editPaymentAmount) : undefined
+                isOneOff ? pAmount : undefined,
+                isOneOff ? tAmount : undefined
             );
             setIsEditing(false);
         } catch (e: any) {
@@ -280,7 +306,7 @@ export const RequestDetailModal: React.FC = () => {
                 {/* Bloque de Modalidad Comercial - Visible en todo momento */}
                 <div className="space-y-2">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <BadgeDollarSign size={11} className="text-indigo-600"/> MODALIDAD COMERCIAL
+                        <BadgeDollarSign size={11} className="text-indigo-600"/> MODALIDAD
                     </label>
 
                     {isEditing ? (
@@ -294,50 +320,60 @@ export const RequestDetailModal: React.FC = () => {
                                     }}
                                     className={`flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-md transition-all ${editClientType === 'FREQUENT' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                                 >
-                                    🔄 Recurrente
+                                    Recurrente
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setEditClientType('ONE_OFF')}
                                     className={`flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-md transition-all ${editClientType === 'ONE_OFF' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                                 >
-                                    🎯 Único
+                                    Único
                                 </button>
                             </div>
 
                             {editClientType === 'FREQUENT' && (
                                 <div className="p-2.5 bg-indigo-50/50 rounded-lg border border-indigo-100 text-slate-600 text-[10px] space-y-1">
                                     <p className="font-bold text-indigo-700 flex items-center gap-1 uppercase tracking-wider text-[9px]">
-                                        <Info size={11} /> Modalidad Recurrente (Cliente Habitual)
-                                    </p>
-                                    <p className="text-[10px] text-slate-500 leading-snug">
-                                        No aplica ingreso de monto monetario por expediente. El trabajo se procesa dentro del convenio de servicio regular.
+                                        <Info size={11} /> Recurrente
                                     </p>
                                 </div>
                             )}
 
                             {editClientType === 'ONE_OFF' && (
-                                <div className="grid grid-cols-2 gap-2 pt-1">
-                                    <div>
-                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Monto Total ($ CLP) *</label>
-                                        <input
-                                            type="number"
-                                            value={editPaymentAmount}
-                                            onChange={e => setEditPaymentAmount(e.target.value)}
-                                            placeholder="Ej. 150000"
-                                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-amber-500"
-                                        />
+                                <div className="space-y-3 pt-1">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Referencia</label>
+                                            <select
+                                                value={editPaymentProportion}
+                                                onChange={e => {
+                                                    setEditPaymentProportion(e.target.value as 'ADVANCE' | 'FULL');
+                                                }}
+                                                className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-amber-500"
+                                            >
+                                                <option value="ADVANCE">Anticipo</option>
+                                                <option value="FULL">Total</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <input
+                                                type="number"
+                                                disabled={editPaymentProportion === 'FULL'}
+                                                value={editPaymentProportion === 'FULL' ? '' : editPaymentAmount}
+                                                onChange={e => setEditPaymentAmount(e.target.value)}
+                                                placeholder="0"
+                                                className={`w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none transition-all ${editPaymentProportion === 'FULL' ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200 text-slate-800 focus:border-amber-500'}`}
+                                            />
+                                        </div>
                                     </div>
                                     <div>
-                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Esquema Anticipo</label>
-                                        <select
-                                            value={editPaymentProportion}
-                                            onChange={e => setEditPaymentProportion(e.target.value as '50' | '100')}
-                                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-amber-500"
-                                        >
-                                            <option value="50">50% Anticipo</option>
-                                            <option value="100">100% Pago Total</option>
-                                        </select>
+                                        <input
+                                            type="number"
+                                            value={editRemainingAmount}
+                                            onChange={e => setEditRemainingAmount(e.target.value)}
+                                            placeholder="0"
+                                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-amber-500"
+                                        />
                                     </div>
                                 </div>
                             )}
@@ -348,19 +384,28 @@ export const RequestDetailModal: React.FC = () => {
                                 <div>
                                     <div className="flex items-center gap-1.5">
                                         <span className="text-[8px] font-black uppercase tracking-widest bg-amber-600 text-white px-2 py-0.5 rounded shadow-xs">
-                                            SERVICIO ÚNICO
+                                            EVENTO ÚNICO
                                         </span>
                                         <span className="text-[9px] font-bold text-amber-800">
-                                            Esquema: {data.paymentProportion || '50'}% Anticipo
+                                            {data.paymentProportion === 'FULL' ? 'PAGO TOTAL' : 'ANTICIPO'}
                                         </span>
                                     </div>
-                                    <p className="text-[9px] text-amber-700/80 font-medium mt-1">
-                                        Servicio esporádico con liquidación unitaria.
-                                    </p>
+                                    {data.paymentProportion === 'ADVANCE' && data.totalAmount && data.paymentAmount && (
+                                        <p className="text-[8px] text-amber-700/80 font-bold mt-1 uppercase tracking-tighter">
+                                            Faltante: ${(data.totalAmount - data.paymentAmount).toLocaleString()} de ${data.totalAmount.toLocaleString()}
+                                        </p>
+                                    )}
                                 </div>
-                                <div className="text-right pl-3 border-l border-amber-200 shrink-0">
-                                    <p className="text-[8px] font-black text-amber-600 uppercase tracking-widest">Valor del Pago</p>
-                                    <p className="text-sm font-black text-amber-900">${data.paymentAmount?.toLocaleString() || '0'}</p>
+                                    <div className="text-right pl-3 border-l border-amber-200 shrink-0">
+                                    <p className="text-[8px] font-black text-amber-600 uppercase tracking-widest">
+                                        Monto Total
+                                    </p>
+                                    <p className="text-sm font-black text-amber-900">${data.totalAmount?.toLocaleString() || '0'}</p>
+                                    {data.paymentProportion === 'ADVANCE' && (
+                                        <p className="text-[8px] font-bold text-amber-600/70 mt-0.5">
+                                            (Recibido: ${data.paymentAmount?.toLocaleString() || '0'})
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         ) : (
@@ -371,18 +416,11 @@ export const RequestDetailModal: React.FC = () => {
                                             RECURRENTE
                                         </span>
                                         <span className="text-[9px] font-bold text-indigo-900">
-                                            Gestión Regular / Proceso Recurrente
+                                            Proceso Recurrente
                                         </span>
                                     </div>
-                                    <p className="text-[9px] text-slate-500 font-medium mt-1">
-                                        Operación periódica bajo modalidad recurrente sin cobro por evento individual.
-                                    </p>
                                 </div>
-                                <div className="text-right pl-3 border-l border-indigo-100 shrink-0">
-                                    <span className="text-[8px] font-black text-indigo-600 bg-white px-2.5 py-1 rounded-lg border border-indigo-100 uppercase tracking-widest shadow-xs">
-                                        Sin monto unitario
-                                    </span>
-                                </div>
+
                             </div>
                         )
                     )}

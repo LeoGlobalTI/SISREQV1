@@ -40,12 +40,12 @@ interface SisreqContextType {
   
   setSelectedRequestId: (id: string | null) => void;
   setGlobalFilterArea: (area: Area | 'ALL') => void;
-  addRequest: (title: string, detail: string, area: Area, priority: Priority, requester: string, clientType?: 'FREQUENT' | 'ONE_OFF', paymentProportion?: '50' | '100', paymentAmount?: number) => Promise<void>;
+  addRequest: (title: string, detail: string, area: Area, priority: Priority, requester: string, clientType?: 'FREQUENT' | 'ONE_OFF', paymentProportion?: 'ADVANCE' | 'FULL', paymentAmount?: number, totalAmount?: number) => Promise<void>;
   updateStatus: (id: string, newStatus: Status) => Promise<void>;
   returnRequest: (id: string, reason: string) => Promise<void>;
   assignAnalyst: (id: string, analystName: string) => Promise<void>;
   addLog: (id: string, message: string) => Promise<void>;
-  updateRequestDetails: (id: string, title: string, detail: string, clientType?: 'FREQUENT' | 'ONE_OFF', paymentProportion?: '50' | '100', paymentAmount?: number) => Promise<void>;
+  updateRequestDetails: (id: string, title: string, detail: string, clientType?: 'FREQUENT' | 'ONE_OFF', paymentProportion?: 'ADVANCE' | 'FULL', paymentAmount?: number, totalAmount?: number) => Promise<void>;
   deleteRequest: (id: string) => Promise<void>;
   hardDeleteAllRequests: () => Promise<void>;
   
@@ -307,7 +307,8 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                               const triggerDate = new Date(alert.triggerDate + 'T00:00:00');
                               
                               if (today >= triggerDate) {
-                                  const newId = genUUID();
+                                  // ID determinista para evitar duplicados en inyecciones simultáneas
+                                  const newId = `p-${process.id.substring(0,8)}-a-${alert.id.substring(0,8)}-d-${alert.triggerDate}`.substring(0, 36);
                                   const timestamp = new Date().toISOString();
                                   
                                   const assignedUser = alert.assignedToId ? loadedUsers.find(u => u.id === alert.assignedToId) : null;
@@ -672,7 +673,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return Object.values(Status).some(s => s !== req.status && canUserTransition(req, s).allowed);
   }, [activeRole, canUserTransition]);
 
-  const addRequest = async (title: string, detail: string, area: Area, priority: Priority, requester: string, clientType?: 'FREQUENT' | 'ONE_OFF', paymentProportion?: '50' | '100', paymentAmount?: number) => {
+  const addRequest = async (title: string, detail: string, area: Area, priority: Priority, requester: string, clientType?: 'FREQUENT' | 'ONE_OFF', paymentProportion?: 'ADVANCE' | 'FULL', paymentAmount?: number, totalAmount?: number) => {
     const now = new Date().toISOString();
     const initialStatus = (activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN || canReceiveAndDerive(currentUser)) ? Status.RECIBIDO : Status.DERIVACION;
     
@@ -682,7 +683,8 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const isOneOff = clientType === 'ONE_OFF';
     const finalClientType: 'FREQUENT' | 'ONE_OFF' = isOneOff ? 'ONE_OFF' : 'FREQUENT';
     const finalPaymentAmount = isOneOff && (paymentAmount !== undefined && paymentAmount !== null && !isNaN(paymentAmount) && paymentAmount > 0) ? paymentAmount : undefined;
-    const finalPaymentProportion = isOneOff ? (paymentProportion || '50') : undefined;
+    const finalTotalAmount = isOneOff && (totalAmount !== undefined && totalAmount !== null && !isNaN(totalAmount) && totalAmount > 0) ? totalAmount : undefined;
+    const finalPaymentProportion = isOneOff ? (paymentProportion || 'ADVANCE') : undefined;
 
     const newReq: RequestCard = {
       id: genUUID(),
@@ -692,6 +694,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       clientType: finalClientType,
       paymentProportion: finalPaymentProportion,
       paymentAmount: finalPaymentAmount,
+      totalAmount: finalTotalAmount,
       createdAt: now, lastUpdated: now,
       logs: [createAuditLog(`APERTURA: Registro inicializado en fase ${initialStatus} (Modalidad: ${isOneOff ? 'Único' : 'Recurrente'})`)]
     };
@@ -731,19 +734,22 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Sincronización en segundo plano para evitar sobreescritura de logs
     (async () => {
         try {
-            const serverReq = await db.getRequestById(id);
-            const reqToUpdate = serverReq || localReq;
-            const finalUpdated = {
-                ...reqToUpdate,
-                status: newStatus,
-                isReturned,
-                lastUpdated: now,
-                finishedAt: finishedAt,
-                logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs
-            };
-            await db.saveRequest(finalUpdated);
-            if (serverReq) {
+            const finalUpdated = await db.appendRequestLog(id, newLog);
+            if (finalUpdated) {
                 setRequests(prev => prev.map(r => r.id === id ? finalUpdated : r));
+            } else {
+                // Fallback si falla el append atómico
+                const serverReq = await db.getRequestById(id);
+                const reqToUpdate = serverReq || localReq;
+                const manualUpdated = {
+                    ...reqToUpdate,
+                    status: newStatus,
+                    isReturned,
+                    lastUpdated: now,
+                    finishedAt: finishedAt,
+                    logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs
+                };
+                await db.saveRequest(manualUpdated);
             }
         } catch (e) {
             console.error("DB Sync Error:", e);
@@ -778,21 +784,35 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Sincronización en segundo plano
     (async () => {
         try {
-            const serverReq = await db.getRequestById(id);
-            const reqToUpdate = serverReq || localReq;
-            const finalUpdated = {
-                ...reqToUpdate,
-                status: Status.RECIBIDO,
-                isReturned: true,
-                assignedAnalyst: null,
-                assignedAnalystId: null,
-                lastUpdated: now,
-                finishedAt: null,
-                logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs
-            };
-            await db.saveRequest(finalUpdated);
-            if (serverReq) {
-                setRequests(prev => prev.map(r => r.id === id ? finalUpdated : r));
+            const finalUpdated = await db.appendRequestLog(id, newLog);
+            if (finalUpdated) {
+                // Si el append tuvo éxito, el status puede necesitar actualizarse por separado 
+                // ya que appendRequestLog solo toca logs y lastUpdated por seguridad.
+                // Sin embargo, para mayor simplicidad, aquí forzamos la actualización completa del estado.
+                const fullUpdate = {
+                    ...finalUpdated,
+                    status: Status.RECIBIDO,
+                    isReturned: true,
+                    assignedAnalyst: null,
+                    assignedAnalystId: null,
+                    finishedAt: null
+                };
+                await db.saveRequest(fullUpdate);
+                setRequests(prev => prev.map(r => r.id === id ? fullUpdate : r));
+            } else {
+                const serverReq = await db.getRequestById(id);
+                const reqToUpdate = serverReq || localReq;
+                const manualUpdated = {
+                    ...reqToUpdate,
+                    status: Status.RECIBIDO,
+                    isReturned: true,
+                    assignedAnalyst: null,
+                    assignedAnalystId: null,
+                    lastUpdated: now,
+                    finishedAt: null,
+                    logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs
+                };
+                await db.saveRequest(manualUpdated);
             }
         } catch (e) {
             console.error("DB Sync Error:", e);
@@ -834,21 +854,32 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Sincronización en segundo plano
     (async () => {
         try {
-            const serverReq = await db.getRequestById(id);
-            const reqToUpdate = serverReq || localReq;
-            const finalUpdated = {
-                ...reqToUpdate,
-                assignedAnalyst: name,
-                assignedAnalystId: targetAnalyst?.id || null,
-                responsibleHead: activeRole === UserRole.HEAD && currentUser ? currentUser.name : reqToUpdate.responsibleHead,
-                responsibleHeadId: activeRole === UserRole.HEAD && currentUser ? currentUser.id : reqToUpdate.responsibleHeadId,
-                status: Status.EJECUCION,
-                lastUpdated: now,
-                logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs
-            };
-            await db.saveRequest(finalUpdated);
-            if (serverReq) {
-                setRequests(prev => prev.map(r => r.id === id ? finalUpdated : r));
+            const finalUpdated = await db.appendRequestLog(id, newLog);
+            if (finalUpdated) {
+                const fullUpdate = {
+                    ...finalUpdated,
+                    assignedAnalyst: name,
+                    assignedAnalystId: targetAnalyst?.id || null,
+                    responsibleHead: activeRole === UserRole.HEAD && currentUser ? currentUser.name : finalUpdated.responsibleHead,
+                    responsibleHeadId: activeRole === UserRole.HEAD && currentUser ? currentUser.id : finalUpdated.responsibleHeadId,
+                    status: Status.EJECUCION
+                };
+                await db.saveRequest(fullUpdate);
+                setRequests(prev => prev.map(r => r.id === id ? fullUpdate : r));
+            } else {
+                const serverReq = await db.getRequestById(id);
+                const reqToUpdate = serverReq || localReq;
+                const manualUpdated = {
+                    ...reqToUpdate,
+                    assignedAnalyst: name,
+                    assignedAnalystId: targetAnalyst?.id || null,
+                    responsibleHead: activeRole === UserRole.HEAD && currentUser ? currentUser.name : reqToUpdate.responsibleHead,
+                    responsibleHeadId: activeRole === UserRole.HEAD && currentUser ? currentUser.id : reqToUpdate.responsibleHeadId,
+                    status: Status.EJECUCION,
+                    lastUpdated: now,
+                    logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs
+                };
+                await db.saveRequest(manualUpdated);
             }
         } catch (e) {
             console.error("DB Sync Error:", e);
@@ -876,16 +907,18 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Sincronización en segundo plano
     (async () => {
         try {
-            const serverReq = await db.getRequestById(id);
-            const reqToUpdate = serverReq || localReq;
-            const finalUpdated = {
-                ...reqToUpdate,
-                lastUpdated: now,
-                logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs
-            };
-            await db.saveRequest(finalUpdated);
-            if (serverReq) {
+            const finalUpdated = await db.appendRequestLog(id, newLog);
+            if (finalUpdated) {
                 setRequests(prev => prev.map(r => r.id === id ? finalUpdated : r));
+            } else {
+                const serverReq = await db.getRequestById(id);
+                const reqToUpdate = serverReq || localReq;
+                const manualUpdated = {
+                    ...reqToUpdate,
+                    lastUpdated: now,
+                    logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs
+                };
+                await db.saveRequest(manualUpdated);
             }
         } catch (e) {
             console.error("DB Sync Error:", e);
@@ -893,7 +926,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     })();
   };
 
-  const updateRequestDetails = async (id: string, title: string, detail: string, clientType?: 'FREQUENT' | 'ONE_OFF', paymentProportion?: '50' | '100', paymentAmount?: number) => {
+  const updateRequestDetails = async (id: string, title: string, detail: string, clientType?: 'FREQUENT' | 'ONE_OFF', paymentProportion?: 'ADVANCE' | 'FULL', paymentAmount?: number, totalAmount?: number) => {
     const localReq = requests.find(r => r.id === id);
     if (!localReq || localReq.isDeleted) return;
     
@@ -906,7 +939,8 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const isOneOff = (clientType !== undefined ? clientType : localReq.clientType) === 'ONE_OFF';
     const finalClientType: 'FREQUENT' | 'ONE_OFF' = isOneOff ? 'ONE_OFF' : 'FREQUENT';
     const finalPaymentAmount = isOneOff && (paymentAmount !== undefined && paymentAmount !== null && !isNaN(paymentAmount) && paymentAmount > 0) ? paymentAmount : undefined;
-    const finalPaymentProportion = isOneOff ? (paymentProportion || localReq.paymentProportion || '50') : undefined;
+    const finalTotalAmount = isOneOff && (totalAmount !== undefined && totalAmount !== null && !isNaN(totalAmount) && totalAmount > 0) ? totalAmount : undefined;
+    const finalPaymentProportion = isOneOff ? (paymentProportion || (localReq.paymentProportion as any) || 'ADVANCE') : undefined;
 
     const now = new Date().toISOString();
     const newLog = createAuditLog(`MODIFICACIÓN: Actualización de metadatos del expediente (Título/Alcance/Modalidad Comercial: ${isOneOff ? 'Único' : 'Recurrente'}).`);
@@ -917,8 +951,9 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         title, 
         detail, 
         clientType: finalClientType,
-        paymentProportion: finalPaymentProportion,
+        paymentProportion: finalPaymentProportion as any,
         paymentAmount: finalPaymentAmount,
+        totalAmount: finalTotalAmount,
         lastUpdated: now, 
         logs: [...localReq.logs, newLog] 
     };
@@ -927,21 +962,34 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Sincronización en segundo plano
     (async () => {
         try {
-            const serverReq = await db.getRequestById(id);
-            const reqToUpdate = serverReq || localReq;
-            const finalUpdated = {
-                ...reqToUpdate,
-                title,
-                detail,
-                clientType: finalClientType,
-                paymentProportion: finalPaymentProportion,
-                paymentAmount: finalPaymentAmount,
-                lastUpdated: now,
-                logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs
-            };
-            await db.saveRequest(finalUpdated);
-            if (serverReq) {
-                setRequests(prev => prev.map(r => r.id === id ? finalUpdated : r));
+            const finalUpdated = await db.appendRequestLog(id, newLog);
+            if (finalUpdated) {
+                const fullUpdate = {
+                    ...finalUpdated,
+                    title,
+                    detail,
+                    clientType: finalClientType,
+                    paymentProportion: finalPaymentProportion as any,
+                    paymentAmount: finalPaymentAmount,
+                    totalAmount: finalTotalAmount
+                };
+                await db.saveRequest(fullUpdate);
+                setRequests(prev => prev.map(r => r.id === id ? fullUpdate : r));
+            } else {
+                const serverReq = await db.getRequestById(id);
+                const reqToUpdate = serverReq || localReq;
+                const manualUpdated = {
+                    ...reqToUpdate,
+                    title,
+                    detail,
+                    clientType: finalClientType,
+                    paymentProportion: finalPaymentProportion as any,
+                    paymentAmount: finalPaymentAmount,
+                    totalAmount: finalTotalAmount,
+                    lastUpdated: now,
+                    logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs
+                };
+                await db.saveRequest(manualUpdated);
             }
         } catch (e) {
             console.error("DB Sync Error:", e);

@@ -326,21 +326,18 @@ export const PlannerView: React.FC = () => {
                         </div>
                         
                         <form id="new-process-form" onSubmit={handleSaveProcess} className="p-6 flex-1 overflow-y-auto space-y-8">
-                            <div className="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-4 flex items-start gap-3">
-                                <div className="p-2 bg-white rounded-xl text-indigo-600 shadow-sm border border-indigo-100/50 shrink-0">
-                                    <Info size={16} />
-                                </div>
-                                <div className="text-xs text-slate-600 space-y-1">
-                                    <div className="font-bold text-slate-800">Parámetros Automáticos de Gestión Interna</div>
-                                    <p className="text-[11px] leading-relaxed text-slate-500">
-                                        Cada alerta generada para esta rutina se inyectará en el flujo Kanban con nivel de urgencia <strong className="text-red-700 font-bold">Alto</strong>, modalidad comercial <strong className="text-indigo-700 font-bold">Recurrente</strong> y solicitante el propio <strong className="text-slate-800 font-bold">Sistema</strong>. Si se selecciona frecuencia semanal, mensual o anual, se reprogramará automáticamente tras su inyección.
+                            <div className="bg-indigo-50/70 border border-indigo-100 rounded-xl p-2.5 flex items-center gap-3">
+                                <div className="text-[11px] text-slate-600 flex flex-wrap items-center gap-x-3">
+                                    <span className="font-bold text-slate-800">Parámetros de Inyección:</span>
+                                    <p className="text-slate-500">
+                                        Urgencia <strong className="text-red-700 font-bold">Alta</strong> • Modalidad <strong className="text-indigo-700 font-bold">Recurrente</strong> • Origen <strong className="text-slate-800 font-bold">Sistema</strong>
                                     </p>
                                 </div>
                             </div>
 
                             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
-                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                    <Tag size={12} className="text-indigo-500"/> Definición del Proceso Maestro
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    Definición del Proceso Maestro
                                 </h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
@@ -380,11 +377,11 @@ export const PlannerView: React.FC = () => {
 
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
-                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                        <Clock size={12} className="text-indigo-500"/> Secuencia de Alertas y Frecuencias
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                        Secuencia de Alertas y Frecuencias
                                     </h4>
                                     <button type="button" onClick={handleAddAlert} className="text-[10px] font-black bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-indigo-100 transition-colors">
-                                        <Plus size={12}/> Agregar Alerta
+                                        Agregar Alerta
                                     </button>
                                 </div>
                                 
@@ -420,10 +417,10 @@ export const PlannerView: React.FC = () => {
                                                                 onChange={e => handleUpdateAlert(index, 'frequency', e.target.value)}
                                                                 className="w-full bg-slate-50 border border-slate-100 rounded-lg px-2 py-2 text-xs font-bold text-indigo-700 focus:outline-none focus:border-indigo-500"
                                                             >
-                                                                <option value="ONCE">🎯 Puntual (Única)</option>
-                                                                <option value="WEEKLY">🔄 Semanal</option>
-                                                                <option value="MONTHLY">📅 Mensual</option>
-                                                                <option value="YEARLY">🗓️ Anual</option>
+                                                                <option value="ONCE">Puntual (Única)</option>
+                                                                <option value="WEEKLY">Semanal</option>
+                                                                <option value="MONTHLY">Mensual</option>
+                                                                <option value="YEARLY">Anual</option>
                                                             </select>
                                                         </div>
                                                         <div className="flex-1 space-y-1">
@@ -439,7 +436,7 @@ export const PlannerView: React.FC = () => {
                                                             Urgencia: Alto
                                                         </span>
                                                         <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
-                                                            Modalidad: Recurrente
+                                                            Recurrente
                                                         </span>
                                                         <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
                                                             Origen: Sistema
@@ -532,7 +529,7 @@ export const PlannerView: React.FC = () => {
                                                         Urgencia: Alto
                                                     </span>
                                                     <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
-                                                        Modalidad: Recurrente
+                                                        Recurrente
                                                     </span>
                                                     <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded border ${
                                                         alert.frequency === 'WEEKLY' ? 'bg-blue-50 text-blue-700 border-blue-200' :

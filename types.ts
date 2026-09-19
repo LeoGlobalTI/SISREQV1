@@ -98,8 +98,9 @@ export interface RequestCard {
   deletedBy?: string;
   sourceType?: 'EXTERNAL' | 'INTERNAL_PROCESS' | 'INTERNAL_ROUTINE';
   clientType?: 'FREQUENT' | 'ONE_OFF';
-  paymentProportion?: '50' | '100';
+  paymentProportion?: 'ADVANCE' | 'FULL';
   paymentAmount?: number;
+  totalAmount?: number;
 }
 
 export type AlertFrequency = 'ONCE' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';

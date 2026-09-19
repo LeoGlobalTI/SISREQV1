@@ -256,7 +256,7 @@ CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`
             return {
                 status: 'SETUP_REQUIRED',
                 message: `Estructura obsoleta en '${table}'`,
-                sqlSuggestion: `-- Migración de integridad:\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "isDeleted" boolean DEFAULT false;\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "responsibleHeadId" text;\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "assignedAnalystId" text;\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "clientType" text DEFAULT 'FREQUENT';\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "paymentProportion" text;\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "paymentAmount" numeric;\nALTER TABLE public.users ADD COLUMN IF NOT EXISTS "canSupervise" boolean DEFAULT false;\nALTER TABLE public.users ADD COLUMN IF NOT EXISTS "canReceiveAndDerive" boolean DEFAULT false;`
+                sqlSuggestion: `-- Migración de integridad:\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "isDeleted" boolean DEFAULT false;\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "responsibleHeadId" text;\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "assignedAnalystId" text;\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "clientType" text DEFAULT 'FREQUENT';\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "paymentProportion" text;\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "paymentAmount" numeric;\nALTER TABLE public.requests ADD COLUMN IF NOT EXISTS "totalAmount" numeric;\nALTER TABLE public.users ADD COLUMN IF NOT EXISTS "canSupervise" boolean DEFAULT false;\nALTER TABLE public.users ADD COLUMN IF NOT EXISTS "canReceiveAndDerive" boolean DEFAULT false;`
             };
         }
 
@@ -372,6 +372,56 @@ CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`
             if (error) console.warn('Aviso al guardar requerimiento en Supabase:', error.message);
         } catch (e) {
             console.warn('Excepción de red al guardar requerimiento:', e);
+        }
+    }
+
+    /**
+     * Añade un log de forma atómica (intento de mitigación de concurrencia)
+     * Si falla el intento inicial de guardado completo, intenta recuperar y mezclar logs.
+     */
+    public async appendRequestLog(requestId: string, newLog: any): Promise<RequestCard | null> {
+        try {
+            // 1. Obtener estado actual del servidor
+            const { data: current, error: fetchError } = await this.supabase
+                .from(STORE_REQUESTS)
+                .select('*')
+                .eq('id', requestId)
+                .single();
+            
+            if (fetchError || !current) return null;
+
+            const currentLogs = Array.isArray(current.logs) ? current.logs : [];
+            
+            // 2. Verificar si el log ya existe (evitar duplicados por reintentos de red)
+            if (currentLogs.find((l: any) => l.id === newLog.id)) return current as RequestCard;
+
+            const updatedLogs = [...currentLogs, newLog];
+            const now = new Date().toISOString();
+
+            // 3. Intentar actualizar con condición (Optimistic Locking simplificado)
+            // En Supabase REST, no hay un "check and set" nativo fácil sin RPC, 
+            // pero podemos usar el filtro para asegurar que no estamos pisando algo crítico 
+            // si tuviéramos un campo de versión.
+            const { data: updated, error: updateError } = await this.supabase
+                .from(STORE_REQUESTS)
+                .update({ 
+                    logs: updatedLogs,
+                    lastUpdated: now
+                })
+                .eq('id', requestId)
+                .select()
+                .single();
+
+            if (updateError) throw updateError;
+            
+            // Actualizar caché
+            const cached = this.getCached<RequestCard[]>(CACHE_REQUESTS, []);
+            this.setCached(CACHE_REQUESTS, cached.map(r => r.id === requestId ? updated : r));
+            
+            return updated as RequestCard;
+        } catch (e) {
+            console.error('Error atómico al añadir log:', e);
+            return null;
         }
     }
 

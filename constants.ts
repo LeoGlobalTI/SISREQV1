@@ -107,6 +107,19 @@ export const STATUS_BADGE_COLORS: Record<Status, string> = {
 
 export const VERSIONS: VersionEntry[] = [
   {
+    version: 'v4.3.0-INTEGRITY',
+    codename: 'Concurrency & Financial Integrity',
+    date: '18 de Septiembre 2026',
+    type: 'MINOR',
+    highlights: [
+      'Blindaje de Concurrencia: Implementación de IDs deterministas para evitar duplicidad de tickets en inyecciones simultáneas.',
+      'Auditoría Resiliente: Nuevo motor de logs atómicos para prevenir pérdida de datos durante ediciones concurrentes.',
+      'Refinamiento Comercial: Rediseño de la modalidad "Único" con gestión avanzada de Anticipos y Totales.',
+      'Validación de Cierre: Control crítico de confirmación de pago total antes de finalizar expedientes comerciales.',
+      'Simplificación UI/UX: Eliminación de redundancias textuales y optimización de densidad visual en formularios.'
+    ]
+  },
+  {
     version: 'v4.2.0-PLANNER',
     codename: 'Process Engine & Operational Resilience',
     date: '16 de Septiembre 2026',

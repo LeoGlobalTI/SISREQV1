@@ -32,8 +32,9 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [priority, setPriority] = useState<Priority>(Priority.MEDIUM);
   
   const [clientType, setClientType] = useState<'FREQUENT' | 'ONE_OFF'>('FREQUENT');
-  const [paymentProportion, setPaymentProportion] = useState<'50' | '100'>('50');
+  const [paymentProportion, setPaymentProportion] = useState<'ADVANCE' | 'FULL'>('ADVANCE');
   const [paymentAmount, setPaymentAmount] = useState<string>('');
+  const [remainingAmount, setRemainingAmount] = useState<string>('');
 
   const [error, setError] = useState<string | null>(null);
 
@@ -60,10 +61,23 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
     if (!title || !detail || !requester) return;
     
     const isOneOff = clientType === 'ONE_OFF';
-    if (isOneOff && (!paymentAmount || isNaN(Number(paymentAmount)) || Number(paymentAmount) <= 0)) {
-      setError('Debe ingresar un monto válido mayor a 0 para servicios de modalidad Única');
-      return;
+    if (isOneOff) {
+      if (paymentProportion === 'ADVANCE' && (!paymentAmount || isNaN(Number(paymentAmount)) || Number(paymentAmount) <= 0)) {
+        setError('Debe ingresar un monto de anticipo válido');
+        return;
+      }
+      if (!remainingAmount || isNaN(Number(remainingAmount)) || Number(remainingAmount) <= 0) {
+        setError('Debe ingresar el monto total del servicio');
+        return;
+      }
+      if (paymentProportion === 'ADVANCE' && Number(paymentAmount) >= Number(remainingAmount)) {
+        setError('El monto del anticipo debe ser menor al monto total');
+        return;
+      }
     }
+
+    const pAmount = paymentProportion === 'FULL' ? Number(remainingAmount) : Number(paymentAmount);
+    const tAmount = Number(remainingAmount);
 
     setError(null);
     try {
@@ -71,14 +85,16 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
         title, detail, area, priority, requester,
         isOneOff ? 'ONE_OFF' : 'FREQUENT', 
         isOneOff ? paymentProportion : undefined,
-        isOneOff && paymentAmount ? Number(paymentAmount) : undefined
+        isOneOff ? pAmount : undefined,
+        isOneOff ? tAmount : undefined
       );
       setTitle('');
       setDetail('');
       setRequester('');
       setClientType('FREQUENT');
       setPaymentAmount('');
-      setPaymentProportion('50');
+      setRemainingAmount('');
+      setPaymentProportion('ADVANCE');
       onClose();
     } catch (err: any) {
       setError(err.message || 'Error al guardar el requerimiento');
@@ -248,7 +264,7 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
                     {/* Tipo de Cliente / Servicio */}
                     <div className="space-y-3 pt-2">
                         <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <BadgeDollarSign size={12} className="text-indigo-500" /> Modalidad Comercial
+                            <BadgeDollarSign size={12} className="text-indigo-500" /> Modalidad
                         </label>
                         <div className="flex bg-slate-50 p-1.5 rounded-xl border border-slate-100">
                             <button
@@ -256,11 +272,12 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                 onClick={() => {
                                     setClientType('FREQUENT');
                                     setPaymentAmount('');
+                                    setRemainingAmount('');
                                     setError(null);
                                 }}
                                 className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${clientType === 'FREQUENT' ? 'bg-white shadow-sm border border-slate-200 text-indigo-700' : 'text-slate-400 hover:text-slate-600'}`}
                             >
-                                🔄 Recurrente
+                                Recurrente
                             </button>
                             <button
                                 type="button"
@@ -270,7 +287,7 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                 }}
                                 className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${clientType === 'ONE_OFF' ? 'bg-white shadow-sm border border-slate-200 text-amber-700' : 'text-slate-400 hover:text-slate-600'}`}
                             >
-                                🎯 Único
+                                Único
                             </button>
                         </div>
                         
@@ -279,10 +296,7 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             <div className="mt-4 bg-indigo-50/40 rounded-xl p-3 border border-indigo-100 text-slate-600 animate-in slide-in-from-top-2 fade-in">
                                 <div className="flex items-center justify-between">
                                     <span className="text-[9px] font-black uppercase text-indigo-700 tracking-wider flex items-center gap-1.5">
-                                        <Info size={13} /> Modalidad Recurrente (Cliente Habitual)
-                                    </span>
-                                    <span className="text-[8px] bg-indigo-100/70 text-indigo-800 font-bold px-2 py-0.5 rounded border border-indigo-200">
-                                        Sin Cobro Individual
+                                        <Info size={13} /> Recurrente
                                     </span>
                                 </div>
                             </div>
@@ -293,47 +307,66 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             <div className="mt-4 bg-white rounded-xl p-4 border border-amber-200 shadow-sm animate-in slide-in-from-top-2 fade-in space-y-4">
                                 <div className="flex items-center justify-between">
                                     <span className="text-[9px] font-black uppercase text-amber-800 tracking-wider">
-                                        Modalidad: Servicio Único
+                                        Evento Único
                                     </span>
                                     <span className="text-[8px] bg-amber-50 text-amber-700 font-bold px-2 py-0.5 rounded border border-amber-100">
                                         Esporádico
                                     </span>
                                 </div>
+
                                 <div className="space-y-1.5">
                                     <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                                        Valor del Pago / Monto Total (CLP)
-                                    </label>
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
-                                        <input
-                                            type="number"
-                                            required
-                                            className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg pl-8 pr-4 py-2.5 focus:outline-none focus:border-amber-500 focus:bg-white transition-all font-semibold"
-                                            value={paymentAmount}
-                                            onChange={(e) => setPaymentAmount(e.target.value)}
-                                            placeholder="0.00"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                                        Esquema de Anticipo
+                                        Referencia de Pago
                                     </label>
                                     <div className="flex bg-slate-50 p-1.5 rounded-xl border border-slate-100">
                                         <button
                                             type="button"
-                                            onClick={() => setPaymentProportion('50')}
-                                            className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${paymentProportion === '50' ? 'bg-white shadow-sm border border-slate-200 text-amber-700' : 'text-slate-400 hover:text-slate-600'}`}
+                                            onClick={() => setPaymentProportion('ADVANCE')}
+                                            className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${paymentProportion === 'ADVANCE' ? 'bg-white shadow-sm border border-slate-200 text-amber-700' : 'text-slate-400 hover:text-slate-600'}`}
                                         >
-                                            50% Anticipo
+                                            Anticipo
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => setPaymentProportion('100')}
-                                            className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${paymentProportion === '100' ? 'bg-white shadow-sm border border-slate-200 text-amber-700' : 'text-slate-400 hover:text-slate-600'}`}
+                                            onClick={() => {
+                                                setPaymentProportion('FULL');
+                                                setRemainingAmount('');
+                                            }}
+                                            className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${paymentProportion === 'FULL' ? 'bg-white shadow-sm border border-slate-200 text-amber-700' : 'text-slate-400 hover:text-slate-600'}`}
                                         >
-                                            100% Pago
+                                            Total
                                         </button>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                        <div className="relative">
+                                            <span className={`absolute left-3 top-1/2 -translate-y-1/2 font-bold ${paymentProportion === 'FULL' ? 'text-slate-200' : 'text-slate-400'}`}>$</span>
+                                            <input
+                                                type="number"
+                                                disabled={paymentProportion === 'FULL'}
+                                                required={paymentProportion === 'ADVANCE'}
+                                                className={`w-full border border-slate-200 text-sm rounded-lg pl-8 pr-4 py-2.5 focus:outline-none transition-all font-semibold ${paymentProportion === 'FULL' ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-50 text-slate-800 focus:border-amber-500 focus:bg-white'}`}
+                                                value={paymentProportion === 'FULL' ? '' : paymentAmount}
+                                                onChange={(e) => setPaymentAmount(e.target.value)}
+                                                placeholder="0.00"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+                                            <input
+                                                type="number"
+                                                required
+                                                className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg pl-8 pr-4 py-2.5 focus:outline-none focus:border-amber-500 focus:bg-white transition-all font-semibold"
+                                                value={remainingAmount}
+                                                onChange={(e) => setRemainingAmount(e.target.value)}
+                                                placeholder="0.00"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
