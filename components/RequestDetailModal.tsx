@@ -285,20 +285,43 @@ export const RequestDetailModal: React.FC = () => {
                     </div>
                 )}
 
-                <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><PenTool size={11} className="text-indigo-600"/> ALCANCE TÉCNICO</label>
-                        {canEditUI && !isEditing && <button onClick={() => setIsEditing(true)} className="text-[8px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 hover:bg-indigo-100">EDITAR</button>}
+                {/* Responsable Designado */}
+                <div className="p-3.5 bg-indigo-50/50 border border-indigo-100 rounded-xl flex items-center gap-3 relative">
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white font-black text-xs shadow-md shrink-0 ${data.assignedAnalyst ? 'bg-indigo-600' : 'bg-slate-300'}`}>
+                        {data.assignedAnalyst ? data.assignedAnalyst.substring(0,2).toUpperCase() : '?'}
                     </div>
-                    {isEditing ? (
-                        <textarea value={editDetail} onChange={e => setEditDetail(e.target.value)} className="w-full bg-slate-50 border border-indigo-100 p-3 rounded-xl text-xs text-slate-900 leading-relaxed outline-none min-h-[90px] font-bold" />
-                    ) : (
-                        <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 italic text-slate-600 text-xs leading-relaxed">"{data.detail}"</div>
-                    )}
-                    {isEditing && (
-                        <div className="flex justify-end gap-2 pt-1">
-                            <button onClick={() => setIsEditing(false)} className="px-2.5 py-1 text-[8px] font-black text-slate-400 uppercase">CANCELAR</button>
-                            <button onClick={handleSaveChanges} className="bg-slate-900 text-white px-4 py-1.5 rounded-xl text-[8px] font-black uppercase shadow-md flex items-center gap-1.5 active:scale-95 transition-all"><Save size={12}/> GUARDAR</button>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[7px] font-black text-indigo-400 uppercase tracking-widest mb-0.5">RESPONSABLE DESIGNADO</p>
+                        <p className={`text-xs font-black uppercase tracking-tight truncate ${data.assignedAnalyst ? 'text-slate-900' : 'text-slate-400 italic'}`}>{data.assignedAnalyst || 'Pendiente de asignación'}</p>
+                    </div>
+                    {canAssignUI && (
+                        <div className="relative shrink-0">
+                            <button onClick={() => setShowAnalystSelect(!showAnalystSelect)} className="bg-white border border-indigo-200 text-indigo-600 px-3 py-1.5 rounded-lg text-[8px] font-black uppercase hover:bg-indigo-600 hover:text-white transition-all shadow-xs flex items-center gap-1.5">
+                               <User size={11}/> ASIGNAR
+                            </button>
+                            {showAnalystSelect && (
+                                <div className="absolute top-full right-0 mt-2 w-60 bg-white border border-slate-200 shadow-2xl rounded-xl p-2 z-[70] animate-in slide-in-from-top-2">
+                                    <div className="px-2.5 py-1 text-[8px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-1">Personal del Área {data.area}</div>
+                                    <div className="max-h-44 overflow-y-auto custom-scrollbar">
+                                        {availableAssignees.length > 0 ? availableAssignees.map((u, idx) => (
+                                            <button 
+                                                key={u.id || `assignee-${idx}`} 
+                                                onClick={() => handleAssignAnalyst(u.name)} 
+                                                className="w-full text-left px-2.5 py-2 hover:bg-indigo-50 rounded-lg transition-colors group/item"
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[9px] font-black text-slate-700 uppercase group-hover/item:text-indigo-600">{u.name}</span>
+                                                    <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-md border uppercase tracking-tighter ${
+                                                        u.role === UserRole.HEAD ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-slate-100 text-slate-500 border-slate-200'
+                                                    }`}>
+                                                        {u.role === UserRole.HEAD ? 'JEFATURA' : 'ANALISTA'}
+                                                    </span>
+                                                </div>
+                                            </button>
+                                        )) : <div className="px-3 py-3 text-[8px] text-slate-400 italic uppercase text-center">No hay personal activo en esta unidad</div>}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -437,42 +460,21 @@ export const RequestDetailModal: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="p-3.5 bg-indigo-50/50 border border-indigo-100 rounded-xl flex items-center gap-3 relative">
-                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white font-black text-xs shadow-md shrink-0 ${data.assignedAnalyst ? 'bg-indigo-600' : 'bg-slate-300'}`}>
-                        {data.assignedAnalyst ? data.assignedAnalyst.substring(0,2).toUpperCase() : '?'}
+                {/* Alcance Técnico */}
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><PenTool size={11} className="text-indigo-600"/> ALCANCE TÉCNICO</label>
+                        {canEditUI && !isEditing && <button onClick={() => setIsEditing(true)} className="text-[8px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 hover:bg-indigo-100">EDITAR</button>}
                     </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-[7px] font-black text-indigo-400 uppercase tracking-widest mb-0.5">RESPONSABLE DESIGNADO</p>
-                        <p className={`text-xs font-black uppercase tracking-tight truncate ${data.assignedAnalyst ? 'text-slate-900' : 'text-slate-400 italic'}`}>{data.assignedAnalyst || 'Pendiente de asignación'}</p>
-                    </div>
-                    {canAssignUI && (
-                        <div className="relative shrink-0">
-                            <button onClick={() => setShowAnalystSelect(!showAnalystSelect)} className="bg-white border border-indigo-200 text-indigo-600 px-3 py-1.5 rounded-lg text-[8px] font-black uppercase hover:bg-indigo-600 hover:text-white transition-all shadow-xs flex items-center gap-1.5">
-                               <User size={11}/> ASIGNAR
-                            </button>
-                            {showAnalystSelect && (
-                                <div className="absolute top-full right-0 mt-2 w-60 bg-white border border-slate-200 shadow-2xl rounded-xl p-2 z-[70] animate-in slide-in-from-top-2">
-                                    <div className="px-2.5 py-1 text-[8px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-1">Personal del Área {data.area}</div>
-                                    <div className="max-h-44 overflow-y-auto custom-scrollbar">
-                                        {availableAssignees.length > 0 ? availableAssignees.map((u, idx) => (
-                                            <button 
-                                                key={u.id || `assignee-${idx}`} 
-                                                onClick={() => handleAssignAnalyst(u.name)} 
-                                                className="w-full text-left px-2.5 py-2 hover:bg-indigo-50 rounded-lg transition-colors group/item"
-                                            >
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-[9px] font-black text-slate-700 uppercase group-hover/item:text-indigo-600">{u.name}</span>
-                                                    <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-md border uppercase tracking-tighter ${
-                                                        u.role === UserRole.HEAD ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-slate-100 text-slate-500 border-slate-200'
-                                                    }`}>
-                                                        {u.role === UserRole.HEAD ? 'JEFATURA' : 'ANALISTA'}
-                                                    </span>
-                                                </div>
-                                            </button>
-                                        )) : <div className="px-3 py-3 text-[8px] text-slate-400 italic uppercase text-center">No hay personal activo en esta unidad</div>}
-                                    </div>
-                                </div>
-                            )}
+                    {isEditing ? (
+                        <textarea value={editDetail} onChange={e => setEditDetail(e.target.value)} className="w-full bg-slate-50 border border-indigo-100 p-3 rounded-xl text-xs text-slate-900 leading-relaxed outline-none min-h-[90px] font-bold" />
+                    ) : (
+                        <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 italic text-slate-600 text-xs leading-relaxed">"{data.detail}"</div>
+                    )}
+                    {isEditing && (
+                        <div className="flex justify-end gap-2 pt-1">
+                            <button onClick={() => setIsEditing(false)} className="px-2.5 py-1 text-[8px] font-black text-slate-400 uppercase">CANCELAR</button>
+                            <button onClick={handleSaveChanges} className="bg-slate-900 text-white px-4 py-1.5 rounded-xl text-[8px] font-black uppercase shadow-md flex items-center gap-1.5 active:scale-95 transition-all"><Save size={12}/> GUARDAR</button>
                         </div>
                     )}
                 </div>

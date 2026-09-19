@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { SisreqProvider, useSisreq } from './context/SisreqContext';
+import { useSisreq } from './context/SisreqContext';
 import { Layout } from './components/Layout';
 import { Board } from './components/Board';
 import { SuperAdminView } from './components/SuperAdminView';
@@ -146,11 +146,7 @@ const MainContent: React.FC = () => {
 };
 
 const App: React.FC = () => {
-  return (
-    <SisreqProvider>
-      <MainContent />
-    </SisreqProvider>
-  );
+  return <MainContent />;
 };
 
 export default App;

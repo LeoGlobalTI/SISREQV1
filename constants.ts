@@ -107,6 +107,18 @@ export const STATUS_BADGE_COLORS: Record<Status, string> = {
 
 export const VERSIONS: VersionEntry[] = [
   {
+    version: 'v4.3.1-LAYOUT',
+    codename: 'Technical Context & UX Flow',
+    date: '18 de Septiembre 2026',
+    type: 'PATCH',
+    highlights: [
+      'Reordenamiento de Detalle: Priorización del Responsable Designado al inicio del expediente para una gestión ágil.',
+      'Optimización de Lectura: Reubicación del Alcance Técnico al final del modal de detalle, favoreciendo el escaneo de datos financieros y operativos.',
+      'Restauración de Flujo: Reversión de campos en el modal de Nuevo Requerimiento para mantener la consistencia con el estándar de ingreso corporativo.',
+      'Alineación Semántica: Sincronización de etiquetas entre los módulos de registro y visualización técnica.'
+    ]
+  },
+  {
     version: 'v4.3.0-INTEGRITY',
     codename: 'Concurrency & Financial Integrity',
     date: '18 de Septiembre 2026',

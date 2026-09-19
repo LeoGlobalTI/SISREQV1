@@ -17,18 +17,24 @@ export const GovernanceView: React.FC = () => {
   // --- AUDIT METRICS ---
   const auditStats = useMemo(() => {
     const total = requests.length;
-    const deleted = requests.filter(r => r.deletedAt).length;
-    const active = requests.filter(r => !r.deletedAt);
+    const deleted = requests.filter(r => r.isDeleted).length;
+    const active = requests.filter(r => !r.isDeleted);
     
     // SLA Breaches
-    let slaBreaches = 0;
+    let slaWarning = 0;
+    let slaCritical = 0;
     const now = new Date();
     active.forEach(r => {
-      if (r.status !== Status.FINALIZADO) {
+      if (r.status !== Status.FINALIZADO && !r.isReturned) {
         const daysOpen = Math.floor((now.getTime() - new Date(r.createdAt).getTime()) / (1000 * 3600 * 24));
-        if (daysOpen > 30) slaBreaches++; // Example SLA logic
+        if (daysOpen > 30) slaCritical++;
+        else if (daysOpen > 15) slaWarning++;
       }
     });
+
+    // Integrity & Financial Risks
+    const legacyIds = active.filter(r => !r.id.startsWith('p-')).length; // Detect old genUUIDs
+    const missingFinances = active.filter(r => r.clientType === 'ONE_OFF' && (!r.totalAmount || r.totalAmount <= 0)).length;
 
     // Orphans / Unassigned
     const noAnalyst = active.filter(r => 
@@ -40,17 +46,21 @@ export const GovernanceView: React.FC = () => {
     // Health Score Calculation (0-100)
     let score = 100;
     if (total > 0) {
-        score -= (slaBreaches / total) * 20;
-        score -= (noAnalyst / total) * 30;
+        score -= (slaCritical / total) * 30;
+        score -= (slaWarning / total) * 10;
+        score -= (noAnalyst / total) * 20;
+        score -= (missingFinances / total) * 25;
+        score -= (legacyIds / total) * 5;
     }
-    score -= (unassignedUsers * 2);
+    score -= (unassignedUsers * 1.5);
     score = Math.max(0, Math.min(100, Math.round(score)));
 
     const anomalies = [
-      { type: 'WARNING', title: 'SLA Crítico Vencido', count: slaBreaches, desc: 'Expedientes abiertos por más de 30 días.' },
+      { type: 'ERROR', title: 'SLA Crítico Vencido', count: slaCritical, desc: 'Expedientes abiertos por más de 30 días.' },
+      { type: 'WARNING', title: 'Riesgo Financiero', count: missingFinances, desc: 'Servicios únicos sin monto total definido.' },
       { type: 'ERROR', title: 'Ejecución sin Analista', count: noAnalyst, desc: 'Expedientes en progreso sin responsable.' },
-      { type: 'WARNING', title: 'Usuarios Huérfanos', count: unassignedUsers, desc: 'Colaboradores sin área operativa asignada.' },
-      { type: 'INFO', title: 'Papelera Inmutable', count: deleted, desc: 'Expedientes eliminados lógicamente (Soft Delete).' },
+      { type: 'WARNING', title: 'IDs Legados Detectados', count: legacyIds, desc: 'Registros previos a la actualización de integridad v4.3.0.' },
+      { type: 'INFO', title: 'Usuarios sin Área', count: unassignedUsers, desc: 'Colaboradores pendientes de asignación operativa.' },
     ];
 
     return { total, deleted, active: active.length, score, anomalies };
@@ -90,21 +100,22 @@ export const GovernanceView: React.FC = () => {
           doc.text('Resumen del Sistema', 20, yPos);
           doc.setFontSize(10);
           doc.setFont('helvetica', 'normal');
-          doc.text('Arquitectura: React + Vite + Tailwind CSS', 20, yPos + 10);
-          doc.text('Gestión de Estado: Context API (useSisreq)', 20, yPos + 18);
-          doc.text(`Versión Actual: ${CURRENT_VERSION}`, 20, yPos + 26);
-          yPos += 40;
+          doc.text('Arquitectura: React + Vite + Supabase + Tailwind CSS', 20, yPos + 10);
+          doc.text('Gestión de Estado: Context API con Persistencia Atómica', 20, yPos + 18);
+          doc.text('Seguridad: IDs Deterministas y Logs de Auditoría Inmutables', 20, yPos + 26);
+          doc.text(`Versión Actual: ${CURRENT_VERSION}`, 20, yPos + 34);
+          yPos += 50;
       }
 
       autoTable(doc, {
         startY: yPos,
         head: [['#', 'Módulo', 'Descripción']],
         body: [
-          ['1', 'Tablero Kanban', 'Gestión visual de expedientes y transiciones operativas auditadas.'],
-          ['2', 'Planificador de Procesos', 'Automatización de procesos maestros y alertas temporales Just-In-Time.'],
-          ['3', 'Reportes y Analítica', 'Dashboard analítico con KPIs, métricas de rendimiento y SLAs.'],
-          ['4', 'Organización y Usuarios', 'Gestión de departamentos y usuarios con asignación multi-área.'],
-          ['5', 'Gobernanza y Auditoría', 'Trazabilidad de eventos, salud del sistema y registro de versiones.'],
+          ['1', 'Kanban de Integridad', 'Gestión visual de expedientes con protección contra colisiones de datos.'],
+          ['2', 'Planificador Maestro', 'Automatización de rutinas con prevención de duplicidad de tickets.'],
+          ['3', 'Control Comercial', 'Módulo de liquidación de servicios Únicos con validación de pagos.'],
+          ['4', 'Organización Ágil', 'Estructura de departamentos con trazabilidad de responsabilidades.'],
+          ['5', 'Gobernanza Digital', 'Monitor de salud operativa, SLAs y registro histórico de versiones.'],
         ],
         theme: 'grid',
         headStyles: { fillColor: [79, 70, 229] }
@@ -134,7 +145,7 @@ export const GovernanceView: React.FC = () => {
               </h2>
               <div className="flex items-center gap-2 mt-1.5">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    Auditoría • Versiones • Documentación
+                    Auditoría de Integridad • Salud Financiera • Memoria Técnica
                   </span>
                   <span className="bg-indigo-100 text-indigo-700 text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-indigo-200 flex items-center gap-1">
                       <GitBranch size={10} /> {CURRENT_VERSION}

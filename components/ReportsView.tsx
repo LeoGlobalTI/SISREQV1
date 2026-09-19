@@ -85,14 +85,23 @@ export const ReportsView: React.FC = () => {
       .sort((a, b) => b.ageDays - a.ageDays);
 
     const oneOffRequests = filteredRequests.filter(r => r.clientType === 'ONE_OFF');
-    const oneOffRevenue = oneOffRequests.reduce((sum, r) => sum + (r.paymentAmount || 0), 0);
-    const oneOffFifty = oneOffRequests.filter(r => r.paymentProportion === '50').length;
-    const oneOffHundred = oneOffRequests.filter(r => r.paymentProportion === '100').length;
+    const oneOffTotalRevenue = oneOffRequests.reduce((sum, r) => sum + (r.totalAmount || 0), 0);
+    const oneOffCollected = oneOffRequests.reduce((sum, r) => sum + (r.paymentAmount || 0), 0);
+    const oneOffPending = oneOffTotalRevenue - oneOffCollected;
+    const oneOffAdvance = oneOffRequests.filter(r => r.paymentProportion === 'ADVANCE').length;
+    const oneOffFull = oneOffRequests.filter(r => r.paymentProportion === 'FULL').length;
 
     return { 
         total, completed, pending, completionRate, byStatus, avgDays, 
         slaComplianceRate, byPriority, slaBottlenecks,
-        oneOff: { count: oneOffRequests.length, revenue: oneOffRevenue, fifty: oneOffFifty, hundred: oneOffHundred }
+        oneOff: { 
+            count: oneOffRequests.length, 
+            revenue: oneOffTotalRevenue, 
+            collected: oneOffCollected,
+            pending: oneOffPending,
+            advanceCount: oneOffAdvance, 
+            fullCount: oneOffFull 
+        }
     };
   }, [filteredRequests]);
 
@@ -155,8 +164,10 @@ export const ReportsView: React.FC = () => {
       'Prioridad',
       'Unidad_Organica',
       'Tipo_Cliente',
-      'Modalidad_Pago',
-      'Monto_Cobrado_CLP',
+      'Referencia_Pago',
+      'Monto_Total_CLP',
+      'Monto_Recibido_CLP',
+      'Monto_Pendiente_CLP',
       'Analista_Asignado',
       'Solicitante',
       'Fecha_Creacion',
@@ -171,9 +182,12 @@ export const ReportsView: React.FC = () => {
       const compliesSla = r.status === Status.FINALIZADO 
         ? (Number(days) <= 5 ? 'SI (<=5d)' : 'NO (>5d)') 
         : (Number(days) <= 5 ? 'EN PLAZO' : 'EXCEDIDO');
-      const clientTypeLabel = r.clientType === 'ONE_OFF' ? 'Único' : 'Cliente';
-      const paymentProportionLabel = r.clientType === 'ONE_OFF' ? `${r.paymentProportion || '0'}%` : 'N/A';
-      const paymentAmountVal = r.clientType === 'ONE_OFF' && r.paymentAmount ? r.paymentAmount : 0;
+      const clientTypeLabel = r.clientType === 'ONE_OFF' ? 'Único' : 'Recurrente';
+      const paymentRefLabel = r.clientType === 'ONE_OFF' ? (r.paymentProportion === 'ADVANCE' ? 'Anticipo' : 'Total') : 'N/A';
+      const totalAmountVal = r.clientType === 'ONE_OFF' ? (r.totalAmount || 0) : 0;
+      const receivedAmountVal = r.clientType === 'ONE_OFF' ? (r.paymentAmount || 0) : 0;
+      const pendingAmountVal = totalAmountVal - receivedAmountVal;
+      
       return [
         `"${r.id}"`,
         `"#${r.id.substring(0, 6).toUpperCase()}"`,
@@ -182,8 +196,10 @@ export const ReportsView: React.FC = () => {
         `"${r.priority}"`,
         `"${r.area}"`,
         `"${clientTypeLabel}"`,
-        `"${paymentProportionLabel}"`,
-        `"${paymentAmountVal}"`,
+        `"${paymentRefLabel}"`,
+        `"${totalAmountVal}"`,
+        `"${receivedAmountVal}"`,
+        `"${pendingAmountVal}"`,
         `"${r.assignedAnalyst || 'Sin Asignar'}"`,
         `"${r.requester || 'Anónimo'}"`,
         `"${new Date(r.createdAt).toISOString()}"`,
@@ -409,34 +425,90 @@ export const ReportsView: React.FC = () => {
                 </div>
             </div>
 
-            {/* NIVEL 3.5: AUDITORÍA FINANCIERA */}
-            <div className="bg-amber-50 rounded-3xl border border-amber-200 shadow-sm flex flex-col overflow-hidden">
-                <div className="p-5 border-b border-amber-200 bg-amber-100/50 flex items-center justify-between">
+            {/* NIVEL 3.5: AUDITORÍA FINANCIERA (INTEGRACIÓN REFINADA) */}
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-amber-50 text-amber-600 rounded-lg border border-amber-100">
+                            <BadgeDollarSign size={20} strokeWidth={2.5}/>
+                        </div>
+                        <div>
+                           <h3 className="font-black text-slate-900 uppercase tracking-tight text-sm">Auditoría de Ingresos: Servicios Únicos</h3>
+                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Control de recaudación y saldos pendientes</p>
+                        </div>
+                    </div>
                     <div className="flex items-center gap-2">
-                        <BadgeDollarSign size={16} className="text-amber-600"/>
-                        <h3 className="font-black text-amber-900 uppercase tracking-tight text-sm">
-                            Auditoría Financiera: Servicios Únicos
-                        </h3>
+                        <span className="bg-slate-100 text-slate-600 text-[10px] font-black px-3 py-1 rounded-full border border-slate-200 uppercase">
+                            {stats.oneOff.count} Expedientes
+                        </span>
                     </div>
                 </div>
                 
-                <div className="p-5">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <div className="col-span-2 sm:col-span-1 p-4 bg-white rounded-2xl border border-amber-100 shadow-sm">
-                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Volumen</p>
-                            <p className="text-2xl font-black text-slate-900 tracking-tight">{stats.oneOff.count}</p>
+                <div className="p-8">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        {/* KPI: Recaudación Total */}
+                        <div className="relative group">
+                            <div className="flex items-center gap-4">
+                                <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl border border-emerald-100 group-hover:scale-105 transition-transform shadow-sm">
+                                    <ArrowUpRight size={24} />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Monto Total Proyectado</p>
+                                    <p className="text-3xl font-black text-slate-900 tracking-tight">${stats.oneOff.revenue.toLocaleString()}</p>
+                                </div>
+                            </div>
+                            <div className="mt-4 flex items-center gap-2">
+                                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                    <div 
+                                        className="h-full bg-emerald-500 rounded-full" 
+                                        style={{ width: `${stats.oneOff.revenue > 0 ? (stats.oneOff.collected / stats.oneOff.revenue) * 100 : 0}%` }}
+                                    />
+                                </div>
+                                <span className="text-[10px] font-black text-emerald-600">
+                                    {stats.oneOff.revenue > 0 ? Math.round((stats.oneOff.collected / stats.oneOff.revenue) * 100) : 0}% Recaudado
+                                </span>
+                            </div>
                         </div>
-                        <div className="col-span-2 sm:col-span-1 p-4 bg-white rounded-2xl border border-amber-100 shadow-sm">
-                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Impacto (Monto)</p>
-                            <p className="text-2xl font-black text-emerald-600 tracking-tight">${stats.oneOff.revenue.toLocaleString()}</p>
+
+                        {/* KPI: Distribución de Pagos */}
+                        <div className="flex flex-col justify-center border-x border-slate-100 px-8">
+                            <div className="flex items-center justify-between mb-4">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Modalidades</p>
+                            </div>
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-amber-500"></div>
+                                        <span className="text-xs font-bold text-slate-600 uppercase">Anticipos</span>
+                                    </div>
+                                    <span className="text-sm font-black text-slate-900">{stats.oneOff.advanceCount}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-indigo-600"></div>
+                                        <span className="text-xs font-bold text-slate-600 uppercase">Pagos Totales</span>
+                                    </div>
+                                    <span className="text-sm font-black text-slate-900">{stats.oneOff.fullCount}</span>
+                                </div>
+                            </div>
                         </div>
-                        <div className="p-4 bg-white rounded-2xl border border-amber-100 shadow-sm">
-                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Anticipo 50%</p>
-                            <p className="text-2xl font-black text-amber-600 tracking-tight">{stats.oneOff.fifty}</p>
-                        </div>
-                        <div className="p-4 bg-white rounded-2xl border border-amber-100 shadow-sm">
-                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pago 100%</p>
-                            <p className="text-2xl font-black text-indigo-600 tracking-tight">{stats.oneOff.hundred}</p>
+
+                        {/* KPI: Recaudado vs Pendiente */}
+                        <div className="flex flex-col justify-center gap-4">
+                            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                <div>
+                                    <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-0.5">Ya Recibido</p>
+                                    <p className="text-xl font-black text-slate-900">${stats.oneOff.collected.toLocaleString()}</p>
+                                </div>
+                                <CheckCircle size={20} className="text-emerald-500" />
+                            </div>
+                            <div className="flex items-center justify-between p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                                <div>
+                                    <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest mb-0.5">Por Recaudar</p>
+                                    <p className="text-xl font-black text-slate-900">${stats.oneOff.pending.toLocaleString()}</p>
+                                </div>
+                                <Clock size={20} className="text-amber-500" />
+                            </div>
                         </div>
                     </div>
                 </div>
