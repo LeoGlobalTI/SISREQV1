@@ -222,6 +222,13 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
       }
 
+      // Cascada: Actualización de procesos planificados
+      for (const process of scheduledProcesses) {
+          if (process.area === oldName) {
+              await db.saveScheduledProcess({ ...process, area: newName });
+          }
+      }
+
       if (globalFilterArea === oldName) {
           setGlobalFilterArea(newName);
       }
@@ -421,12 +428,9 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     if (currentUser && users.length > 0) {
         const updated = users.find(u => u.id === currentUser.id);
-        if (!updated) {
-            // Solo desloguear si no existe en la sesión persistida localmente
-            const localUserRaw = localStorage.getItem('sisreq_session_user');
-            if (!localUserRaw) {
-                logout();
-            }
+        if (!updated || updated.status === 'INACTIVE') {
+            // Hallazgo 4: Validación de sesión activa (Logout si el usuario fue desactivado o eliminado)
+            logout();
         } else {
             const hasChanged = updated.name !== currentUser.name || 
                 updated.role !== currentUser.role || 
@@ -468,28 +472,48 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Sincronización en tiempo real vía Supabase (Actualización Incremental O(1))
     const unsubscribe = db.subscribeToRequests((payload) => {
         if (payload.eventType === 'INSERT') {
+            const newReq = { ...payload.new } as RequestCard;
+            if (typeof newReq.logs === 'string') {
+                try {
+                    newReq.logs = JSON.parse(newReq.logs);
+                } catch (e) {
+                    newReq.logs = [];
+                }
+            }
+
+            // Hallazgo 4: Notificación Global para otros usuarios
+            const lastLog = newReq.logs[newReq.logs.length - 1];
+            if (lastLog && lastLog.actor !== currentUser?.name) {
+                addNotification('INFO', 'Nuevo Ingreso', `Registrado por ${lastLog.actor}: ${newReq.title}`, newReq.id);
+            }
+
             setRequests(prev => {
                 if (prev.find(r => r.id === payload.new.id)) return prev;
-                const newReq = { ...payload.new } as RequestCard;
-                if (typeof newReq.logs === 'string') {
-                    try {
-                        newReq.logs = JSON.parse(newReq.logs);
-                    } catch (e) {
-                        newReq.logs = [];
-                    }
-                }
                 return [...prev, newReq].sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime());
             });
         } else if (payload.eventType === 'UPDATE') {
-            setRequests(prev => {
-                const updatedReq = { ...payload.new } as RequestCard;
-                if (typeof updatedReq.logs === 'string') {
-                    try {
-                        updatedReq.logs = JSON.parse(updatedReq.logs);
-                    } catch (e) {
-                        updatedReq.logs = [];
-                    }
+            const updatedReq = { ...payload.new } as RequestCard;
+            if (typeof updatedReq.logs === 'string') {
+                try {
+                    updatedReq.logs = JSON.parse(updatedReq.logs);
+                } catch (e) {
+                    updatedReq.logs = [];
                 }
+            }
+
+            // Hallazgo 4: Notificación Global para cambios de estado
+            const oldReq = requests.find(r => r.id === updatedReq.id);
+            const lastLog = updatedReq.logs[updatedReq.logs.length - 1];
+            
+            if (lastLog && lastLog.actor !== currentUser?.name) {
+                if (oldReq && oldReq.status !== updatedReq.status) {
+                    addNotification('PROCESS', 'Fase Actualizada', `${lastLog.actor} movió el expediente a ${updatedReq.status}`, updatedReq.id);
+                } else if (oldReq && oldReq.assignedAnalyst !== updatedReq.assignedAnalyst && updatedReq.assignedAnalyst) {
+                    addNotification('SUCCESS', 'Asignación Técnica', `${lastLog.actor} designó a ${updatedReq.assignedAnalyst}`, updatedReq.id);
+                }
+            }
+
+            setRequests(prev => {
                 const updated = prev.map(r => r.id === payload.new.id ? updatedReq : r);
                 return updated.sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime());
             });
@@ -664,6 +688,11 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     if (rule.requiresAnalyst && !req.assignedAnalyst) return { allowed: false, reason: 'Debe designar un Responsable Técnico antes de la ejecución.' };
     
+    // Validación de Cierre Comercial (Único)
+    if (target === Status.FINALIZADO && req.clientType === 'ONE_OFF' && req.paymentProportion !== 'FULL') {
+        return { allowed: false, reason: 'Control Comercial: No se puede finalizar un expediente Único sin confirmación de Pago Total.' };
+    }
+    
     return { allowed: true };
   }, [currentUser, activeRole]);
 
@@ -835,6 +864,27 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         
     const now = new Date().toISOString();
     const targetAnalyst = users.find(u => u.name === name);
+    
+    // Hallazgo 3: Gestión de Jefatura Responsable (Auto-asignación si el actor es Admin/SuperAdmin)
+    let finalResponsibleHead = localReq.responsibleHead;
+    let finalResponsibleHeadId = localReq.responsibleHeadId;
+
+    if (activeRole === UserRole.HEAD && currentUser) {
+        finalResponsibleHead = currentUser.name;
+        finalResponsibleHeadId = currentUser.id;
+    } else if ((activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN) && (localReq.responsibleHead === 'Pendiente de asignación')) {
+        // Si asigna un Admin, buscamos si hay un HEAD en el área
+        const areaHead = users.find(u => u.role === UserRole.HEAD && (u.areas?.includes(localReq.area) || u.area === localReq.area));
+        if (areaHead) {
+            finalResponsibleHead = areaHead.name;
+            finalResponsibleHeadId = areaHead.id;
+        } else if (currentUser) {
+            // Si no hay HEAD, el administrador asume la supervisión
+            finalResponsibleHead = currentUser.name;
+            finalResponsibleHeadId = currentUser.id;
+        }
+    }
+
     const newLog = createAuditLog(`DESIGNACIÓN: Responsable Técnico asignado: ${name}`);
     
     // Actualización Optimista
@@ -842,8 +892,8 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         ...localReq, 
         assignedAnalyst: name, 
         assignedAnalystId: targetAnalyst?.id || null,
-        responsibleHead: activeRole === UserRole.HEAD && currentUser ? currentUser.name : localReq.responsibleHead,
-        responsibleHeadId: activeRole === UserRole.HEAD && currentUser ? currentUser.id : localReq.responsibleHeadId,
+        responsibleHead: finalResponsibleHead,
+        responsibleHeadId: finalResponsibleHeadId,
         status: Status.EJECUCION, 
         lastUpdated: now, 
         logs: [...localReq.logs, newLog] 
@@ -860,8 +910,8 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                     ...finalUpdated,
                     assignedAnalyst: name,
                     assignedAnalystId: targetAnalyst?.id || null,
-                    responsibleHead: activeRole === UserRole.HEAD && currentUser ? currentUser.name : finalUpdated.responsibleHead,
-                    responsibleHeadId: activeRole === UserRole.HEAD && currentUser ? currentUser.id : finalUpdated.responsibleHeadId,
+                    responsibleHead: finalResponsibleHead,
+                    responsibleHeadId: finalResponsibleHeadId,
                     status: Status.EJECUCION
                 };
                 await db.saveRequest(fullUpdate);
@@ -873,8 +923,8 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                     ...reqToUpdate,
                     assignedAnalyst: name,
                     assignedAnalystId: targetAnalyst?.id || null,
-                    responsibleHead: activeRole === UserRole.HEAD && currentUser ? currentUser.name : reqToUpdate.responsibleHead,
-                    responsibleHeadId: activeRole === UserRole.HEAD && currentUser ? currentUser.id : reqToUpdate.responsibleHeadId,
+                    responsibleHead: finalResponsibleHead,
+                    responsibleHeadId: finalResponsibleHeadId,
                     status: Status.EJECUCION,
                     lastUpdated: now,
                     logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs

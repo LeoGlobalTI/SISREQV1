@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useSisreq } from '../context/SisreqContext';
 import { Status, Area, Priority, UserRole, RequestCard } from '../types';
+import { SLA_THRESHOLDS } from '../constants';
 import { 
     BarChart3, CheckCircle2, Clock, 
     Zap, Layers, Target, PieChart,
@@ -56,7 +57,7 @@ export const ReportsView: React.FC = () => {
             const start = new Date(curr.createdAt).getTime();
             const end = new Date(curr.finishedAt!).getTime();
             const days = (end - start) / (1000 * 60 * 60 * 24);
-            if (days <= 5) withinSlaCount++;
+            if (days <= SLA_THRESHOLDS.WARNING_DAYS) withinSlaCount++;
             return acc + (end - start);
         }, 0);
         avgDays = Number((totalMs / (1000 * 60 * 60 * 24) / completedItems.length).toFixed(1));
@@ -77,8 +78,8 @@ export const ReportsView: React.FC = () => {
       .map(r => {
         const ageDays = Number(((now - new Date(r.createdAt).getTime()) / (1000 * 60 * 60 * 24)).toFixed(1));
         let riskLevel: 'NORMAL' | 'WARNING' | 'BREACHED' = 'NORMAL';
-        if (ageDays > 5) riskLevel = 'BREACHED';
-        else if (ageDays >= 3.5) riskLevel = 'WARNING';
+        if (ageDays >= SLA_THRESHOLDS.WARNING_DAYS) riskLevel = 'BREACHED';
+        else if (ageDays >= SLA_THRESHOLDS.NORMAL_DAYS) riskLevel = 'WARNING';
         return { request: r, ageDays, riskLevel };
       })
       .filter(item => item.riskLevel !== 'NORMAL')
@@ -180,8 +181,8 @@ export const ReportsView: React.FC = () => {
       const end = r.finishedAt ? new Date(r.finishedAt).getTime() : Date.now();
       const days = ((end - start) / (1000 * 60 * 60 * 24)).toFixed(1);
       const compliesSla = r.status === Status.FINALIZADO 
-        ? (Number(days) <= 5 ? 'SI (<=5d)' : 'NO (>5d)') 
-        : (Number(days) <= 5 ? 'EN PLAZO' : 'EXCEDIDO');
+        ? (Number(days) <= SLA_THRESHOLDS.WARNING_DAYS ? 'SI' : 'NO') 
+        : (Number(days) <= SLA_THRESHOLDS.WARNING_DAYS ? 'EN PLAZO' : 'EXCEDIDO');
       const clientTypeLabel = r.clientType === 'ONE_OFF' ? 'Único' : 'Recurrente';
       const paymentRefLabel = r.clientType === 'ONE_OFF' ? (r.paymentProportion === 'ADVANCE' ? 'Anticipo' : 'Total') : 'N/A';
       const totalAmountVal = r.clientType === 'ONE_OFF' ? (r.totalAmount || 0) : 0;

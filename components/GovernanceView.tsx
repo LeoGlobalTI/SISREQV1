@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { VERSIONS, CURRENT_VERSION } from '../constants';
+import { VERSIONS, CURRENT_VERSION, SLA_THRESHOLDS } from '../constants';
 
 export const GovernanceView: React.FC = () => {
   const { requests, users, organizationAreas } = useSisreq();
@@ -20,21 +20,25 @@ export const GovernanceView: React.FC = () => {
     const deleted = requests.filter(r => r.isDeleted).length;
     const active = requests.filter(r => !r.isDeleted);
     
-    // SLA Breaches
+    // SLA Breaches (Unified Threshholds)
     let slaWarning = 0;
     let slaCritical = 0;
     const now = new Date();
     active.forEach(r => {
       if (r.status !== Status.FINALIZADO && !r.isReturned) {
         const daysOpen = Math.floor((now.getTime() - new Date(r.createdAt).getTime()) / (1000 * 3600 * 24));
-        if (daysOpen > 30) slaCritical++;
-        else if (daysOpen > 15) slaWarning++;
+        if (daysOpen >= SLA_THRESHOLDS.CRITICAL_DAYS) slaCritical++;
+        else if (daysOpen >= SLA_THRESHOLDS.WARNING_DAYS) slaWarning++;
       }
     });
 
     // Integrity & Financial Risks
-    const legacyIds = active.filter(r => !r.id.startsWith('p-')).length; // Detect old genUUIDs
+    const legacyIds = active.filter(r => !r.id.startsWith('p-')).length;
     const missingFinances = active.filter(r => r.clientType === 'ONE_OFF' && (!r.totalAmount || r.totalAmount <= 0)).length;
+
+    // Deletion Rate (Hallazgo 2)
+    const deletionRate = total > 0 ? Math.round((deleted / total) * 100) : 0;
+    const isDeletionAbnormal = deletionRate > 15; // Más del 15% de descarte es sospechoso
 
     // Orphans / Unassigned
     const noAnalyst = active.filter(r => 
@@ -51,14 +55,16 @@ export const GovernanceView: React.FC = () => {
         score -= (noAnalyst / total) * 20;
         score -= (missingFinances / total) * 25;
         score -= (legacyIds / total) * 5;
+        if (isDeletionAbnormal) score -= 10;
     }
     score -= (unassignedUsers * 1.5);
     score = Math.max(0, Math.min(100, Math.round(score)));
 
     const anomalies = [
-      { type: 'ERROR', title: 'SLA Crítico Vencido', count: slaCritical, desc: 'Expedientes abiertos por más de 30 días.' },
+      { type: 'ERROR', title: 'SLA Crítico Vencido', count: slaCritical, desc: `Expedientes abiertos por más de ${SLA_THRESHOLDS.CRITICAL_DAYS} días.` },
       { type: 'WARNING', title: 'Riesgo Financiero', count: missingFinances, desc: 'Servicios únicos sin monto total definido.' },
       { type: 'ERROR', title: 'Ejecución sin Analista', count: noAnalyst, desc: 'Expedientes en progreso sin responsable.' },
+      { type: isDeletionAbnormal ? 'ERROR' : 'INFO', title: 'Tasa de Descarte', count: `${deletionRate}%`, desc: isDeletionAbnormal ? 'Anomalía: Alto volumen de tickets eliminados (posible manipulación).' : 'Volumen normal de tickets descartados.' },
       { type: 'WARNING', title: 'IDs Legados Detectados', count: legacyIds, desc: 'Registros previos a la actualización de integridad v4.3.0.' },
       { type: 'INFO', title: 'Usuarios sin Área', count: unassignedUsers, desc: 'Colaboradores pendientes de asignación operativa.' },
     ];

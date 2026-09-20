@@ -107,6 +107,18 @@ export const STATUS_BADGE_COLORS: Record<Status, string> = {
 
 export const VERSIONS: VersionEntry[] = [
   {
+    version: 'v4.3.2-INTEGRITY',
+    codename: 'Unified Governance & Security',
+    date: '20 de Septiembre 2026',
+    type: 'PATCH',
+    highlights: [
+      'Estandarización de SLA: Unificación de umbrales (3.5d, 5d, 15d, 30d) en todos los módulos analíticos.',
+      'Monitor de Descarte: Nuevo KPI de Tasa de Descarte en Gobernanza para detectar posibles manipulaciones de métricas.',
+      'Blindaje de Sesión: Validación activa del estado del usuario contra la base de datos para cierre de sesión inmediato en cuentas inactivas.',
+      'Refinamiento de Reportes: Sincronización de semántica de plazos y estados en exportaciones de datos.'
+    ]
+  },
+  {
     version: 'v4.3.1-LAYOUT',
     codename: 'Technical Context & UX Flow',
     date: '18 de Septiembre 2026',
@@ -189,3 +201,11 @@ export const VERSIONS: VersionEntry[] = [
 ];
 
 export const CURRENT_VERSION = VERSIONS[0].version;
+
+// --- SLA & OPERATIONAL THRESHOLDS ---
+export const SLA_THRESHOLDS = {
+  NORMAL_DAYS: 3.5,    // Verde: Bajo este tiempo el servicio es óptimo
+  WARNING_DAYS: 5,     // Ámbar: Umbral de advertencia para gestión proactiva
+  CRITICAL_DAYS: 15,   // Rojo: Riesgo operacional, requiere intervención inmediata
+  BREACHED_DAYS: 30    // Crítico: Incumplimiento total de compromiso de servicio
+};
