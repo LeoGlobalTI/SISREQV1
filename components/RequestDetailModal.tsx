@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSisreq } from '../context/SisreqContext';
 import { STATUS_BADGE_COLORS } from '../constants';
-import { UserRole, Status } from '../types';
+import { UserRole, Status, Priority } from '../types';
 import { 
     X, User, Building, Clock, Save, Send, 
     RotateCcw, CheckCircle2, Hash, PlayCircle, Trash2,
@@ -37,6 +37,7 @@ export const RequestDetailModal: React.FC = () => {
   const [editPaymentProportion, setEditPaymentProportion] = useState<'ADVANCE' | 'FULL'>('ADVANCE');
   const [editPaymentAmount, setEditPaymentAmount] = useState<string>('');
   const [editRemainingAmount, setEditRemainingAmount] = useState<string>('');
+  const [editPriority, setEditPriority] = useState<Priority>(Priority.MEDIUM);
   const [newComment, setNewComment] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -72,6 +73,7 @@ export const RequestDetailModal: React.FC = () => {
         setEditPaymentAmount(data.paymentAmount ? String(data.paymentAmount) : '');
         const remaining = data.totalAmount && data.paymentAmount ? data.totalAmount - data.paymentAmount : 0;
         setEditRemainingAmount(remaining > 0 ? String(remaining) : '');
+        setEditPriority(data.priority);
         setIsEditing(false);
         setShowReturnInput(false);
         setShowAnalystSelect(false);
@@ -183,7 +185,8 @@ export const RequestDetailModal: React.FC = () => {
                 isOneOff ? 'ONE_OFF' : 'FREQUENT',
                 isOneOff ? editPaymentProportion : undefined,
                 isOneOff ? pAmount : undefined,
-                isOneOff ? tAmount : undefined
+                isOneOff ? tAmount : undefined,
+                editPriority
             );
             setIsEditing(false);
         } catch (e: any) {
@@ -458,6 +461,32 @@ export const RequestDetailModal: React.FC = () => {
                         <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">GESTIÓN ÁREA</p>
                         <p className="text-[10px] font-black text-slate-900 uppercase">{data.area}</p>
                     </div>
+                </div>
+
+                <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">PRIORIDAD Y ESCALAMIENTO</p>
+                    {isEditing ? (
+                        <select 
+                            value={editPriority} 
+                            onChange={e => setEditPriority(e.target.value as Priority)}
+                            className="w-full bg-white border border-indigo-200 rounded-lg px-2 py-1.5 text-[10px] font-black text-slate-800 outline-none focus:border-indigo-500 uppercase shadow-sm"
+                        >
+                            {Object.values(Priority).map(p => (
+                                <option key={p} value={p}>{p}</option>
+                            ))}
+                        </select>
+                    ) : (
+                        <div className="flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full ${
+                                data.priority === Priority.HIGH ? 'bg-red-600 animate-pulse' : 
+                                data.priority === Priority.MEDIUM ? 'bg-amber-600' : 'bg-emerald-600'
+                            }`} />
+                            <p className={`text-[10px] font-black uppercase ${
+                                data.priority === Priority.HIGH ? 'text-red-600' : 
+                                data.priority === Priority.MEDIUM ? 'text-amber-600' : 'text-emerald-600'
+                            }`}>{data.priority}</p>
+                        </div>
+                    )}
                 </div>
 
                 {/* Alcance Técnico */}

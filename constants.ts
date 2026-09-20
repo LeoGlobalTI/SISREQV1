@@ -107,6 +107,19 @@ export const STATUS_BADGE_COLORS: Record<Status, string> = {
 
 export const VERSIONS: VersionEntry[] = [
   {
+    version: 'v4.3.3-STABILITY',
+    codename: 'Operational Flow & Traceability',
+    date: '20 de Septiembre 2026',
+    type: 'PATCH',
+    highlights: [
+      'Integridad de IDs: Implementación de prefijos p- en UUIDs para eliminar falsos positivos en auditoría.',
+      'Sincronización Atómica: Nuevo motor de guardado que previene pérdida de datos en logs por concurrencia.',
+      'Auditoría Granular: Trazabilidad específica de cambios en títulos, alcances y prioridades.',
+      'Escalamiento Directo: Habilitación de cambio de prioridad con registro de historial en el detalle del expediente.',
+      'Validación Financiera: Bloqueo preventivo de registros Únicos con monto cero en la fase de creación.'
+    ]
+  },
+  {
     version: 'v4.3.2-INTEGRITY',
     codename: 'Unified Governance & Security',
     date: '20 de Septiembre 2026',

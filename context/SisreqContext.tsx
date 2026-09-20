@@ -76,14 +76,18 @@ const DEFAULT_SETTINGS: NotificationSettings = {
 };
 
 const genUUID = () => {
+    let id = '';
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-        return crypto.randomUUID();
+        id = crypto.randomUUID();
+    } else {
+        id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = (Math.random() * 16) | 0;
+            const v = c === 'x' ? r : (r & 0x3) | 0x8;
+            return v.toString(16);
+        });
     }
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-        const r = (Math.random() * 16) | 0;
-        const v = c === 'x' ? r : (r & 0x3) | 0x8;
-        return v.toString(16);
-    });
+    // Hallazgo 1: Prefijo de Integridad v4.3.2 (Evita falsos positivos de 'Legado')
+    return `p-${id}`;
 };
 
 const WORKFLOW_MATRIX: TransitionRule[] = [
@@ -710,6 +714,11 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const responsibleHeadId = null;
 
     const isOneOff = clientType === 'ONE_OFF';
+    // Hallazgo 5: Validación reforzada de montos iniciales
+    if (isOneOff && (!totalAmount || totalAmount <= 0)) {
+        throw new Error("Control Financiero: El monto total es obligatorio para registros Únicos.");
+    }
+
     const finalClientType: 'FREQUENT' | 'ONE_OFF' = isOneOff ? 'ONE_OFF' : 'FREQUENT';
     const finalPaymentAmount = isOneOff && (paymentAmount !== undefined && paymentAmount !== null && !isNaN(paymentAmount) && paymentAmount > 0) ? paymentAmount : undefined;
     const finalTotalAmount = isOneOff && (totalAmount !== undefined && totalAmount !== null && !isNaN(totalAmount) && totalAmount > 0) ? totalAmount : undefined;
@@ -976,7 +985,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     })();
   };
 
-  const updateRequestDetails = async (id: string, title: string, detail: string, clientType?: 'FREQUENT' | 'ONE_OFF', paymentProportion?: 'ADVANCE' | 'FULL', paymentAmount?: number, totalAmount?: number) => {
+  const updateRequestDetails = async (id: string, title: string, detail: string, clientType?: 'FREQUENT' | 'ONE_OFF', paymentProportion?: 'ADVANCE' | 'FULL', paymentAmount?: number, totalAmount?: number, priority?: Priority) => {
     const localReq = requests.find(r => r.id === id);
     if (!localReq || localReq.isDeleted) return;
     
@@ -986,61 +995,71 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (localReq.status === Status.FINALIZADO && activeRole !== UserRole.SUPERADMIN)
         throw new Error("Registro inmutable: El expediente ya ha sido finalizado.");
 
+    // Hallazgo 4: Trazabilidad granular de cambios (Auditoría de Prioridad y Metadatos)
+    const logs: string[] = [];
+    if (priority && priority !== localReq.priority) {
+        logs.push(`ESCALAMIENTO: Prioridad actualizada de ${localReq.priority} a ${priority}`);
+    }
+    if (title !== localReq.title) logs.push(`EDICIÓN: Título actualizado`);
+    if (detail !== localReq.detail) logs.push(`EDICIÓN: Alcance técnico modificado`);
+    
     const isOneOff = (clientType !== undefined ? clientType : localReq.clientType) === 'ONE_OFF';
+    if (isOneOff && (!totalAmount || totalAmount <= 0)) {
+        throw new Error("Control Financiero: El monto total es obligatorio para registros Únicos.");
+    }
+
     const finalClientType: 'FREQUENT' | 'ONE_OFF' = isOneOff ? 'ONE_OFF' : 'FREQUENT';
     const finalPaymentAmount = isOneOff && (paymentAmount !== undefined && paymentAmount !== null && !isNaN(paymentAmount) && paymentAmount > 0) ? paymentAmount : undefined;
     const finalTotalAmount = isOneOff && (totalAmount !== undefined && totalAmount !== null && !isNaN(totalAmount) && totalAmount > 0) ? totalAmount : undefined;
     const finalPaymentProportion = isOneOff ? (paymentProportion || (localReq.paymentProportion as any) || 'ADVANCE') : undefined;
 
     const now = new Date().toISOString();
-    const newLog = createAuditLog(`MODIFICACIÓN: Actualización de metadatos del expediente (Título/Alcance/Modalidad Comercial: ${isOneOff ? 'Único' : 'Recurrente'}).`);
+    const logMessages = logs.length > 0 ? logs : [`MODIFICACIÓN: Actualización de metadatos del expediente (Modalidad: ${isOneOff ? 'Único' : 'Recurrente'}).`];
+    const newLogs = logMessages.map(msg => createAuditLog(msg));
 
     // Actualización Optimista
     const updatedLocal: RequestCard = { 
         ...localReq, 
         title, 
         detail, 
+        priority: priority || localReq.priority,
         clientType: finalClientType,
         paymentProportion: finalPaymentProportion as any,
         paymentAmount: finalPaymentAmount,
         totalAmount: finalTotalAmount,
         lastUpdated: now, 
-        logs: [...localReq.logs, newLog] 
+        logs: [...localReq.logs, ...newLogs] 
     };
     setRequests(prev => prev.map(r => r.id === id ? updatedLocal : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
 
-    // Sincronización en segundo plano
+    // Hallazgo 2: Sincronización robusta (Fetch antes de guardar para no pisar logs de otros)
     (async () => {
         try {
-            const finalUpdated = await db.appendRequestLog(id, newLog);
-            if (finalUpdated) {
-                const fullUpdate = {
-                    ...finalUpdated,
-                    title,
-                    detail,
-                    clientType: finalClientType,
-                    paymentProportion: finalPaymentProportion as any,
-                    paymentAmount: finalPaymentAmount,
-                    totalAmount: finalTotalAmount
-                };
-                await db.saveRequest(fullUpdate);
-                setRequests(prev => prev.map(r => r.id === id ? fullUpdate : r));
-            } else {
-                const serverReq = await db.getRequestById(id);
-                const reqToUpdate = serverReq || localReq;
-                const manualUpdated = {
-                    ...reqToUpdate,
-                    title,
-                    detail,
-                    clientType: finalClientType,
-                    paymentProportion: finalPaymentProportion as any,
-                    paymentAmount: finalPaymentAmount,
-                    totalAmount: finalTotalAmount,
-                    lastUpdated: now,
-                    logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs
-                };
-                await db.saveRequest(manualUpdated);
-            }
+            const serverReq = await db.getRequestById(id);
+            const reqToUpdate = serverReq || localReq;
+            
+            // Mezclamos logs para asegurar concurrencia
+            const mergedLogs = [...reqToUpdate.logs];
+            newLogs.forEach(nLog => {
+                if (!mergedLogs.find(ml => ml.id === nLog.id)) {
+                    mergedLogs.push(nLog);
+                }
+            });
+
+            const manualUpdated = {
+                ...reqToUpdate,
+                title,
+                detail,
+                priority: priority || reqToUpdate.priority,
+                clientType: finalClientType,
+                paymentProportion: finalPaymentProportion as any,
+                paymentAmount: finalPaymentAmount,
+                totalAmount: finalTotalAmount,
+                lastUpdated: now,
+                logs: mergedLogs
+            };
+            await db.saveRequest(manualUpdated);
+            setRequests(prev => prev.map(r => r.id === id ? manualUpdated : r));
         } catch (e) {
             console.error("DB Sync Error:", e);
         }
