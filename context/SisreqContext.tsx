@@ -772,6 +772,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Sincronización en segundo plano para evitar sobreescritura de logs
     (async () => {
         try {
+            await db.saveRequest(updatedLocal);
             const finalUpdated = await db.appendRequestLog(id, newLog);
             if (finalUpdated) {
                 setRequests(prev => prev.map(r => r.id === id ? finalUpdated : r));
