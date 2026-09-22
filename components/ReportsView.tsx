@@ -92,9 +92,12 @@ export const ReportsView: React.FC = () => {
     const oneOffAdvance = oneOffRequests.filter(r => r.paymentProportion === 'ADVANCE').length;
     const oneOffFull = oneOffRequests.filter(r => r.paymentProportion === 'FULL').length;
 
+    const internalRoutineRequests = filteredRequests.filter(r => r.sourceType === 'INTERNAL_PROCESS').length;
+    
     return { 
         total, completed, pending, completionRate, byStatus, avgDays, 
         slaComplianceRate, byPriority, slaBottlenecks,
+        internalRoutineRequests,
         oneOff: { 
             count: oneOffRequests.length, 
             revenue: oneOffTotalRevenue, 
@@ -292,7 +295,7 @@ export const ReportsView: React.FC = () => {
             </div>
 
             {/* NIVEL 2: KPIs CRÍTICOS (HERO METRICS) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-5">
                     <div className="p-4 bg-slate-900 text-white rounded-2xl shadow-sm">
                         <BarChart3 size={24} />
@@ -300,6 +303,16 @@ export const ReportsView: React.FC = () => {
                     <div>
                         <div className="text-sm font-bold text-slate-500 mb-1">Total Atendidos</div>
                         <div className="text-3xl font-black text-slate-900 tracking-tight">{stats.total}</div>
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-5">
+                    <div className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl shadow-sm border border-indigo-100">
+                        <Zap size={24} />
+                    </div>
+                    <div>
+                        <div className="text-sm font-bold text-slate-500 mb-1">Generados por Rutina</div>
+                        <div className="text-3xl font-black text-slate-900 tracking-tight">{stats.internalRoutineRequests}</div>
                     </div>
                 </div>
 

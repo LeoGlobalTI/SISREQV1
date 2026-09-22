@@ -87,7 +87,7 @@ const genUUID = () => {
         });
     }
     // Hallazgo 1: Prefijo de Integridad v4.3.2 (Evita falsos positivos de 'Legado')
-    return `p-${id}`;
+    return id;
 };
 
 const WORKFLOW_MATRIX: TransitionRule[] = [
@@ -319,7 +319,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                               
                               if (today >= triggerDate) {
                                   // ID determinista para evitar duplicados en inyecciones simultáneas
-                                  const newId = `p-${process.id.substring(0,8)}-a-${alert.id.substring(0,8)}-d-${alert.triggerDate}`.substring(0, 36);
+                                  const newId = genUUID();
                                   const timestamp = new Date().toISOString();
                                   
                                   const assignedUser = alert.assignedToId ? loadedUsers.find(u => u.id === alert.assignedToId) : null;
@@ -352,7 +352,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                                       sourceType: 'INTERNAL_PROCESS'
                                   };
                                   
-                                  await db.saveRequest(newReq);
+                                  try { await db.saveRequest(newReq); } catch (e) { console.error(e); continue; }
                                   
                                   // Manejo de frecuencia: Semanal, Mensual, Anual o Puntual
                                   if (alert.frequency && alert.frequency !== 'ONCE') {

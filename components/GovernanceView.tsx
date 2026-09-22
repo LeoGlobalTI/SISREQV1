@@ -13,6 +13,12 @@ import { VERSIONS, CURRENT_VERSION, SLA_THRESHOLDS } from '../constants';
 export const GovernanceView: React.FC = () => {
   const { requests, users, organizationAreas } = useSisreq();
   const [isExporting, setIsExporting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = () => {
+      setIsRefreshing(true);
+      setTimeout(() => setIsRefreshing(false), 800);
+  };
 
   // --- AUDIT METRICS ---
   const auditStats = useMemo(() => {
@@ -215,8 +221,11 @@ export const GovernanceView: React.FC = () => {
                           Monitor de Anomalías Operativas
                         </h3>
                       </div>
-                      <button className="text-[10px] font-bold text-indigo-600 uppercase flex items-center gap-1 hover:underline">
-                          <RefreshCw size={12} /> Actualizar
+                      <button 
+                        onClick={handleRefresh}
+                        className="text-[10px] font-bold text-indigo-600 uppercase flex items-center gap-1 hover:underline"
+                      >
+                          <RefreshCw size={12} className={isRefreshing ? 'animate-spin' : ''} /> Actualizar
                       </button>
                   </div>
                   
