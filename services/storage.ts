@@ -368,7 +368,8 @@ CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`
         this.setCached(CACHE_REQUESTS, updated);
 
         try {
-            const { error } = await this.supabase.from(STORE_REQUESTS).upsert(req);
+            const { totalAmount, paymentAmount, paymentProportion, ...reqToSave } = req as any;
+            const { error } = await this.supabase.from(STORE_REQUESTS).upsert(reqToSave);
             if (error) {
                 console.error('ERROR al guardar requerimiento en Supabase (Detalles):', {
                     error: error.message,
