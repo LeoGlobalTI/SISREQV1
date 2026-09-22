@@ -21,6 +21,7 @@ export const RequestDetailModal: React.FC = () => {
     returnRequest, 
     assignAnalyst,
     updateRequestDetails,
+    finalizeOneOffRequest,
     addLog,
     users,
     activeRole,
