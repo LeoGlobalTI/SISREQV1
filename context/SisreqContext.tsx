@@ -741,8 +741,13 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setRequests(prev => [newReq, ...prev]);
     addNotification('SUCCESS', 'Nuevo Expediente', `Ticket registrado: ${title}`, newReq.id);
 
-    // Sincronización en segundo plano
-    db.saveRequest(newReq).catch(console.error);
+    // Sincronización
+    try {
+        await db.saveRequest(newReq);
+    } catch (error) {
+        console.error("Error al persistir nuevo ticket Único:", error);
+        addNotification('WARNING', 'Error de Persistencia', 'El ticket no pudo guardarse en el servidor.');
+    }
   };
 
   const updateStatus = async (id: string, newStatus: Status) => {

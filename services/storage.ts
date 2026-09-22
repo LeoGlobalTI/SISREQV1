@@ -369,9 +369,18 @@ CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`
 
         try {
             const { error } = await this.supabase.from(STORE_REQUESTS).upsert(req);
-            if (error) console.warn('Aviso al guardar requerimiento en Supabase:', error.message);
+            if (error) {
+                console.error('ERROR al guardar requerimiento en Supabase (Detalles):', {
+                    error: error.message,
+                    hint: error.hint,
+                    details: error.details,
+                    code: error.code,
+                    reqId: req.id,
+                    clientType: (req as any).clientType
+                });
+            }
         } catch (e) {
-            console.warn('Excepción de red al guardar requerimiento:', e);
+            console.error('Excepción crítica al guardar requerimiento:', e);
         }
     }
 
