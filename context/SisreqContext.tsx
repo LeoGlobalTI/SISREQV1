@@ -46,6 +46,7 @@ interface SisreqContextType {
   assignAnalyst: (id: string, analystName: string) => Promise<void>;
   addLog: (id: string, message: string) => Promise<void>;
   updateRequestDetails: (id: string, title: string, detail: string, clientType?: 'FREQUENT' | 'ONE_OFF', paymentProportion?: 'ADVANCE' | 'FULL', paymentAmount?: number, totalAmount?: number) => Promise<void>;
+  finalizeOneOffRequest: (id: string, totalAmount: number) => Promise<void>;
   deleteRequest: (id: string) => Promise<void>;
   hardDeleteAllRequests: () => Promise<void>;
   
@@ -693,9 +694,12 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (rule.requiresAnalyst && !req.assignedAnalyst) return { allowed: false, reason: 'Debe designar un Responsable Técnico antes de la ejecución.' };
     
     // Validación de Cierre Comercial (Único)
+    // Nota: La validación ahora se maneja explícitamente en el modal con confirmación de usuario.
+    /*
     if (target === Status.FINALIZADO && req.clientType === 'ONE_OFF' && req.paymentProportion !== 'FULL') {
         return { allowed: false, reason: 'Control Comercial: No se puede finalizar un expediente Único sin confirmación de Pago Total.' };
     }
+    */
     
     return { allowed: true };
   }, [currentUser, activeRole]);
@@ -1206,11 +1210,37 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           return;
       }
       
-      // Actualización Optimista (Instantánea y sin bloqueos)
+      // Actualización Optimista
       setScheduledProcesss(prev => prev.filter(p => p.id !== id));
       
-      // Sincronización en segundo plano (Fire and Forget)
+      // Sincronización
       db.deleteScheduledProcess(id).catch(console.error);
+  };
+
+  const finalizeOneOffRequest = async (id: string, totalAmount: number) => {
+      const localReq = requests.find(r => r.id === id);
+      if (!localReq) return;
+      
+      const now = new Date().toISOString();
+      const updatedLocal: RequestCard = {
+          ...localReq,
+          status: Status.FINALIZADO,
+          paymentProportion: 'FULL',
+          paymentAmount: totalAmount,
+          totalAmount: totalAmount,
+          lastUpdated: now,
+          finishedAt: now,
+          logs: [...localReq.logs, createAuditLog(`CIERRE: Pago total confirmado ($${totalAmount}) y expediente finalizado.`)]
+      };
+
+      setRequests(prev => prev.map(r => r.id === id ? updatedLocal : r));
+      
+      try {
+          await db.saveRequest(updatedLocal);
+      } catch (e) {
+          console.error("Error al finalizar ticket único:", e);
+          throw new Error("No se pudo persistir el cierre del ticket.");
+      }
   };
 
   const bypassConnectionError = useCallback(() => {
@@ -1225,7 +1255,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       bypassConnectionError,
       login, logout, setActiveRole, toggleSupervisorMode, setViewMode, addUser, updateUser, deleteUser,
       addOrganizationArea, updateOrganizationArea, deleteOrganizationArea,
-      setSelectedRequestId, setGlobalFilterArea, addRequest, updateStatus, returnRequest, assignAnalyst, addLog, updateRequestDetails, deleteRequest, hardDeleteAllRequests,
+      setSelectedRequestId, setGlobalFilterArea, addRequest, updateStatus, returnRequest, assignAnalyst, addLog, updateRequestDetails, finalizeOneOffRequest, deleteRequest, hardDeleteAllRequests,
       addProcess, updateProcess, deleteProcess,
       addNotification, updateNotificationSettings, markNotificationAsRead, clearNotifications,
       canUserTransition, canUserSeeRequest, isActionable

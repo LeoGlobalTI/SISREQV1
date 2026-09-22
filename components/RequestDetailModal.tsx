@@ -97,16 +97,19 @@ export const RequestDetailModal: React.FC = () => {
   const handleTransition = async (targetStatus: Status) => {
     setActionError(null);
     try {
-        if (targetStatus === Status.FINALIZADO && data.clientType === 'ONE_OFF') {
+        if (targetStatus === Status.FINALIZADO && data.clientType === 'ONE_OFF' && data.paymentProportion !== 'FULL') {
             const total = data.totalAmount || 0;
-            const message = data.paymentProportion === 'ADVANCE' 
-                ? `Confirmación de Pago Final: Se requiere confirmar la recepción del monto total de $${total.toLocaleString()} (incluyendo el anticipo ya recibido) para cerrar el expediente.`
-                : `Confirmación de Pago: Se requiere confirmar la recepción del monto total de $${total.toLocaleString()} para cerrar el expediente.`;
+            const message = `Confirmación de Pago Final: ¿Confirma la recepción del monto total de $${total.toLocaleString()} para cerrar el expediente?`;
             
             const confirmed = confirm(message);
             if (!confirmed) return;
+
+            // Finalizar atómicamente
+            await finalizeOneOffRequest(data.id, total);
+        } else {
+            await updateStatus(data.id, targetStatus);
         }
-        await updateStatus(data.id, targetStatus);
+        
         handleClose();
     } catch (e: any) {
         setActionError(e.message);
