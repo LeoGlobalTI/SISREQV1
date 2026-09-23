@@ -586,17 +586,17 @@ export const RequestDetailModal: React.FC = () => {
                 )}
 
                 <div className="flex items-center gap-2.5">
-                    {isSuperAdmin && (
+                    {isSuperAdmin || (currentUser?.canReceiveAndDerive && data.status === Status.RECIBIDO) ? (
                         <button 
                             onClick={handleDeleteRequest}
                             disabled={isDeleting}
                             className={`h-10 w-10 flex items-center justify-center rounded-xl transition-all shadow-xs group border
                             ${isDeleting ? 'bg-slate-100 border-slate-200 text-slate-300 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50 bg-white border-slate-200'}`}
-                            title="Eliminar Expediente (SuperAdmin)"
+                            title="Eliminar Expediente"
                         >
                             {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} className="group-hover:scale-110 transition-transform"/>}
                         </button>
-                    )}
+                    ) : null}
                     <div className="flex-1 flex gap-2">
                         {showReturnButton && !showReturnInput && <button onClick={() => setShowReturnInput(true)} className="flex-1 px-3 h-10 bg-white border border-red-200 text-[9px] font-black text-red-600 rounded-xl uppercase flex items-center justify-center gap-1.5 hover:bg-red-50 transition-colors"><RotateCcw size={13}/> RETORNAR A CENTRAL</button>}
                         {canDeriveUI && <button onClick={() => handleTransition(Status.DERIVACION)} className="flex-1 h-10 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase shadow-md flex items-center justify-center gap-1.5 hover:bg-indigo-700 px-3 transition-all"><UserCheck size={13}/> DERIVAR A UNIDAD</button>}

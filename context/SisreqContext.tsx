@@ -1077,8 +1077,14 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const deleteRequest = useCallback(async (id: string) => {
-    if (activeRole !== UserRole.SUPERADMIN) 
-        throw new Error("Acción Crítica Denegada: Solo Auditoría Master puede archivar registros.");
+    const req = requests.find(r => r.id === id);
+    if (!req) throw new Error("Expediente no encontrado.");
+
+    const canDelete = activeRole === UserRole.SUPERADMIN || 
+                      (canReceiveAndDerive(currentUser) && req.status === Status.RECIBIDO);
+
+    if (!canDelete) 
+        throw new Error("Acción Denegada: No tiene permisos para archivar este registro.");
         
     const actorName = currentUser?.name || 'Sistema';
     const now = new Date().toISOString();
@@ -1095,7 +1101,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // Sincronización en segundo plano (Fire and Forget)
     db.deleteRequest(id, actorName).catch(console.error);
-  }, [addNotification, currentUser, createAuditLog, activeRole]);
+  }, [addNotification, currentUser, createAuditLog, activeRole, requests]);
 
   const hardDeleteAllRequests = async () => {
     if (activeRole !== UserRole.SUPERADMIN) {
