@@ -45,7 +45,7 @@ interface SisreqContextType {
   returnRequest: (id: string, reason: string) => Promise<void>;
   assignAnalyst: (id: string, analystName: string) => Promise<void>;
   addLog: (id: string, message: string) => Promise<void>;
-  updateRequestDetails: (id: string, title: string, detail: string, clientType?: 'FREQUENT' | 'ONE_OFF', paymentProportion?: 'ADVANCE' | 'FULL', paymentAmount?: number, totalAmount?: number) => Promise<void>;
+  updateRequestDetails: (id: string, title: string, detail: string, clientType?: 'FREQUENT' | 'ONE_OFF', paymentProportion?: 'ADVANCE' | 'FULL', paymentAmount?: number, totalAmount?: number, priority?: Priority, area?: Area) => Promise<void>;
   finalizeOneOffRequest: (id: string, totalAmount: number) => Promise<void>;
   deleteRequest: (id: string) => Promise<void>;
   hardDeleteAllRequests: () => Promise<void>;
@@ -693,6 +693,15 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     if (rule.requiresAnalyst && !req.assignedAnalyst) return { allowed: false, reason: 'Debe designar un Responsable Técnico antes de la ejecución.' };
     
+    // Punto 7: Validación de titularidad en el cierre para Analistas Técnicos
+    if (target === Status.FINALIZADO && activeRole === UserRole.ANALYST) {
+        const isAssigned = (req.assignedAnalyst && req.assignedAnalyst === currentUser.name) ||
+                           (req.assignedAnalystId && req.assignedAnalystId === currentUser.id);
+        if (!isAssigned) {
+            return { allowed: false, reason: 'Solo el analista técnico asignado a este expediente puede darlo por finalizado.' };
+        }
+    }
+    
     // Validación de Cierre Comercial (Único)
     // Nota: La validación ahora se maneja explícitamente en el modal con confirmación de usuario.
     /*
@@ -762,47 +771,44 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!check.allowed) throw new Error(check.reason);
     
     const now = new Date().toISOString();
-    const finishedAt = newStatus === Status.FINALIZADO ? now : (localReq.status === Status.FINALIZADO ? null : localReq.finishedAt);
-    const isReturned = newStatus !== Status.RECIBIDO ? false : localReq.isReturned;
-    const newLog = createAuditLog(`TRANSICIÓN: Cambio de fase operativa a ${newStatus}`);
+    const isReopening = localReq.status === Status.FINALIZADO && newStatus === Status.RECIBIDO;
+    const finishedAt = newStatus === Status.FINALIZADO ? now : (newStatus === Status.RECIBIDO ? null : localReq.finishedAt);
+    const isReturned = isReopening ? false : (newStatus !== Status.RECIBIDO ? false : localReq.isReturned);
     
+    const logMessage = isReopening 
+        ? 'REAPERTURA: Expediente reabierto por Auditoría Master y enviado a Bandeja Central'
+        : `TRANSICIÓN: Cambio de fase operativa a ${newStatus}`;
+    const newLog = createAuditLog(logMessage);
+    
+    // Si regresa a Central (por reapertura o retorno), se resetea la asignación
+    const assignedAnalyst = newStatus === Status.RECIBIDO ? null : localReq.assignedAnalyst;
+    const assignedAnalystId = newStatus === Status.RECIBIDO ? null : localReq.assignedAnalystId;
+    const responsibleHead = newStatus === Status.RECIBIDO ? 'Pendiente de asignación' : localReq.responsibleHead;
+    const responsibleHeadId = newStatus === Status.RECIBIDO ? null : localReq.responsibleHeadId;
+
     // Actualización Optimista
     const updatedLocal = { 
         ...localReq, 
         status: newStatus, 
         isReturned,
+        assignedAnalyst,
+        assignedAnalystId,
+        responsibleHead,
+        responsibleHeadId,
         lastUpdated: now, 
         finishedAt: finishedAt, 
         logs: [...localReq.logs, newLog] 
     };
     setRequests(prev => prev.map(r => r.id === id ? updatedLocal : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
-    addNotification('PROCESS', 'Fase Actualizada', `Expediente en ${newStatus}`, id);
+    addNotification('PROCESS', isReopening ? 'Expediente Reabierto' : 'Fase Actualizada', `Expediente en ${newStatus}`, id);
 
-    // Sincronización en segundo plano para evitar sobreescritura de logs
-    (async () => {
-        try {
-            await db.saveRequest(updatedLocal);
-            const finalUpdated = await db.appendRequestLog(id, newLog);
-            if (finalUpdated) {
-                setRequests(prev => prev.map(r => r.id === id ? finalUpdated : r));
-            } else {
-                // Fallback si falla el append atómico
-                const serverReq = await db.getRequestById(id);
-                const reqToUpdate = serverReq || localReq;
-                const manualUpdated = {
-                    ...reqToUpdate,
-                    status: newStatus,
-                    isReturned,
-                    lastUpdated: now,
-                    finishedAt: finishedAt,
-                    logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs
-                };
-                await db.saveRequest(manualUpdated);
-            }
-        } catch (e) {
-            console.error("DB Sync Error:", e);
-        }
-    })();
+    // Persistencia directa y atómica evitando condiciones de carrera
+    try {
+        await db.saveRequest(updatedLocal);
+    } catch (e) {
+        console.error("DB Sync Error al actualizar estado:", e);
+        addNotification('WARNING', 'Error de Persistencia', 'No se pudo sincronizar el cambio de estado con el servidor.', id);
+    }
   };
 
   const returnRequest = async (id: string, reason: string) => {
@@ -815,13 +821,15 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const now = new Date().toISOString();
     const newLog = createAuditLog(`DEVOLUCIÓN: Retornado a Central. Motivo: ${reason}`);
     
-    // Actualización Optimista
+    // Actualización Optimista (Punto 6: restablecer analista y jefatura responsable)
     const updatedLocal = { 
         ...localReq, 
         status: Status.RECIBIDO, 
         isReturned: true, 
         assignedAnalyst: null, 
         assignedAnalystId: null,
+        responsibleHead: 'Pendiente de asignación',
+        responsibleHeadId: null,
         lastUpdated: now, 
         finishedAt: null, 
         logs: [...localReq.logs, newLog] 
@@ -829,43 +837,13 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setRequests(prev => prev.map(r => r.id === id ? updatedLocal : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
     addNotification('WARNING', 'Devolución Técnica', `Ticket retornado: ${reason}`, id);
 
-    // Sincronización en segundo plano
-    (async () => {
-        try {
-            const finalUpdated = await db.appendRequestLog(id, newLog);
-            if (finalUpdated) {
-                // Si el append tuvo éxito, el status puede necesitar actualizarse por separado 
-                // ya que appendRequestLog solo toca logs y lastUpdated por seguridad.
-                // Sin embargo, para mayor simplicidad, aquí forzamos la actualización completa del estado.
-                const fullUpdate = {
-                    ...finalUpdated,
-                    status: Status.RECIBIDO,
-                    isReturned: true,
-                    assignedAnalyst: null,
-                    assignedAnalystId: null,
-                    finishedAt: null
-                };
-                await db.saveRequest(fullUpdate);
-                setRequests(prev => prev.map(r => r.id === id ? fullUpdate : r));
-            } else {
-                const serverReq = await db.getRequestById(id);
-                const reqToUpdate = serverReq || localReq;
-                const manualUpdated = {
-                    ...reqToUpdate,
-                    status: Status.RECIBIDO,
-                    isReturned: true,
-                    assignedAnalyst: null,
-                    assignedAnalystId: null,
-                    lastUpdated: now,
-                    finishedAt: null,
-                    logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs
-                };
-                await db.saveRequest(manualUpdated);
-            }
-        } catch (e) {
-            console.error("DB Sync Error:", e);
-        }
-    })();
+    // Punto 4: Persistencia directa y atómica
+    try {
+        await db.saveRequest(updatedLocal);
+    } catch (e) {
+        console.error("DB Sync Error al retornar expediente:", e);
+        addNotification('WARNING', 'Error de Persistencia', 'No se pudo sincronizar la devolución con el servidor.', id);
+    }
   };
 
   const assignAnalyst = async (id: string, name: string) => {
@@ -904,7 +882,8 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
     }
 
-    const newLog = createAuditLog(`DESIGNACIÓN: Responsable Técnico asignado: ${name}`);
+    const logAction = localReq.assignedAnalyst ? 'REASIGNACIÓN' : 'DESIGNACIÓN';
+    const newLog = createAuditLog(`${logAction}: Responsable Técnico asignado: ${name}`);
     
     // Actualización Optimista
     const updatedLocal = { 
@@ -920,40 +899,13 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setRequests(prev => prev.map(r => r.id === id ? updatedLocal : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
     addNotification('SUCCESS', 'Personal Designado', `${name} asume la responsabilidad del ticket.`, id);
 
-    // Sincronización en segundo plano
-    (async () => {
-        try {
-            const finalUpdated = await db.appendRequestLog(id, newLog);
-            if (finalUpdated) {
-                const fullUpdate = {
-                    ...finalUpdated,
-                    assignedAnalyst: name,
-                    assignedAnalystId: targetAnalyst?.id || null,
-                    responsibleHead: finalResponsibleHead,
-                    responsibleHeadId: finalResponsibleHeadId,
-                    status: Status.EJECUCION
-                };
-                await db.saveRequest(fullUpdate);
-                setRequests(prev => prev.map(r => r.id === id ? fullUpdate : r));
-            } else {
-                const serverReq = await db.getRequestById(id);
-                const reqToUpdate = serverReq || localReq;
-                const manualUpdated = {
-                    ...reqToUpdate,
-                    assignedAnalyst: name,
-                    assignedAnalystId: targetAnalyst?.id || null,
-                    responsibleHead: finalResponsibleHead,
-                    responsibleHeadId: finalResponsibleHeadId,
-                    status: Status.EJECUCION,
-                    lastUpdated: now,
-                    logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs
-                };
-                await db.saveRequest(manualUpdated);
-            }
-        } catch (e) {
-            console.error("DB Sync Error:", e);
-        }
-    })();
+    // Punto 4: Persistencia directa y atómica
+    try {
+        await db.saveRequest(updatedLocal);
+    } catch (e) {
+        console.error("DB Sync Error al designar analista:", e);
+        addNotification('WARNING', 'Error de Persistencia', 'No se pudo sincronizar la asignación con el servidor.', id);
+    }
   };
 
   const addLog = async (id: string, msg: string) => {
@@ -973,39 +925,27 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const updatedLocal = { ...localReq, lastUpdated: now, logs: [...localReq.logs, newLog] };
     setRequests(prev => prev.map(r => r.id === id ? updatedLocal : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
 
-    // Sincronización en segundo plano
-    (async () => {
-        try {
-            const finalUpdated = await db.appendRequestLog(id, newLog);
-            if (finalUpdated) {
-                setRequests(prev => prev.map(r => r.id === id ? finalUpdated : r));
-            } else {
-                const serverReq = await db.getRequestById(id);
-                const reqToUpdate = serverReq || localReq;
-                const manualUpdated = {
-                    ...reqToUpdate,
-                    lastUpdated: now,
-                    logs: serverReq ? [...serverReq.logs, newLog] : updatedLocal.logs
-                };
-                await db.saveRequest(manualUpdated);
-            }
-        } catch (e) {
-            console.error("DB Sync Error:", e);
-        }
-    })();
+    // Punto 6: Persistencia directa y atómica
+    try {
+        await db.saveRequest(updatedLocal);
+    } catch (e) {
+        console.error("DB Sync Error al agregar comentario:", e);
+        addNotification('WARNING', 'Error de Persistencia', 'No se pudo guardar la nota en el servidor.', id);
+    }
   };
 
-  const updateRequestDetails = async (id: string, title: string, detail: string, clientType?: 'FREQUENT' | 'ONE_OFF', paymentProportion?: 'ADVANCE' | 'FULL', paymentAmount?: number, totalAmount?: number, priority?: Priority) => {
+  const updateRequestDetails = async (id: string, title: string, detail: string, clientType?: 'FREQUENT' | 'ONE_OFF', paymentProportion?: 'ADVANCE' | 'FULL', paymentAmount?: number, totalAmount?: number, priority?: Priority, area?: Area) => {
     const localReq = requests.find(r => r.id === id);
     if (!localReq || localReq.isDeleted) return;
     
-    if (activeRole !== UserRole.ADMIN && activeRole !== UserRole.SUPERADMIN && activeRole !== UserRole.HEAD) 
-        throw new Error("Privilegios insuficientes para editar metadatos. Solo Administradores y Jefaturas pueden modificar la solicitud original.");
+    const isCentralReceiver = canReceiveAndDerive(currentUser || undefined) && localReq.status === Status.RECIBIDO;
+    if (activeRole !== UserRole.ADMIN && activeRole !== UserRole.SUPERADMIN && activeRole !== UserRole.HEAD && !isCentralReceiver) 
+        throw new Error("Privilegios insuficientes para editar metadatos. Solo Administradores, Jefaturas y Receptores Centrales pueden modificar la solicitud.");
     
     if (localReq.status === Status.FINALIZADO && activeRole !== UserRole.SUPERADMIN)
         throw new Error("Registro inmutable: El expediente ya ha sido finalizado.");
 
-    // Hallazgo 4: Trazabilidad granular de cambios (Auditoría de Prioridad y Metadatos)
+    // Trazabilidad granular de cambios (Auditoría de Prioridad, Metadatos y Reasignación de Área)
     const logs: string[] = [];
     if (priority && priority !== localReq.priority) {
         logs.push(`ESCALAMIENTO: Prioridad actualizada de ${localReq.priority} a ${priority}`);
@@ -1013,6 +953,14 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (title !== localReq.title) logs.push(`EDICIÓN: Título actualizado`);
     if (detail !== localReq.detail) logs.push(`EDICIÓN: Alcance técnico modificado`);
     
+    if (area && area !== localReq.area) {
+        const canChangeArea = activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN || isCentralReceiver;
+        if (!canChangeArea) {
+            throw new Error("No tiene permisos para reasignar la unidad orgánica de este expediente.");
+        }
+        logs.push(`REASIGNACIÓN DE ÁREA: Unidad orgánica cambiada de ${localReq.area} a ${area}`);
+    }
+
     const isOneOff = (clientType !== undefined ? clientType : localReq.clientType) === 'ONE_OFF';
     if (isOneOff && (!totalAmount || totalAmount <= 0)) {
         throw new Error("Control Financiero: El monto total es obligatorio para registros Únicos.");
@@ -1032,6 +980,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         ...localReq, 
         title, 
         detail, 
+        area: area || localReq.area,
         priority: priority || localReq.priority,
         clientType: finalClientType,
         paymentProportion: finalPaymentProportion as any,
@@ -1042,38 +991,13 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
     setRequests(prev => prev.map(r => r.id === id ? updatedLocal : r).sort((a, b) => new Date(b.lastUpdated || b.createdAt).getTime() - new Date(a.lastUpdated || a.createdAt).getTime()));
 
-    // Hallazgo 2: Sincronización robusta (Fetch antes de guardar para no pisar logs de otros)
-    (async () => {
-        try {
-            const serverReq = await db.getRequestById(id);
-            const reqToUpdate = serverReq || localReq;
-            
-            // Mezclamos logs para asegurar concurrencia
-            const mergedLogs = [...reqToUpdate.logs];
-            newLogs.forEach(nLog => {
-                if (!mergedLogs.find(ml => ml.id === nLog.id)) {
-                    mergedLogs.push(nLog);
-                }
-            });
-
-            const manualUpdated = {
-                ...reqToUpdate,
-                title,
-                detail,
-                priority: priority || reqToUpdate.priority,
-                clientType: finalClientType,
-                paymentProportion: finalPaymentProportion as any,
-                paymentAmount: finalPaymentAmount,
-                totalAmount: finalTotalAmount,
-                lastUpdated: now,
-                logs: mergedLogs
-            };
-            await db.saveRequest(manualUpdated);
-            setRequests(prev => prev.map(r => r.id === id ? manualUpdated : r));
-        } catch (e) {
-            console.error("DB Sync Error:", e);
-        }
-    })();
+    // Punto 6: Persistencia directa y atómica
+    try {
+        await db.saveRequest(updatedLocal);
+    } catch (e) {
+        console.error("DB Sync Error al actualizar detalles:", e);
+        addNotification('WARNING', 'Error de Persistencia', 'No se pudieron sincronizar las modificaciones con el servidor.', id);
+    }
   };
 
   const deleteRequest = useCallback(async (id: string) => {

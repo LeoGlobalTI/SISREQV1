@@ -25,6 +25,7 @@ export const RequestDetailModal: React.FC = () => {
     addLog,
     users,
     activeRole,
+    organizationAreas,
     canUserTransition
   } = useSisreq();
 
@@ -34,6 +35,7 @@ export const RequestDetailModal: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editDetail, setEditDetail] = useState('');
+  const [editArea, setEditArea] = useState<string>('');
   const [editClientType, setEditClientType] = useState<'FREQUENT' | 'ONE_OFF'>('FREQUENT');
   const [editPaymentProportion, setEditPaymentProportion] = useState<'ADVANCE' | 'FULL'>('ADVANCE');
   const [editPaymentAmount, setEditPaymentAmount] = useState<string>('');
@@ -75,6 +77,7 @@ export const RequestDetailModal: React.FC = () => {
         const remaining = data.totalAmount && data.paymentAmount ? data.totalAmount - data.paymentAmount : 0;
         setEditRemainingAmount(remaining > 0 ? String(remaining) : '');
         setEditPriority(data.priority);
+        setEditArea(data.area);
         setIsEditing(false);
         setShowReturnInput(false);
         setShowAnalystSelect(false);
@@ -190,9 +193,21 @@ export const RequestDetailModal: React.FC = () => {
                 isOneOff ? editPaymentProportion : undefined,
                 isOneOff ? pAmount : undefined,
                 isOneOff ? tAmount : undefined,
-                editPriority
+                editPriority,
+                editArea || data.area
             );
             setIsEditing(false);
+        } catch (e: any) {
+            setActionError(e.message);
+        }
+    }
+  };
+
+  const handleReopenMaster = async () => {
+    if (window.confirm("¿Está seguro de reabrir este expediente finalizado y retornarlo a la Bandeja Central?")) {
+        try {
+            await updateStatus(data.id, Status.RECIBIDO);
+            handleClose();
         } catch (e: any) {
             setActionError(e.message);
         }
@@ -212,10 +227,11 @@ export const RequestDetailModal: React.FC = () => {
   };
 
   const canDeriveUI = !isArchived && canUserTransition(data, Status.DERIVACION).allowed;
+  const canExecuteUI = !isArchived && canUserTransition(data, Status.EJECUCION).allowed && data.status === Status.DERIVACION;
   const canFinalizeUI = !isArchived && canUserTransition(data, Status.FINALIZADO).allowed;
   const canEditUI = !isArchived && (activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN || (currentUser.canReceiveAndDerive && data.status === Status.RECIBIDO)) && !isFinalized;
   const showReturnButton = !isArchived && canUserTransition(data, Status.RECIBIDO).allowed && !isFinalized;
-  const canAssignUI = !isArchived && (activeRole === UserRole.HEAD || activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN) && data.status === Status.DERIVACION;
+  const canAssignUI = !isArchived && (activeRole === UserRole.HEAD || activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN) && (data.status === Status.DERIVACION || data.status === Status.EJECUCION);
 
   const isSuperAdmin = currentUser.role === UserRole.SUPERADMIN || activeRole === UserRole.SUPERADMIN;
 
@@ -304,7 +320,7 @@ export const RequestDetailModal: React.FC = () => {
                     {canAssignUI && (
                         <div className="relative shrink-0">
                             <button onClick={() => setShowAnalystSelect(!showAnalystSelect)} className="bg-white border border-indigo-200 text-indigo-600 px-3 py-1.5 rounded-lg text-[8px] font-black uppercase hover:bg-indigo-600 hover:text-white transition-all shadow-xs flex items-center gap-1.5">
-                               <User size={11}/> ASIGNAR
+                               <User size={11}/> {data.assignedAnalyst ? 'REASIGNAR' : 'ASIGNAR'}
                             </button>
                             {showAnalystSelect && (
                                 <div className="absolute top-full right-0 mt-2 w-60 bg-white border border-slate-200 shadow-2xl rounded-xl p-2 z-[70] animate-in slide-in-from-top-2">
@@ -463,7 +479,19 @@ export const RequestDetailModal: React.FC = () => {
                     </div>
                     <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
                         <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">GESTIÓN ÁREA</p>
-                        <p className="text-[10px] font-black text-slate-900 uppercase">{data.area}</p>
+                        {isEditing && (activeRole === UserRole.ADMIN || activeRole === UserRole.SUPERADMIN || (currentUser.canReceiveAndDerive && data.status === Status.RECIBIDO)) ? (
+                            <select 
+                                value={editArea} 
+                                onChange={e => setEditArea(e.target.value)}
+                                className="w-full bg-white border border-indigo-200 rounded-lg px-2 py-1.5 text-[10px] font-black text-slate-800 outline-none focus:border-indigo-500 uppercase shadow-sm"
+                            >
+                                {organizationAreas.map(a => (
+                                    <option key={a} value={a}>{a}</option>
+                                ))}
+                            </select>
+                        ) : (
+                            <p className="text-[10px] font-black text-slate-900 uppercase">{data.area}</p>
+                        )}
                     </div>
                 </div>
 
@@ -599,7 +627,11 @@ export const RequestDetailModal: React.FC = () => {
                     ) : null}
                     <div className="flex-1 flex gap-2">
                         {showReturnButton && !showReturnInput && <button onClick={() => setShowReturnInput(true)} className="flex-1 px-3 h-10 bg-white border border-red-200 text-[9px] font-black text-red-600 rounded-xl uppercase flex items-center justify-center gap-1.5 hover:bg-red-50 transition-colors"><RotateCcw size={13}/> RETORNAR A CENTRAL</button>}
+                        {isSuperAdmin && isFinalized && !isArchived && (
+                            <button onClick={handleReopenMaster} className="flex-1 h-10 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase shadow-md flex items-center justify-center gap-1.5 hover:bg-black px-3 transition-all"><RotateCcw size={13}/> REAPERTURA MASTER</button>
+                        )}
                         {canDeriveUI && <button onClick={() => handleTransition(Status.DERIVACION)} className="flex-1 h-10 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase shadow-md flex items-center justify-center gap-1.5 hover:bg-indigo-700 px-3 transition-all"><UserCheck size={13}/> DERIVAR A UNIDAD</button>}
+                        {canExecuteUI && <button onClick={() => handleTransition(Status.EJECUCION)} className="flex-1 h-10 bg-amber-500 text-white rounded-xl text-[9px] font-black uppercase shadow-md flex items-center justify-center gap-1.5 hover:bg-amber-600 px-3 transition-all"><PlayCircle size={13}/> INICIAR EJECUCIÓN</button>}
                         {canFinalizeUI && <button onClick={() => handleTransition(Status.FINALIZADO)} className="flex-1 h-10 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase shadow-md flex items-center justify-center gap-1.5 hover:bg-emerald-700 px-3 transition-all"><ShieldCheck size={13}/> CERRAR EXPEDIENTE</button>}
                     </div>
                 </div>

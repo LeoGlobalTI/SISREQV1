@@ -122,9 +122,8 @@ export const Board: React.FC = () => {
           req.requester.toLowerCase().includes(term) ||
           (req.assignedAnalyst && req.assignedAnalyst.toLowerCase().includes(term));
 
-      // 5. Filtro global de área (Admin/Superadmin o Receptores Centrales)
-      const isCentralReceiver = canReceiveAndDerive(currentUser || undefined);
-      const matchesArea = globalFilterArea === 'ALL' || req.area === globalFilterArea || (isCentralReceiver && req.status === Status.RECIBIDO);
+      // 5. Filtro global de área
+      const matchesArea = globalFilterArea === 'ALL' || req.area === globalFilterArea;
       
       return matchesSearch && matchesArea;
     });

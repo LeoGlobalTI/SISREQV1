@@ -107,6 +107,22 @@ export const STATUS_BADGE_COLORS: Record<Status, string> = {
 
 export const VERSIONS: VersionEntry[] = [
   {
+    version: 'v4.3.4-INTEGRITY',
+    codename: 'Workflow Consolidation & Transactional Security',
+    date: '23 de Septiembre 2026',
+    type: 'PATCH',
+    highlights: [
+      'Reasignación Flexible: Habilitada reasignación de analistas en fases de Derivación y Ejecución.',
+      'Control de Ejecución: Botón "Iniciar Ejecución" explícito para transiciones controladas.',
+      'Persistencia Atómica: Unificación de guardado directo en DB para todas las transiciones, previniendo pérdida de estado.',
+      'Saneamiento en Retornos: Limpieza automática de analistas y jefaturas al devolver expedientes a Central.',
+      'Validación de Titularidad: Restricción de cierre de expedientes para analistas asignados.',
+      'Reapertura Master: Capacidad de reapertura de expedientes finalizados para roles SuperAdmin.',
+      'Edición de Área: Reasignación de unidad orgánica en modo edición para operadores autorizados.',
+      'Filtros Estrictos: Corrección en el filtro de tablero para Bandeja Central.'
+    ]
+  },
+  {
     version: 'v4.3.3-STABILITY',
     codename: 'Operational Flow & Traceability',
     date: '20 de Septiembre 2026',
