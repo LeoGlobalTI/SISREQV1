@@ -83,12 +83,27 @@ export const CalculatorView: React.FC = () => {
   const ppmAmount = Math.round(netoVentas * (ppmValue / 100));
   const totalResult = isPositive ? (absoluteIva + ppmAmount) : ppmAmount;
 
-  // Cálculos para la simulación de objetivos
-  const neededSalesGross = targetIvaAmount > ivaToPay
-    ? Math.round((targetIvaAmount - ivaToPay) / 0.19) + (targetIvaAmount - ivaToPay)
-    : 0;
-  const neededPurchasesGross = targetIvaAmount < ivaToPay
-    ? Math.round((ivaToPay - targetIvaAmount) / 0.19) + (ivaToPay - targetIvaAmount)
+  // Cálculos para la simulación de objetivos (IVA Deseado ahora incluye PPM)
+  // IVA Objetivo Real = IVA Deseado - PPM_Actual
+  // Venta adicional debe cubrir: (IVA Objetivo - IVA Actual) + (Venta_Adicional_Neta * Tasa_PPM)
+  // IVA_Adicional_Neto = (Venta_Adicional_Neta * 0.19)
+  // Ecuación: Venta_Adicional_Neta * 0.19 = (IVA_Objetivo_Real - IVA_Actual) + (Venta_Adicional_Neta * Tasa_PPM / 100)
+  // Venta_Adicional_Neta * (0.19 - Tasa_PPM / 100) = (IVA_Objetivo_Real - IVA_Actual)
+
+  const ivaObjetivoReal = Math.max(0, targetIvaAmount - ppmAmount);
+  const diffTotal = targetIvaAmount - totalResult;
+
+  let neededSalesGross = 0;
+  if (diffTotal > 0) {
+      const tasaPpmDecimal = ppmValue / 100;
+      // Venta adicional debe cubrir: (IVA + PPM)
+      // Venta_Adicional_Neta * (0.19 + Tasa_PPM) = diffTotal
+      const ventaAdicionalNeta = diffTotal / (0.19 + tasaPpmDecimal);
+      neededSalesGross = Math.round(ventaAdicionalNeta * 1.19);
+  }
+
+  const neededPurchasesGross = diffTotal < 0
+    ? Math.round(Math.abs(diffTotal) / 0.19) + Math.abs(diffTotal)
     : 0;
 
   return (
