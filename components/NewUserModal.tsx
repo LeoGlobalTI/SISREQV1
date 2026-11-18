@@ -4,7 +4,6 @@ import { useSisreq } from '../context/SisreqContext';
 import { Area, UserRole, User, UserStatus } from '../types';
 import { 
   X, 
-  UserPlus, 
   User as UserIcon, 
   Building, 
   Lock, 
@@ -42,7 +41,6 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<UserRole>(UserRole.ANALYST);
-  const [area, setArea] = useState<Area | 'NONE'>('NONE');
   const [areas, setAreas] = useState<Area[]>([]);
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState<UserStatus>('ACTIVE');
@@ -56,7 +54,6 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
             setName(userToEdit.name);
             setEmail(userToEdit.email || '');
             setRole(userToEdit.role);
-            setArea(userToEdit.area || 'NONE');
             setAreas(userToEdit.areas || (userToEdit.area ? [userToEdit.area] : []));
             setStatus(userToEdit.status || 'ACTIVE');
             setCanSupervise(userToEdit.canSupervise || false);
@@ -67,7 +64,6 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
             setName('');
             setEmail('');
             setRole(UserRole.ANALYST);
-            setArea(defaultArea);
             setAreas([defaultArea]);
             setStatus('ACTIVE');
             setCanSupervise(false);
@@ -77,16 +73,13 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
     }
   }, [isOpen, userToEdit, organizationAreas]);
 
-  const isAreaMandatory = role === UserRole.HEAD || role === UserRole.ANALYST;
-
   const handleRoleChange = (newRole: UserRole) => {
     setRole(newRole);
+    const requiresArea = newRole === UserRole.HEAD || newRole === UserRole.ANALYST;
     if (newRole === UserRole.SUPERADMIN) {
-        setArea('NONE');
         setAreas([]);
-    } else if (isAreaMandatory && areas.length === 0) {
+    } else if (requiresArea && areas.length === 0) {
         const defaultArea = (organizationAreas && organizationAreas.length > 0 ? organizationAreas[0] : 'Contabilidad') as Area;
-        setArea(defaultArea);
         setAreas([defaultArea]);
     }
   };
@@ -95,7 +88,18 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || (!userToEdit && !password)) return;
+    if (!name.trim() || !email.trim()) {
+        setError('Debe ingresar nombre completo y correo institucional.');
+        return;
+    }
+    if (!userToEdit && !password.trim()) {
+        setError('Debe asignar una firma electrónica (contraseña) al nuevo colaborador.');
+        return;
+    }
+    if ((role === UserRole.HEAD || role === UserRole.ANALYST) && areas.length === 0) {
+        setError('Debe asignar al menos un área operativa para Jefaturas y Analistas.');
+        return;
+    }
     setError(null);
 
     const finalArea = areas.length > 0 ? areas[0] : undefined;
@@ -105,8 +109,8 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
         if (userToEdit) {
             const updatedUser: User = {
                 ...userToEdit,
-                name,
-                email,
+                name: name.trim(),
+                email: email.trim(),
                 role,
                 area: finalArea,
                 areas: finalAreas,
@@ -117,7 +121,7 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
             };
             await updateUser(updatedUser);
         } else {
-            await addUser(name, email, role, password, finalArea, finalAreas, canSupervise, canReceiveAndDerive);
+            await addUser(name.trim(), email.trim(), role, password, finalArea, finalAreas, canSupervise, canReceiveAndDerive);
         }
         onClose();
     } catch (err: any) {
@@ -211,7 +215,7 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
                     <Shield size={12} className="text-indigo-500" /> Nivel de Privilegios
                 </label>
                 <div className="flex bg-slate-100 p-1.5 rounded-xl gap-1 border border-slate-200/50">
-                    {Object.values(UserRole).filter(r => r !== UserRole.ADMIN).map(r => (
+                    {Object.values(UserRole).map(r => (
                         <button 
                             key={r}
                             type="button" 
@@ -232,7 +236,7 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
                     {(role === UserRole.ADMIN || role === UserRole.SUPERADMIN) && (
                         <button
                             type="button"
-                            onClick={() => { setArea('NONE'); setAreas([]); }}
+                            onClick={() => setAreas([])}
                             className={`
                                 flex items-center gap-3 p-2 rounded-xl border text-left transition-all
                                 ${areas.length === 0 
@@ -258,11 +262,9 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
                                 type="button"
                                 onClick={() => {
                                     if (role === UserRole.ADMIN || role === UserRole.SUPERADMIN) {
-                                        setArea(a);
                                         setAreas([a]);
                                     } else {
                                         setAreas(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a]);
-                                        setArea(a);
                                     }
                                 }}
                                 className={`
@@ -339,6 +341,7 @@ export const NewUserModal: React.FC<Props> = ({ isOpen, onClose, userToEdit }) =
                     </label>
                     <input 
                         type="password" 
+                        required={!isEditMode}
                         className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:border-indigo-500 transition-all font-black tracking-widest" 
                         value={password} 
                         onChange={e => setPassword(e.target.value)} 

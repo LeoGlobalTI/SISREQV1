@@ -1,13 +1,28 @@
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import { useSisreq } from './context/SisreqContext';
 import { Layout } from './components/Layout';
 import { Board } from './components/Board';
-import { SuperAdminView } from './components/SuperAdminView';
 import { LoginPage } from './components/LoginPage';
-import { CalculatorView } from './components/CalculatorView';
-import { PlannerView } from './components/PlannerView';
+import { UserRole } from './types';
 import { LayoutDashboard, AlertCircle, Database, Copy, CheckCircle2, Terminal } from 'lucide-react';
+
+const SuperAdminView = React.lazy(() =>
+  import('./components/SuperAdminView').then(m => ({ default: m.SuperAdminView }))
+);
+const CalculatorView = React.lazy(() =>
+  import('./components/CalculatorView').then(m => ({ default: m.CalculatorView }))
+);
+const PlannerView = React.lazy(() =>
+  import('./components/PlannerView').then(m => ({ default: m.PlannerView }))
+);
+
+const ViewLoadingFallback: React.FC = () => (
+  <div className="flex-1 h-full flex flex-col items-center justify-center bg-slate-50 gap-3 p-8">
+    <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+    <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Cargando módulo...</span>
+  </div>
+);
 
 const SetupRequiredView: React.FC<{ sql?: string, message: string }> = ({ sql, message }) => {
     const [copied, setCopied] = React.useState(false);
@@ -85,7 +100,7 @@ const SetupRequiredView: React.FC<{ sql?: string, message: string }> = ({ sql, m
 };
 
 const MainContent: React.FC = () => {
-  const { isAuthenticated, viewMode, isLoading, initError, dbDiagnostic, bypassConnectionError } = useSisreq();
+  const { isAuthenticated, viewMode, currentUser, isLoading, initError, dbDiagnostic, bypassConnectionError } = useSisreq();
 
   if (isLoading) {
     return (
@@ -138,9 +153,22 @@ const MainContent: React.FC = () => {
     return <LoginPage />;
   }
 
+  const canAccessSuperAdmin = currentUser?.role === UserRole.SUPERADMIN;
+  const canAccessPlanner = currentUser?.role === UserRole.SUPERADMIN || currentUser?.role === UserRole.HEAD;
+
   return (
     <Layout>
-      {viewMode === 'superadmin' ? <SuperAdminView /> : viewMode === 'calculator' ? <CalculatorView /> : viewMode === 'planner' ? <PlannerView /> : <Board />}
+      <Suspense fallback={<ViewLoadingFallback />}>
+        {viewMode === 'superadmin' && canAccessSuperAdmin ? (
+          <SuperAdminView />
+        ) : viewMode === 'calculator' ? (
+          <CalculatorView />
+        ) : viewMode === 'planner' && canAccessPlanner ? (
+          <PlannerView />
+        ) : (
+          <Board />
+        )}
+      </Suspense>
     </Layout>
   );
 };

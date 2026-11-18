@@ -1,5 +1,17 @@
 # Registro de Versiones (Changelog) - SISREQ
 
+## [4.3.5] - 2026-11-18
+
+### Auditoría, Rendimiento y Limpieza
+- **Jurisdicción y Permisos:** Delimitación estricta de `canReceiveAndDerive` a Bandeja Central (`Recibido`), alineación de `canSupervise`, creación/edición habilitada para rol `ADMIN` y control estricto de área en Planificador para Jefaturas.
+- **Concurrencia y Rendimiento:** Carga liviana de expedientes sin `logs` en listados (57.2% menos tráfico) con hidratación bajo demanda al abrir detalle, IDs deterministas con inserción idempotente en rutinas, fusión atómica de bitácora en servidor y code-splitting de producción.
+- **Gobernanza y Calidad:** Corrección de falsos positivos de IDs legados, validación de integridad de vínculos de ID, preservación de vista activa, chequeo SQL de `scheduled_processes` y limpieza de código residual.
+
+## [4.3.4] - 2026-09-23
+
+### Consolidación Transaccional y Flujo
+- **Operación y Transiciones:** Reasignación de analistas en `DERIVACION` y `EJECUCION`, botón explícito "Iniciar Ejecución", saneamiento en retornos, titularidad en cierre de analistas, reapertura Master, edición de área y filtros de Bandeja Central.
+
 ## [4.3.3] - 2026-09-23
 
 ### Mejoras e Implementaciones

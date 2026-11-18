@@ -8,13 +8,6 @@ export enum UserRole {
 
 export type Area = string;
 
-export interface AreaInfo {
-  id: string;
-  name: string;
-  description?: string;
-  createdAt?: string;
-}
-
 export enum Status {
   RECIBIDO = 'Recibido',      // Bandeja de Entrada Central (Admin)
   DERIVACION = 'En Derivación', // Asignado a un Área (Jefe de Área)
@@ -96,7 +89,7 @@ export interface RequestCard {
   isDeleted?: boolean;
   deletedAt?: string;
   deletedBy?: string;
-  sourceType?: 'EXTERNAL' | 'INTERNAL_PROCESS' | 'INTERNAL_ROUTINE';
+  sourceType?: 'EXTERNAL' | 'INTERNAL_PROCESS';
   clientType?: 'FREQUENT' | 'ONE_OFF';
   paymentProportion?: 'ADVANCE' | 'FULL';
   paymentAmount?: number;

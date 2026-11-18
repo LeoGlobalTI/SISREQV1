@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { useSisreq } from '../context/SisreqContext';
-import { ScheduledProcess, ProcessAlert, User, AlertFrequency } from '../types';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Clock, MapPin, User as UserIcon, Tag, AlignLeft, Send, Trash2, CheckCircle2, Info, Edit3, Repeat, Layers } from 'lucide-react';
+import { ScheduledProcess, ProcessAlert, AlertFrequency, UserRole } from '../types';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Clock, MapPin, Send, Trash2, CheckCircle2, Edit3, Repeat, Layers } from 'lucide-react';
 
 export const PlannerView: React.FC = () => {
-    const { scheduledProcesses, addProcess, updateProcess, deleteProcess, users, organizationAreas, currentUser, addNotification } = useSisreq();
+    const { scheduledProcesses, addProcess, updateProcess, deleteProcess, users, organizationAreas, addNotification, currentUser, activeRole, isSupervisorMode } = useSisreq();
 
     const [currentDate, setCurrentDate] = useState(new Date());
     
@@ -20,23 +20,58 @@ export const PlannerView: React.FC = () => {
     
     const [alerts, setAlerts] = useState<Omit<ProcessAlert, 'id' | 'status' | 'linkedRequestId'>[]>([]);
 
-    const daysInMonth = useMemo(() => {
+    const isHeadRole = activeRole === UserRole.HEAD;
+    const isHeadScoped = isHeadRole && !isSupervisorMode;
+    const headAreas = useMemo(() => {
+        if (!currentUser) return [];
+        return currentUser.areas || (currentUser.area ? [currentUser.area] : []);
+    }, [currentUser]);
+
+    const selectableAreas = useMemo(() => {
+        if (isHeadRole) {
+            return organizationAreas.filter(a => headAreas.includes(a));
+        }
+        return organizationAreas;
+    }, [isHeadRole, headAreas, organizationAreas]);
+
+    const canModifyProcess = (proc: ScheduledProcess) => {
+        if (activeRole === UserRole.SUPERADMIN) return true;
+        return isHeadRole && headAreas.includes(proc.area);
+    };
+
+    const visibleProcesses = useMemo(() => {
+        if (!scheduledProcesses) return [];
+        if (!isHeadScoped) return scheduledProcesses;
+        return scheduledProcesses.filter(p => headAreas.includes(p.area));
+    }, [scheduledProcesses, isHeadScoped, headAreas]);
+
+    const eligibleAnalysts = useMemo(() => {
+        return users.filter(u => {
+            if (u.status === 'INACTIVE') return false;
+            if (u.role !== UserRole.ANALYST && u.role !== UserRole.HEAD && u.role !== UserRole.ADMIN) return false;
+            if (!area) return true;
+            const uAreas = u.areas || (u.area ? [u.area] : []);
+            return uAreas.includes(area);
+        });
+    }, [users, area]);
+
+    const { daysInMonth, leadingEmptyCells } = useMemo(() => {
         const year = currentDate.getFullYear();
         const month = currentDate.getMonth();
+        const firstDay = new Date(year, month, 1);
+        const leading = firstDay.getDay();
         const date = new Date(year, month, 1);
-        const days = [];
+        const days: Date[] = [];
         while (date.getMonth() === month) {
             days.push(new Date(date));
             date.setDate(date.getDate() + 1);
         }
-        return days;
+        return { daysInMonth: days, leadingEmptyCells: leading };
     }, [currentDate]);
 
     const processesByDay = useMemo(() => {
         const map: { [key: string]: { process: ScheduledProcess, alert: ProcessAlert }[] } = {};
-        if (!scheduledProcesses) return map;
-        
-        scheduledProcesses.forEach(proc => {
+        visibleProcesses.forEach(proc => {
             proc.alerts.forEach(alert => {
                 const triggerStr = alert.triggerDate;
                 if (!map[triggerStr]) map[triggerStr] = [];
@@ -44,7 +79,7 @@ export const PlannerView: React.FC = () => {
             });
         });
         return map;
-    }, [scheduledProcesses]);
+    }, [visibleProcesses]);
 
     const closeAndResetModal = () => {
         setIsModalOpen(false);
@@ -118,6 +153,8 @@ export const PlannerView: React.FC = () => {
             return;
         }
         
+        const existingProcess = editingProcessId ? scheduledProcesses.find(p => p.id === editingProcessId) : undefined;
+
         // Asegurar que todas las fechas de alertas sean válidas
         for (const alert of alerts) {
              if(!alert.title || !alert.triggerDate) {
@@ -125,9 +162,11 @@ export const PlannerView: React.FC = () => {
                  return;
              }
              const trigger = new Date(alert.triggerDate + 'T00:00:00');
+             const existingAlert = existingProcess?.alerts.find(orig => orig.id === (alert as any).id);
+             const isHistoricalTriggered = existingAlert?.status === 'TRIGGERED' && existingAlert.triggerDate === alert.triggerDate;
              
-             if (trigger < today) {
-                 addNotification('WARNING', 'Fecha Pasada', `No se pueden crear requerimientos con fechas pasadas. La alerta "${alert.title}" tiene fecha ${alert.triggerDate}.`);
+             if (!isHistoricalTriggered && trigger < today) {
+                 addNotification('WARNING', 'Fecha Pasada', `No se pueden programar alertas con fechas pasadas. La alerta "${alert.title}" tiene fecha ${alert.triggerDate}.`);
                  return;
              }
 
@@ -202,7 +241,7 @@ export const PlannerView: React.FC = () => {
             <div className="px-8 py-4 flex items-center justify-between bg-slate-50 border-b border-slate-100 shrink-0">
                 <div className="flex items-center gap-4">
                     <button 
-                        onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)))}
+                        onClick={() => setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
                         className="p-2 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition-all"
                     >
                         <ChevronLeft size={20} className="text-slate-600" />
@@ -211,7 +250,7 @@ export const PlannerView: React.FC = () => {
                         {currentDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
                     </h2>
                     <button 
-                        onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)))}
+                        onClick={() => setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
                         className="p-2 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition-all"
                     >
                         <ChevronRight size={20} className="text-slate-600" />
@@ -222,11 +261,14 @@ export const PlannerView: React.FC = () => {
                         onClick={() => setShowRoutinesDrawer(true)}
                         className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-xs active:scale-95"
                     >
-                        <Layers size={15} className="text-indigo-600" /> Gestionar Rutinas ({scheduledProcesses.length})
+                        <Layers size={15} className="text-indigo-600" /> Gestionar Rutinas ({visibleProcesses.length})
                     </button>
                     <button 
                         onClick={() => {
                             closeAndResetModal();
+                            if (selectableAreas.length === 1) {
+                                setArea(selectableAreas[0]);
+                            }
                             setIsModalOpen(true);
                         }}
                         className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-sm active:scale-95"
@@ -247,27 +289,32 @@ export const PlannerView: React.FC = () => {
                         ))}
                     </div>
                     <div className="grid grid-cols-7 auto-rows-[120px]">
-                        {daysInMonth.map((currentDayDate, index) => {
-                            const day = currentDayDate.getDate();
-                            const yyyy = currentDayDate.getFullYear();
-                            const mm = String(currentDayDate.getMonth() + 1).padStart(2, '0');
-                            const dd = String(currentDayDate.getDate()).padStart(2, '0');
-                            const formattedDate = `${yyyy}-${mm}-${dd}`;
-                            
-                            const dayAlerts = processesByDay[formattedDate] || [];
+                        {Array.from({ length: leadingEmptyCells }).map((_, idx) => (
+                            <div key={`empty-${idx}`} className="border-b border-r border-slate-100 bg-slate-50/40" />
+                        ))}
+                        {(() => {
+                            const todayStr = new Date().toDateString();
+                            return daysInMonth.map((currentDayDate) => {
+                                const day = currentDayDate.getDate();
+                                const yyyy = currentDayDate.getFullYear();
+                                const mm = String(currentDayDate.getMonth() + 1).padStart(2, '0');
+                                const dd = String(day).padStart(2, '0');
+                                const formattedDate = `${yyyy}-${mm}-${dd}`;
+                                
+                                const dayAlerts = processesByDay[formattedDate] || [];
 
-                            return (
-                                <div 
-                                    key={day} 
-                                    className="border-b border-r border-slate-100 p-2 relative hover:bg-slate-50 transition-colors"
-                                >
-                                    <span className={`text-xs font-black ${
-                                        currentDayDate.toDateString() === new Date().toDateString() 
-                                        ? 'bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center' 
-                                        : 'text-slate-400'
-                                    }`}>
-                                        {day}
-                                    </span>
+                                return (
+                                    <div 
+                                        key={day} 
+                                        className="border-b border-r border-slate-100 p-2 relative hover:bg-slate-50 transition-colors"
+                                    >
+                                        <span className={`text-xs font-black ${
+                                            currentDayDate.toDateString() === todayStr 
+                                            ? 'bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center' 
+                                            : 'text-slate-400'
+                                        }`}>
+                                            {day}
+                                        </span>
                                     
                                     <div className="mt-2 space-y-1 overflow-y-auto max-h-[80px] custom-scrollbar pr-1">
                                         {dayAlerts.map(item => (
@@ -296,8 +343,9 @@ export const PlannerView: React.FC = () => {
                                         ))}
                                     </div>
                                 </div>
-                            );
-                        })}
+                                );
+                            });
+                        })()}
                     </div>
                 </div>
             </div>
@@ -355,7 +403,7 @@ export const PlannerView: React.FC = () => {
                                             className="w-full bg-white border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:border-indigo-500 font-semibold"
                                         >
                                             <option value="">-- Seleccione un Área --</option>
-                                            {organizationAreas.map(a => <option key={a} value={a}>{a}</option>)}
+                                            {selectableAreas.map(a => <option key={a} value={a}>{a}</option>)}
                                         </select>
                                     </div>
                                     <div className="space-y-2">
@@ -427,7 +475,7 @@ export const PlannerView: React.FC = () => {
                                                             <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Analista</label>
                                                             <select value={alert.assignedToId || ''} onChange={e => handleUpdateAlert(index, 'assignedToId', e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-lg px-2 py-2 text-[10px] font-bold uppercase focus:outline-none focus:border-indigo-500">
                                                                 <option value="">Opcional</option>
-                                                                {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                                                {eligibleAnalysts.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                                                             </select>
                                                         </div>
                                                     </div>
@@ -554,25 +602,27 @@ export const PlannerView: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                        <div className="bg-slate-50 border-t border-slate-100 p-4 flex items-center justify-between">
-                            <button 
-                                onClick={() => handleStartEditProcess(selectedProcess)}
-                                className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-black text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition-all shadow-xs"
-                            >
-                                <Edit3 size={14}/> Editar Rutina
-                            </button>
-                            <button 
-                                onClick={async () => {
-                                    if(window.confirm('¿Está seguro de eliminar este proceso? Los tickets que ya nacieron en Kanban seguirán existiendo.')) {
-                                        await deleteProcess(selectedProcess.id);
-                                        setSelectedProcess(null);
-                                    }
-                                }}
-                                className="flex items-center gap-2 px-4 py-2 text-[10px] font-black text-red-600 hover:bg-red-50 border border-red-100 rounded-xl transition-all"
-                            >
-                                <Trash2 size={14}/> Eliminar Proceso
-                            </button>
-                        </div>
+                        {canModifyProcess(selectedProcess) && (
+                            <div className="bg-slate-50 border-t border-slate-100 p-4 flex items-center justify-between">
+                                <button 
+                                    onClick={() => handleStartEditProcess(selectedProcess)}
+                                    className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-black text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition-all shadow-xs"
+                                >
+                                    <Edit3 size={14}/> Editar Rutina
+                                </button>
+                                <button 
+                                    onClick={async () => {
+                                        if(window.confirm('¿Está seguro de eliminar este proceso? Los tickets que ya nacieron en Kanban seguirán existiendo.')) {
+                                            await deleteProcess(selectedProcess.id);
+                                            setSelectedProcess(null);
+                                        }
+                                    }}
+                                    className="flex items-center gap-2 px-4 py-2 text-[10px] font-black text-red-600 hover:bg-red-50 border border-red-100 rounded-xl transition-all"
+                                >
+                                    <Trash2 size={14}/> Eliminar Proceso
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -597,14 +647,14 @@ export const PlannerView: React.FC = () => {
                         </div>
 
                         <div className="p-6 flex-1 overflow-y-auto space-y-4">
-                            {scheduledProcesses.length === 0 ? (
+                            {visibleProcesses.length === 0 ? (
                                 <div className="text-center py-12 bg-slate-50 border border-dashed border-slate-200 rounded-2xl">
                                     <CalendarIcon className="mx-auto text-slate-300 mb-2" size={32} />
                                     <p className="text-xs font-bold text-slate-600 uppercase tracking-widest">No hay rutinas programadas</p>
                                     <p className="text-[11px] text-slate-400 mt-1">Crea tu primera rutina con el botón "Configurar Proceso".</p>
                                 </div>
                             ) : (
-                                scheduledProcesses.map(proc => (
+                                visibleProcesses.map(proc => (
                                     <div key={proc.id} className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-indigo-200 hover:shadow-sm transition-all flex items-center justify-between gap-4">
                                         <div className="min-w-0 flex-1 space-y-1">
                                             <div className="flex items-center gap-2">
@@ -632,29 +682,31 @@ export const PlannerView: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        <div className="flex items-center gap-2 shrink-0">
-                                            <button 
-                                                onClick={() => {
-                                                    setShowRoutinesDrawer(false);
-                                                    handleStartEditProcess(proc);
-                                                }}
-                                                className="flex items-center gap-1 px-3 py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition-all"
-                                                title="Editar rutina"
-                                            >
-                                                <Edit3 size={14} /> Editar
-                                            </button>
-                                            <button 
-                                                onClick={async () => {
-                                                    if(window.confirm(`¿Desea eliminar la rutina "${proc.processName}"?`)) {
-                                                        await deleteProcess(proc.id);
-                                                    }
-                                                }}
-                                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-                                                title="Eliminar rutina"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        </div>
+                                        {canModifyProcess(proc) && (
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                <button 
+                                                    onClick={() => {
+                                                        setShowRoutinesDrawer(false);
+                                                        handleStartEditProcess(proc);
+                                                    }}
+                                                    className="flex items-center gap-1 px-3 py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition-all"
+                                                    title="Editar rutina"
+                                                >
+                                                    <Edit3 size={14} /> Editar
+                                                </button>
+                                                <button 
+                                                    onClick={async () => {
+                                                        if(window.confirm(`¿Desea eliminar la rutina "${proc.processName}"?`)) {
+                                                            await deleteProcess(proc.id);
+                                                        }
+                                                    }}
+                                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                                                    title="Eliminar rutina"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 ))
                             )}

@@ -3,13 +3,31 @@ import React, { useState, useEffect } from 'react';
 import { RequestCard as RequestCardType, Status } from '../types';
 import { useSisreq } from '../context/SisreqContext';
 import { PRIORITY_STYLES } from '../constants';
-import { User as UserIcon, GripVertical, MapPin, ChevronUp, ChevronDown, Clock, Hash, Building2, AlertCircle, FileText, Settings } from 'lucide-react';
+import { User as UserIcon, MapPin, ChevronUp, ChevronDown, Clock, Building2, AlertCircle, FileText, Settings } from 'lucide-react';
 
 interface Props {
   data: RequestCardType;
 }
 
-export const RequestCard: React.FC<Props> = ({ data }) => {
+const getStatusColors = (status: Status, isInternalProcess: boolean = false) => {
+  if (isInternalProcess) {
+      return { border: 'border-purple-600', outline: 'border-purple-600/30', text: 'text-purple-700', bg: 'bg-purple-600', light: 'bg-purple-50' };
+  }
+  switch (status) {
+      case Status.RECIBIDO: 
+          return { border: 'border-indigo-600', outline: 'border-indigo-600/30', text: 'text-indigo-600', bg: 'bg-indigo-600', light: 'bg-indigo-50' };
+      case Status.DERIVACION: 
+          return { border: 'border-orange-500', outline: 'border-orange-500/30', text: 'text-orange-600', bg: 'bg-orange-500', light: 'bg-orange-50' };
+      case Status.EJECUCION: 
+          return { border: 'border-amber-500', outline: 'border-amber-500/30', text: 'text-amber-600', bg: 'bg-amber-500', light: 'bg-amber-50' };
+      case Status.FINALIZADO: 
+          return { border: 'border-emerald-500', outline: 'border-emerald-500/30', text: 'text-emerald-600', bg: 'bg-emerald-500', light: 'bg-emerald-50' };
+      default: 
+          return { border: 'border-slate-300', outline: 'border-slate-200', text: 'text-slate-600', bg: 'bg-slate-500', light: 'bg-slate-50' };
+  }
+};
+
+export const RequestCard: React.FC<Props> = React.memo(({ data }) => {
   const { setSelectedRequestId, isActionable } = useSisreq();
   const [isMinimized, setIsMinimized] = useState(data.status === Status.FINALIZADO);
   
@@ -41,25 +59,7 @@ export const RequestCard: React.FC<Props> = ({ data }) => {
     setSelectedRequestId(data.id);
   };
 
-  const getStatusColors = (status: Status, isInternalProcess: boolean = false) => {
-    if (isInternalProcess) {
-        return { border: 'border-purple-600', outline: 'border-purple-600/30', text: 'text-purple-700', bg: 'bg-purple-600', light: 'bg-purple-50' };
-    }
-    switch (status) {
-        case Status.RECIBIDO: 
-            return { border: 'border-indigo-600', outline: 'border-indigo-600/30', text: 'text-indigo-600', bg: 'bg-indigo-600', light: 'bg-indigo-50' };
-        case Status.DERIVACION: 
-            return { border: 'border-orange-500', outline: 'border-orange-500/30', text: 'text-orange-600', bg: 'bg-orange-500', light: 'bg-orange-50' };
-        case Status.EJECUCION: 
-            return { border: 'border-amber-500', outline: 'border-amber-500/30', text: 'text-amber-600', bg: 'bg-amber-500', light: 'bg-amber-50' };
-        case Status.FINALIZADO: 
-            return { border: 'border-emerald-500', outline: 'border-emerald-500/30', text: 'text-emerald-600', bg: 'bg-emerald-500', light: 'bg-emerald-50' };
-        default: 
-            return { border: 'border-slate-300', outline: 'border-slate-200', text: 'text-slate-600', bg: 'bg-slate-500', light: 'bg-slate-50' };
-    }
-  };
-
-  const isSystemGenerated = data.sourceType === 'INTERNAL_PROCESS' || data.sourceType === 'INTERNAL_ROUTINE';
+  const isSystemGenerated = data.sourceType === 'INTERNAL_PROCESS';
   const colors = getStatusColors(data.status, isSystemGenerated);
 
   return (
@@ -191,4 +191,4 @@ export const RequestCard: React.FC<Props> = ({ data }) => {
       )}
     </div>
   );
-};
+});

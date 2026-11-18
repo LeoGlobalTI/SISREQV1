@@ -3,9 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { useSisreq } from '../context/SisreqContext';
 import { Area, Priority, UserRole } from '../types';
 import { 
-  X, FileText, Building, AlertCircle, User, 
+  X, Building, AlertCircle, User, 
   AlignLeft, Send, Sparkles, Calculator, 
-  Users, FileCheck, BadgeDollarSign, ChevronRight,
+  Users, FileCheck, BadgeDollarSign,
   Hash, Tag, ShieldCheck, Info
 } from 'lucide-react';
 
@@ -102,6 +102,7 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
   };
 
   const isHeadSelection = activeRole === UserRole.HEAD;
+  const headAreasText = currentUser?.areas?.join(', ') || currentUser?.area;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -151,11 +152,11 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 </div>
             )}
 
-            {isHeadSelection && (
+            {isHeadSelection && !currentUser?.canReceiveAndDerive && (
                 <div className="bg-amber-50 border border-amber-100 p-3 rounded-xl flex items-center gap-3 animate-in slide-in-from-top-2">
                     <ShieldCheck size={16} className="text-amber-600 shrink-0" />
                     <p className="text-[10px] font-bold text-amber-700 uppercase tracking-tight">
-                        Modo Jefatura: El requerimiento será asignado automáticamente a su área ({currentUser?.area}).
+                        Modo Jefatura: El requerimiento será asignado directamente a su área ({headAreasText || 'Sin área'}).
                     </p>
                 </div>
             )}
@@ -330,7 +331,7 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                             type="button"
                                             onClick={() => {
                                                 setPaymentProportion('FULL');
-                                                setRemainingAmount('');
+                                                setPaymentAmount('');
                                             }}
                                             className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${paymentProportion === 'FULL' ? 'bg-white shadow-sm border border-slate-200 text-amber-700' : 'text-slate-400 hover:text-slate-600'}`}
                                         >
@@ -341,10 +342,12 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-1.5">
+                                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Anticipo Recibido</label>
                                         <div className="relative">
                                             <span className={`absolute left-3 top-1/2 -translate-y-1/2 font-bold ${paymentProportion === 'FULL' ? 'text-slate-200' : 'text-slate-400'}`}>$</span>
                                             <input
                                                 type="number"
+                                                min="1"
                                                 disabled={paymentProportion === 'FULL'}
                                                 required={paymentProportion === 'ADVANCE'}
                                                 className={`w-full border border-slate-200 text-sm rounded-lg pl-8 pr-4 py-2.5 focus:outline-none transition-all font-semibold ${paymentProportion === 'FULL' ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-50 text-slate-800 focus:border-amber-500 focus:bg-white'}`}
@@ -356,10 +359,12 @@ export const NewRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                     </div>
 
                                     <div className="space-y-1.5">
+                                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Monto Total</label>
                                         <div className="relative">
                                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
                                             <input
                                                 type="number"
+                                                min="1"
                                                 required
                                                 className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg pl-8 pr-4 py-2.5 focus:outline-none focus:border-amber-500 focus:bg-white transition-all font-semibold"
                                                 value={remainingAmount}

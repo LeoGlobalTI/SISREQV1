@@ -36,7 +36,7 @@ const UserItem: React.FC<UserItemProps> = ({ user, isSelected, onSelect }) => (
       </div>
       <div className="flex-1 min-w-0 flex flex-col justify-center">
           <div className="text-[12px] font-bold text-slate-800 group-hover:text-indigo-600 truncate uppercase tracking-tight leading-none mb-1">{user.name}</div>
-          <div className="text-[8px] text-slate-400 font-black uppercase tracking-widest truncate leading-none">{user.area || getRoleLabel(user.role)}</div>
+          <div className="text-[8px] text-slate-400 font-black uppercase tracking-widest truncate leading-none">{user.areas?.join(', ') || user.area || getRoleLabel(user.role)}</div>
       </div>
       {isSelected && <div className="bg-indigo-600 p-1 rounded-full text-white shrink-0"><Check size={12} strokeWidth={3}/></div>}
     </button>
@@ -51,10 +51,11 @@ export const LoginPage: React.FC = () => {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const superAdminUsers = users.filter(u => u.role === UserRole.SUPERADMIN);
-  const adminUsers = users.filter(u => u.role === UserRole.ADMIN);
-  const headUsers = users.filter(u => u.role === UserRole.HEAD);
-  const analystUsers = users.filter(u => u.role === UserRole.ANALYST);
+  const activeUsers = users.filter(u => u.status !== 'INACTIVE');
+  const superAdminUsers = activeUsers.filter(u => u.role === UserRole.SUPERADMIN);
+  const adminUsers = activeUsers.filter(u => u.role === UserRole.ADMIN);
+  const headUsers = activeUsers.filter(u => u.role === UserRole.HEAD);
+  const analystUsers = activeUsers.filter(u => u.role === UserRole.ANALYST);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -81,8 +82,9 @@ export const LoginPage: React.FC = () => {
             setError('Firma electrónica no válida para este perfil.');
             setPassword('');
         }
-    } catch (err) {
-        setError('Servicio de identidades no disponible.');
+    } catch (err: any) {
+        setError(err?.message || 'Servicio de identidades no disponible.');
+        setPassword('');
     } finally {
         setIsAuthenticating(false);
     }
@@ -143,7 +145,7 @@ export const LoginPage: React.FC = () => {
                                     </div>
                                     <div className="text-left min-w-0 flex flex-col justify-center">
                                         <div className="text-[14px] font-bold text-slate-900 truncate uppercase tracking-tight leading-none mb-1">{selectedUser.name}</div>
-                                        <div className="text-[8px] text-slate-400 font-black uppercase tracking-widest truncate leading-none">{selectedUser.area || getRoleLabel(selectedUser.role)}</div>
+                                        <div className="text-[8px] text-slate-400 font-black uppercase tracking-widest truncate leading-none">{selectedUser.areas?.join(', ') || selectedUser.area || getRoleLabel(selectedUser.role)}</div>
                                     </div>
                                 </div>
                             ) : (

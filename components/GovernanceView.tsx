@@ -1,17 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { useSisreq } from '../context/SisreqContext';
-import { Status, UserRole } from '../types';
+import { Status } from '../types';
 import { 
   ShieldCheck, AlertTriangle, CheckCircle2, GitBranch, 
   BookOpen, Download, Activity, Database, FileText,
-  TerminalSquare, Clock, ArrowRight, Zap, RefreshCw, Layers
+  TerminalSquare, Clock, Zap, RefreshCw, Layers
 } from 'lucide-react';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { VERSIONS, CURRENT_VERSION, SLA_THRESHOLDS } from '../constants';
 
 export const GovernanceView: React.FC = () => {
-  const { requests, users, organizationAreas } = useSisreq();
+  const { requests, users } = useSisreq();
   const [isExporting, setIsExporting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -23,44 +21,60 @@ export const GovernanceView: React.FC = () => {
   // --- AUDIT METRICS ---
   const auditStats = useMemo(() => {
     const total = requests.length;
-    const deleted = requests.filter(r => r.isDeleted).length;
-    const active = requests.filter(r => !r.isDeleted);
-    
-    // SLA Breaches (Unified Threshholds)
+    let deleted = 0;
+    let activeCount = 0;
     let slaWarning = 0;
     let slaCritical = 0;
-    const now = new Date();
-    active.forEach(r => {
-      if (r.status !== Status.FINALIZADO && !r.isReturned) {
-        const daysOpen = Math.floor((now.getTime() - new Date(r.createdAt).getTime()) / (1000 * 3600 * 24));
-        if (daysOpen >= SLA_THRESHOLDS.CRITICAL_DAYS) slaCritical++;
-        else if (daysOpen >= SLA_THRESHOLDS.WARNING_DAYS) slaWarning++;
+    let missingLinks = 0;
+    let missingFinances = 0;
+    let noAnalyst = 0;
+
+    const nowMs = Date.now();
+    const dayMs = 1000 * 3600 * 24;
+
+    for (let i = 0; i < total; i++) {
+      const r = requests[i];
+      if (r.isDeleted) {
+        deleted++;
+        continue;
       }
-    });
+      activeCount++;
 
-    // Integrity & Financial Risks
-    const legacyIds = active.filter(r => !r.id.startsWith('p-')).length;
-    const missingFinances = active.filter(r => r.clientType === 'ONE_OFF' && (!r.totalAmount || r.totalAmount <= 0)).length;
+      if (r.status !== Status.FINALIZADO && !r.isReturned) {
+        const createdMs = Date.parse(r.createdAt);
+        if (!Number.isNaN(createdMs)) {
+          const daysOpen = Math.floor((nowMs - createdMs) / dayMs);
+          if (daysOpen >= SLA_THRESHOLDS.CRITICAL_DAYS) slaCritical++;
+          else if (daysOpen >= SLA_THRESHOLDS.WARNING_DAYS) slaWarning++;
+        }
+      }
 
-    // Deletion Rate (Hallazgo 2)
+      if ((r.status !== Status.RECIBIDO && !r.responsibleHeadId) || (r.assignedAnalyst && !r.assignedAnalystId)) {
+        missingLinks++;
+      }
+      if (r.clientType === 'ONE_OFF' && (!r.totalAmount || r.totalAmount <= 0)) missingFinances++;
+      if ((r.status === Status.EJECUCION || r.status === Status.DERIVACION) && !r.assignedAnalyst && !r.assignedAnalystId) {
+        noAnalyst++;
+      }
+    }
+
     const deletionRate = total > 0 ? Math.round((deleted / total) * 100) : 0;
     const isDeletionAbnormal = deletionRate > 15; // Más del 15% de descarte es sospechoso
 
-    // Orphans / Unassigned
-    const noAnalyst = active.filter(r => 
-      (r.status === Status.EJECUCION || r.status === Status.DERIVACION) && !r.assignedAnalystId
-    ).length;
-    
-    const unassignedUsers = users.filter(u => !u.area && (!u.areas || u.areas.length === 0)).length;
+    let unassignedUsers = 0;
+    for (let i = 0; i < users.length; i++) {
+      const u = users[i];
+      if (!u.area && (!u.areas || u.areas.length === 0)) unassignedUsers++;
+    }
 
     // Health Score Calculation (0-100)
     let score = 100;
-    if (total > 0) {
-        score -= (slaCritical / total) * 30;
-        score -= (slaWarning / total) * 10;
-        score -= (noAnalyst / total) * 20;
-        score -= (missingFinances / total) * 25;
-        score -= (legacyIds / total) * 5;
+    if (activeCount > 0) {
+        score -= (slaCritical / activeCount) * 30;
+        score -= (slaWarning / activeCount) * 10;
+        score -= (noAnalyst / activeCount) * 20;
+        score -= (missingFinances / activeCount) * 25;
+        score -= (missingLinks / activeCount) * 5;
         if (isDeletionAbnormal) score -= 10;
     }
     score -= (unassignedUsers * 1.5);
@@ -71,18 +85,23 @@ export const GovernanceView: React.FC = () => {
       { type: 'WARNING', title: 'Riesgo Financiero', count: missingFinances, desc: 'Servicios únicos sin monto total definido.' },
       { type: 'ERROR', title: 'Ejecución sin Analista', count: noAnalyst, desc: 'Expedientes en progreso sin responsable.' },
       { type: isDeletionAbnormal ? 'ERROR' : 'INFO', title: 'Tasa de Descarte', count: `${deletionRate}%`, desc: isDeletionAbnormal ? 'Anomalía: Alto volumen de tickets eliminados (posible manipulación).' : 'Volumen normal de tickets descartados.' },
-      { type: 'WARNING', title: 'IDs Legados Detectados', count: legacyIds, desc: 'Registros previos a la actualización de integridad v4.3.0.' },
+      { type: missingLinks > 0 ? 'WARNING' : 'INFO', title: 'Vínculos de ID Incompletos', count: missingLinks, desc: 'Expedientes sin ID de jefatura o analista vinculado.' },
       { type: 'INFO', title: 'Usuarios sin Área', count: unassignedUsers, desc: 'Colaboradores pendientes de asignación operativa.' },
     ];
 
-    return { total, deleted, active: active.length, score, anomalies };
+    return { total, deleted, active: activeCount, score, anomalies };
   }, [requests, users]);
 
 
   // --- DOCS GENERATION ---
-  const handleExportPDF = (type: 'USER' | 'ORG' | 'TECH') => {
+  const handleExportPDF = async (type: 'USER' | 'ORG' | 'TECH') => {
     setIsExporting(true);
     try {
+      const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+        import('jspdf'),
+        import('jspdf-autotable')
+      ]);
+
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
       

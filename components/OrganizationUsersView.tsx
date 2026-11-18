@@ -1,13 +1,20 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useSisreq } from '../context/SisreqContext';
-import { User, UserRole, UserStatus, Status, Area } from '../types';
+import { User, UserRole, Status } from '../types';
 import { 
   Building, Users, UserPlus, Plus, Edit2, Trash2, Save, X, 
-  Activity, Calendar, Shield, Briefcase, Mail, Key, MapPin, 
-  ShieldAlert, ShieldCheck, Zap, Database, Search, Filter,
-  CheckCircle2, Layers, ChevronRight, AlertCircle, ArrowRight
+  Activity, Shield, Key, MapPin, 
+  ShieldAlert, ShieldCheck, Search,
+  Layers
 } from 'lucide-react';
 import { NewUserModal } from './NewUserModal';
+
+const ResizeHandle: React.FC<{ index: number; onMouseDown: (index: number, e: React.MouseEvent) => void }> = React.memo(({ index, onMouseDown }) => (
+  <div 
+    onMouseDown={(e) => onMouseDown(index, e)}
+    className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-indigo-400/50 active:bg-indigo-600 transition-colors z-30"
+  />
+));
 
 export const OrganizationUsersView: React.FC = () => {
   const { 
@@ -35,7 +42,25 @@ export const OrganizationUsersView: React.FC = () => {
   const [colWidths, setColWidths] = useState<number[]>([250, 160, 160, 110, 110, 90, 80]);
   const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
 
-  const handleMouseDown = (index: number, e: React.MouseEvent) => {
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!resizingRef.current) return;
+    const { index, startX, startWidth } = resizingRef.current;
+    const delta = e.clientX - startX;
+    setColWidths(prev => {
+      const next = [...prev];
+      next[index] = Math.max(50, startWidth + delta);
+      return next;
+    });
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    resizingRef.current = null;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'default';
+  }, [handleMouseMove]);
+
+  const handleMouseDown = useCallback((index: number, e: React.MouseEvent) => {
     e.preventDefault();
     resizingRef.current = {
       index,
@@ -45,25 +70,15 @@ export const OrganizationUsersView: React.FC = () => {
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
     document.body.style.cursor = 'col-resize';
-  };
+  }, [colWidths, handleMouseMove, handleMouseUp]);
 
-  const handleMouseMove = (e: MouseEvent) => {
-    if (!resizingRef.current) return;
-    const { index, startX, startWidth } = resizingRef.current;
-    const delta = e.clientX - startX;
-    const newWidths = [...colWidths];
-    newWidths[index] = Math.max(50, startWidth + delta);
-    setColWidths(newWidths);
-  };
-
-  const handleMouseUp = () => {
-    resizingRef.current = null;
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
-    document.body.style.cursor = 'default';
-  };
-
-  const gridTemplate = useMemo(() => colWidths.map(w => `${w}px`).join(' '), [colWidths]);
+  useEffect(() => {
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'default';
+    };
+  }, [handleMouseMove, handleMouseUp]);
 
   // Area helpers
   const handleAddArea = async (e: React.FormEvent) => {
@@ -71,7 +86,6 @@ export const OrganizationUsersView: React.FC = () => {
     if (newArea.trim()) {
       try {
         await addOrganizationArea(newArea.trim());
-        addNotification('SUCCESS', 'Unidad Creada', `Se ha registrado la unidad "${newArea.trim()}" con éxito.`);
         setNewArea('');
       } catch (err: any) {
         addNotification('WARNING', 'Error', err.message || 'No se pudo crear la unidad.');
@@ -83,7 +97,6 @@ export const OrganizationUsersView: React.FC = () => {
     if (editingArea && editValue.trim() && editingArea !== editValue.trim()) {
       try {
         await updateOrganizationArea(editingArea, editValue.trim());
-        addNotification('SUCCESS', 'Unidad Actualizada', `La unidad se renombró a "${editValue.trim()}".`);
       } catch (err: any) {
         addNotification('WARNING', 'Error', err.message || 'No se pudo actualizar la unidad.');
       }
@@ -99,9 +112,8 @@ export const OrganizationUsersView: React.FC = () => {
         if (selectedAreaFilter === areaToDelete) {
           setSelectedAreaFilter('ALL');
         }
-        addNotification('SUCCESS', 'Unidad Eliminada', `Se ha eliminado el área "${areaToDelete}".`);
       } catch (err: any) {
-        addNotification('WARNING', 'Error', err.message || 'No se pudo eliminar la unidad.');
+        addNotification('WARNING', 'Acción Denegada', err.message || 'No se pudo eliminar la unidad.');
       }
       setAreaToDelete(null);
     }
@@ -120,7 +132,6 @@ export const OrganizationUsersView: React.FC = () => {
     if (!userToDelete) return;
     try {
       await deleteUser(userToDelete.id);
-      addNotification('SUCCESS', 'Usuario Eliminado', `Se ha eliminado al usuario ${userToDelete.name}.`);
       setUserToDelete(null);
     } catch (e: any) {
       addNotification('WARNING', 'Error', e.message);
@@ -137,33 +148,56 @@ export const OrganizationUsersView: React.FC = () => {
     setIsUserModalOpen(true);
   };
 
-  // Aggregated Stats
+  // Aggregated Stats (O(U + R + A) single-pass)
   const stats = useMemo(() => {
     const totalUsers = users.length;
-    const activeUsers = users.filter(u => u.status === 'ACTIVE' || !u.status).length;
-    const inactiveUsers = totalUsers - activeUsers;
-    const totalAreas = organizationAreas.length;
-
+    let activeUsers = 0;
+    let unassignedUsers = 0;
     const roles = {
-      [UserRole.SUPERADMIN]: users.filter(u => u.role === UserRole.SUPERADMIN).length,
-      [UserRole.ADMIN]: users.filter(u => u.role === UserRole.ADMIN).length,
-      [UserRole.HEAD]: users.filter(u => u.role === UserRole.HEAD).length,
-      [UserRole.ANALYST]: users.filter(u => u.role === UserRole.ANALYST).length,
+      [UserRole.SUPERADMIN]: 0,
+      [UserRole.ADMIN]: 0,
+      [UserRole.HEAD]: 0,
+      [UserRole.ANALYST]: 0,
     };
+    const membersByArea = new Map<string, number>();
+
+    for (const u of users) {
+      if (u.status === 'ACTIVE' || !u.status) activeUsers++;
+      if (roles[u.role] !== undefined) roles[u.role]++;
+      const hasAreas = Boolean(u.area || (u.areas && u.areas.length > 0));
+      if (!hasAreas) unassignedUsers++;
+
+      const uniqueUserAreas = new Set<string>();
+      if (u.area) uniqueUserAreas.add(u.area);
+      if (u.areas) {
+        for (const a of u.areas) uniqueUserAreas.add(a);
+      }
+      for (const a of uniqueUserAreas) {
+        membersByArea.set(a, (membersByArea.get(a) || 0) + 1);
+      }
+    }
+
+    const reqCountsByArea = new Map<string, { total: number; completed: number }>();
+    for (const r of requests) {
+      if (r.isDeleted) continue;
+      const entry = reqCountsByArea.get(r.area) || { total: 0, completed: 0 };
+      entry.total++;
+      if (r.status === Status.FINALIZADO) entry.completed++;
+      reqCountsByArea.set(r.area, entry);
+    }
 
     const areaStats = organizationAreas.map(areaName => {
-      const members = users.filter(u => u.area === areaName || u.areas?.includes(areaName as any));
-      const areaRequests = requests.filter(r => r.area === areaName);
-      const completedRequests = areaRequests.filter(r => r.status === Status.FINALIZADO);
+      const reqEntry = reqCountsByArea.get(areaName) || { total: 0, completed: 0 };
       return {
         name: areaName,
-        membersCount: members.length,
-        requestsCount: areaRequests.length,
-        completedCount: completedRequests.length,
+        membersCount: membersByArea.get(areaName) || 0,
+        requestsCount: reqEntry.total,
+        completedCount: reqEntry.completed,
       };
     });
 
-    const unassignedUsers = users.filter(u => !u.area && (!u.areas || u.areas.length === 0)).length;
+    const inactiveUsers = totalUsers - activeUsers;
+    const totalAreas = organizationAreas.length;
     const assignmentRate = totalUsers > 0 ? Math.round(((totalUsers - unassignedUsers) / totalUsers) * 100) : 0;
 
     return { totalUsers, activeUsers, inactiveUsers, totalAreas, roles, areaStats, unassignedUsers, assignmentRate };
@@ -171,19 +205,16 @@ export const OrganizationUsersView: React.FC = () => {
 
   // Filtered Users List
   const filteredUsers = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
     return users.filter(user => {
-      // Area filter
       if (selectedAreaFilter !== 'ALL') {
         const userHasArea = user.area === selectedAreaFilter || user.areas?.includes(selectedAreaFilter as any);
         if (!userHasArea) return false;
       }
-      // Role filter
       if (roleFilter !== 'ALL' && user.role !== roleFilter) {
         return false;
       }
-      // Search term
-      if (searchTerm.trim()) {
-        const term = searchTerm.toLowerCase();
+      if (term) {
         const matchesName = user.name.toLowerCase().includes(term);
         const matchesEmail = user.email ? user.email.toLowerCase().includes(term) : false;
         const matchesArea = user.area ? user.area.toLowerCase().includes(term) : false;
@@ -196,13 +227,6 @@ export const OrganizationUsersView: React.FC = () => {
       return true;
     });
   }, [users, selectedAreaFilter, roleFilter, searchTerm]);
-
-  const ResizeHandle = ({ index }: { index: number }) => (
-    <div 
-      onMouseDown={(e) => handleMouseDown(index, e)}
-      className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-indigo-400/50 active:bg-indigo-600 transition-colors z-30"
-    />
-  );
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50 p-4 sm:p-8">
@@ -449,23 +473,23 @@ export const OrganizationUsersView: React.FC = () => {
               <div className="flex bg-slate-50/80 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest px-4 py-3 shrink-0">
                 <div style={{ width: colWidths[0] }} className="relative shrink-0 flex items-center px-3">
                   Colaborador
-                  <ResizeHandle index={0} />
+                  <ResizeHandle index={0} onMouseDown={handleMouseDown} />
                 </div>
                 <div style={{ width: colWidths[1] }} className="relative shrink-0 flex items-center px-3">
                   Rol & Permisos
-                  <ResizeHandle index={1} />
+                  <ResizeHandle index={1} onMouseDown={handleMouseDown} />
                 </div>
                 <div style={{ width: colWidths[2] }} className="relative shrink-0 flex items-center px-3">
                   Unidad Asignada
-                  <ResizeHandle index={2} />
+                  <ResizeHandle index={2} onMouseDown={handleMouseDown} />
                 </div>
                 <div style={{ width: colWidths[3] }} className="relative shrink-0 flex items-center px-3">
                   Estado
-                  <ResizeHandle index={3} />
+                  <ResizeHandle index={3} onMouseDown={handleMouseDown} />
                 </div>
                 <div style={{ width: colWidths[4] }} className="relative shrink-0 flex items-center px-3">
                   Seguridad
-                  <ResizeHandle index={4} />
+                  <ResizeHandle index={4} onMouseDown={handleMouseDown} />
                 </div>
                 <div style={{ width: colWidths[5] }} className="relative shrink-0 flex items-center justify-end px-3">
                   Acciones

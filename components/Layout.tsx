@@ -1,12 +1,13 @@
 
 import React, { useState } from 'react';
 import { useSisreq } from '../context/SisreqContext';
-import { UserRole, Area } from '../types';
-import { LayoutDashboard, Plus, Briefcase, LogOut, Shield, ArrowLeftRight, Book, Calculator, CalendarDays } from 'lucide-react';
+import { UserRole } from '../types';
+import { LayoutDashboard, Plus, Briefcase, LogOut, Shield, ArrowLeftRight, Calculator, CalendarDays } from 'lucide-react';
 import { NewRequestModal } from './NewRequestModal';
 import { RequestDetailModal } from './RequestDetailModal';
 import { NotificationBell } from './NotificationBell';
 import { CURRENT_VERSION } from '../constants';
+import { canSupervise as checkCanSupervise } from '../src/lib/auth';
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser, logout, viewMode, setViewMode, activeRole, toggleSupervisorMode, isSupervisorMode, setSelectedRequestId } = useSisreq();
@@ -17,7 +18,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
   const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
   
-  const canSupervise = !!currentUser.canSupervise && currentUser.role !== UserRole.ADMIN && currentUser.role !== UserRole.SUPERADMIN;
+  const canSupervise = checkCanSupervise(currentUser);
 
   const handleToggleProfile = () => {
     setSelectedRequestId(null);
@@ -53,7 +54,12 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     <div className="flex flex-col h-screen bg-[#F8FAFC] overflow-hidden font-sans">
       <header className="bg-white/90 backdrop-blur-xl border-b border-slate-200/60 z-30 shrink-0 h-16 px-6 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-8">
-            <div className="flex items-center gap-3 pr-8 border-r border-slate-200/50">
+            <button
+                type="button"
+                onClick={() => setViewMode('work')}
+                className="flex items-center gap-3 pr-8 border-r border-slate-200/50 text-left hover:opacity-80 transition-opacity cursor-pointer"
+                title="Ir al Tablero Operativo"
+            >
                 <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-100">
                     <LayoutDashboard size={20} strokeWidth={2.5} />
                 </div>
@@ -61,7 +67,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                     <h1 className="text-lg font-black tracking-tighter text-slate-900 leading-none">SISREQ</h1>
                     <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mt-0.5">by Global TI</span>
                 </div>
-            </div>
+            </button>
 
             <nav className="flex items-center gap-6">
                 {currentUser.role === UserRole.SUPERADMIN ? (

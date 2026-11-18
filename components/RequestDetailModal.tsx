@@ -4,10 +4,10 @@ import { useSisreq } from '../context/SisreqContext';
 import { STATUS_BADGE_COLORS } from '../constants';
 import { UserRole, Status, Priority } from '../types';
 import { 
-    X, User, Building, Clock, Save, Send, 
-    RotateCcw, CheckCircle2, Hash, PlayCircle, Trash2,
+    X, User, Save, Send, 
+    RotateCcw, CheckCircle2, PlayCircle, Trash2,
     ShieldAlert, UserCheck, History, ClipboardList, PenTool,
-    ShieldCheck, MapPin, Loader2, Info, FileStack, Archive, BadgeDollarSign
+    ShieldCheck, Loader2, Info, Archive, BadgeDollarSign
 } from 'lucide-react';
 
 export const RequestDetailModal: React.FC = () => {
@@ -26,7 +26,8 @@ export const RequestDetailModal: React.FC = () => {
     users,
     activeRole,
     organizationAreas,
-    canUserTransition
+    canUserTransition,
+    ensureRequestLogs
   } = useSisreq();
 
   const [returnReason, setReturnReason] = useState('');
@@ -68,14 +69,19 @@ export const RequestDetailModal: React.FC = () => {
   }, [users, data?.area]);
 
   useEffect(() => {
+     if (selectedRequestId) {
+        ensureRequestLogs(selectedRequestId);
+     }
+  }, [selectedRequestId, ensureRequestLogs]);
+
+  useEffect(() => {
      if (data) {
         setEditTitle(data.title);
         setEditDetail(data.detail);
         setEditClientType(data.clientType === 'ONE_OFF' ? 'ONE_OFF' : 'FREQUENT');
         setEditPaymentProportion(data.paymentProportion === 'FULL' ? 'FULL' : 'ADVANCE');
         setEditPaymentAmount(data.paymentAmount ? String(data.paymentAmount) : '');
-        const remaining = data.totalAmount && data.paymentAmount ? data.totalAmount - data.paymentAmount : 0;
-        setEditRemainingAmount(remaining > 0 ? String(remaining) : '');
+        setEditRemainingAmount(data.totalAmount ? String(data.totalAmount) : '');
         setEditPriority(data.priority);
         setEditArea(data.area);
         setIsEditing(false);
@@ -236,12 +242,12 @@ export const RequestDetailModal: React.FC = () => {
   const isSuperAdmin = currentUser.role === UserRole.SUPERADMIN || activeRole === UserRole.SUPERADMIN;
 
   const getLogStyle = (msg: string) => {
-    if (msg.startsWith('SISTEMA:')) return { bg: 'bg-indigo-50/50', border: 'border-indigo-100', text: 'text-indigo-600', icon: 'S' };
-    if (msg.startsWith('FLUJO:')) return { bg: 'bg-emerald-50/50', border: 'border-emerald-100', text: 'text-emerald-600', icon: 'F' };
-    if (msg.startsWith('RETORNO:')) return { bg: 'bg-red-50/50', border: 'border-red-100', text: 'text-red-600', icon: 'R' };
+    if (msg.startsWith('SISTEMA:') || msg.startsWith('APERTURA:') || msg.startsWith('GENERACIÓN AUTOMÁTICA:')) return { bg: 'bg-indigo-50/50', border: 'border-indigo-100', text: 'text-indigo-600', icon: 'S' };
+    if (msg.startsWith('FLUJO:') || msg.startsWith('TRANSICIÓN:') || msg.startsWith('CIERRE:')) return { bg: 'bg-emerald-50/50', border: 'border-emerald-100', text: 'text-emerald-600', icon: 'F' };
+    if (msg.startsWith('RETORNO:') || msg.startsWith('DEVOLUCIÓN:') || msg.startsWith('REAPERTURA:')) return { bg: 'bg-red-50/50', border: 'border-red-100', text: 'text-red-600', icon: 'R' };
     if (msg.startsWith('AUDITORÍA:')) return { bg: 'bg-slate-900', border: 'border-slate-800', text: 'text-white', icon: 'A' };
-    if (msg.startsWith('EDICIÓN:')) return { bg: 'bg-amber-50/50', border: 'border-amber-100', text: 'text-amber-600', icon: 'E' };
-    if (msg.startsWith('ASIGNACIÓN:')) return { bg: 'bg-blue-50/50', border: 'border-blue-100', text: 'text-blue-600', icon: 'D' };
+    if (msg.startsWith('EDICIÓN:') || msg.startsWith('ESCALAMIENTO:') || msg.startsWith('MODIFICACIÓN:') || msg.startsWith('REASIGNACIÓN DE ÁREA:') || msg.startsWith('SANEAMIENTO:')) return { bg: 'bg-amber-50/50', border: 'border-amber-100', text: 'text-amber-600', icon: 'E' };
+    if (msg.startsWith('ASIGNACIÓN:') || msg.startsWith('DESIGNACIÓN:') || msg.startsWith('REASIGNACIÓN:')) return { bg: 'bg-blue-50/50', border: 'border-blue-100', text: 'text-blue-600', icon: 'D' };
     return { bg: 'bg-slate-50', border: 'border-slate-100', text: 'text-slate-600', icon: 'N' };
   };
 
@@ -302,7 +308,7 @@ export const RequestDetailModal: React.FC = () => {
                         <div>
                             <p className="text-[9px] font-black text-red-700 uppercase tracking-widest">EXPEDIENTE EN ARCHIVO DE AUDITORÍA</p>
                             <p className="text-[8px] text-red-600 font-bold italic">
-                                Archivado por {data.deletedBy} el {new Date(data.deletedAt!).toLocaleString()}
+                                Archivado por {data.deletedBy || 'Sistema'} el {data.deletedAt ? new Date(data.deletedAt).toLocaleString() : 'Fecha no disponible'}
                             </p>
                         </div>
                     </div>
@@ -402,8 +408,10 @@ export const RequestDetailModal: React.FC = () => {
                                             </select>
                                         </div>
                                         <div>
+                                            <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Anticipo ($)</label>
                                             <input
                                                 type="number"
+                                                min="1"
                                                 disabled={editPaymentProportion === 'FULL'}
                                                 value={editPaymentProportion === 'FULL' ? '' : editPaymentAmount}
                                                 onChange={e => setEditPaymentAmount(e.target.value)}
@@ -413,8 +421,10 @@ export const RequestDetailModal: React.FC = () => {
                                         </div>
                                     </div>
                                     <div>
+                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Monto Total Servicio ($)</label>
                                         <input
                                             type="number"
+                                            min="1"
                                             value={editRemainingAmount}
                                             onChange={e => setEditRemainingAmount(e.target.value)}
                                             placeholder="0"

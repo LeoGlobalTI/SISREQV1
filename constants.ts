@@ -1,5 +1,5 @@
 
-import { Area, Status, User, UserRole, Priority, RequestCard, VersionEntry } from './types';
+import { Status, User, UserRole, Priority, RequestCard, VersionEntry } from './types';
 
 export const INITIAL_USERS: User[] = [
   { id: '11111111-1111-4111-a111-111111111111', name: 'Leandro', email: 'leandro@sisreq.com', status: 'ACTIVE', joinedAt: '2023-01-01T10:00:00Z', role: UserRole.SUPERADMIN, password: '123' },
@@ -13,13 +13,6 @@ export const INITIAL_USERS: User[] = [
   { id: '99999999-9999-4999-a999-999999999999', name: 'Analista Finanzas', email: 'ana.finanzas@sisreq.com', status: 'ACTIVE', joinedAt: '2023-09-05T09:30:00Z', role: UserRole.ANALYST, area: 'Finanzas', password: '123' },
 ];
 
-export const AREA_HEADS: Record<Area, string> = {
-  ['Contabilidad']: 'Vania',
-  ['RRHH']: 'Rodrigo',
-  ['Acreditación']: 'Yerman',
-  ['Finanzas']: 'Evelin',
-};
-
 const now = new Date();
 const pastDate = (hours: number) => new Date(now.getTime() - hours * 3600000).toISOString();
 
@@ -32,7 +25,7 @@ export const INITIAL_REQUESTS: RequestCard[] = [
     area: 'Contabilidad',
     status: Status.RECIBIDO,
     priority: Priority.HIGH,
-    responsibleHead: AREA_HEADS['Contabilidad'],
+    responsibleHead: 'Vania',
     createdAt: pastDate(2),
     lastUpdated: pastDate(2),
     logs: [{ id: 'l1111111-1111-4111-c111-111111111111', timestamp: pastDate(2), message: 'SISTEMA: Apertura de requerimiento SISREQ', actor: 'Leandro', role: UserRole.SUPERADMIN }]
@@ -45,7 +38,7 @@ export const INITIAL_REQUESTS: RequestCard[] = [
     area: 'Contabilidad',
     status: Status.DERIVACION,
     priority: Priority.MEDIUM,
-    responsibleHead: AREA_HEADS['Contabilidad'],
+    responsibleHead: 'Vania',
     createdAt: pastDate(24),
     lastUpdated: pastDate(20),
     logs: [{ id: 'l2222222-2222-4222-c222-222222222222', timestamp: pastDate(24), message: 'SISTEMA: Apertura', actor: 'Leandro', role: UserRole.SUPERADMIN }]
@@ -58,7 +51,7 @@ export const INITIAL_REQUESTS: RequestCard[] = [
     area: 'Contabilidad',
     status: Status.EJECUCION,
     priority: Priority.HIGH,
-    responsibleHead: AREA_HEADS['Contabilidad'],
+    responsibleHead: 'Vania',
     assignedAnalyst: 'Analista Contabilidad',
     createdAt: pastDate(48),
     lastUpdated: pastDate(12),
@@ -72,7 +65,7 @@ export const INITIAL_REQUESTS: RequestCard[] = [
     area: 'Finanzas',
     status: Status.RECIBIDO,
     priority: Priority.HIGH,
-    responsibleHead: AREA_HEADS['Finanzas'],
+    responsibleHead: 'Evelin',
     createdAt: pastDate(12),
     lastUpdated: pastDate(12),
     logs: [{ id: 'l4444444-4444-4444-c444-444444444444', timestamp: pastDate(12), message: 'SISTEMA: Apertura', actor: 'Evelin', role: UserRole.ADMIN }]
@@ -85,7 +78,7 @@ export const INITIAL_REQUESTS: RequestCard[] = [
     area: 'Acreditación',
     status: Status.RECIBIDO,
     priority: Priority.HIGH,
-    responsibleHead: AREA_HEADS['Acreditación'],
+    responsibleHead: 'Yerman',
     createdAt: pastDate(5),
     lastUpdated: pastDate(5),
     logs: [{ id: 'l5555555-5555-4555-c555-555555555555', timestamp: pastDate(5), message: 'SISTEMA: Apertura', actor: 'Leandro', role: UserRole.SUPERADMIN }]
@@ -106,6 +99,21 @@ export const STATUS_BADGE_COLORS: Record<Status, string> = {
 };
 
 export const VERSIONS: VersionEntry[] = [
+  {
+    version: 'v4.3.5-STABILITY',
+    codename: 'Audit Hardening, Performance & Cleanup',
+    date: '18 de Noviembre 2026',
+    type: 'PATCH',
+    highlights: [
+      'Jurisdicción Central Estricta: Delimitación de canReceiveAndDerive exclusivamente a Bandeja Central (Recibido), impidiendo devoluciones o ediciones cruzadas en áreas externas.',
+      'Alineación de Supervisión y Roles: Unificación de canSupervise excluyendo Admin/SuperAdmin y habilitación del rol Admin en creación/edición de usuarios.',
+      'Planificador y Persistencia UI: Alcance estricto por área asignada para Jefaturas en procesos planificados y preservación de vista activa al recargar.',
+      'Gobernanza Real: Reemplazo de falsos positivos de IDs legados por detección real de vínculos de ID incompletos y cálculo de salud sobre expedientes activos.',
+      'Carga Liviana bajo Demanda: Exclusión de logs en listados y polling (57.2% menos tráfico de red) con hidratación al abrir cada expediente.',
+      'Concurrencia y Resiliencia: UUIDs deterministas con inserción idempotente en rutinas, fusión atómica de bitácoras en servidor y propagación de errores de guardado.',
+      'Optimización y Limpieza: Separación de bundle en chunks (<400 KB), chequeo SQL actualizado para procesos programados y eliminación de código residual.'
+    ]
+  },
   {
     version: 'v4.3.4-INTEGRITY',
     codename: 'Workflow Consolidation & Transactional Security',

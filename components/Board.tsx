@@ -1,48 +1,58 @@
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useSisreq } from '../context/SisreqContext';
 import { RequestCard } from './RequestCard';
-import { Status, Area, UserRole, Priority } from '../types';
+import { Status, Area, RequestCard as RequestCardType } from '../types';
 import { 
     Search, Inbox, GitPullRequest, PlayCircle, CheckCircle2, 
     ChevronDown, LayoutGrid, ShieldAlert, FileStack, List, 
-    Table, Clock, User, Building2, MapPin, AlertCircle, Eye,
+    User, Building2, MapPin, AlertCircle, Eye,
     Hash, FileDown, FilterX, FileSpreadsheet, BadgeDollarSign
 } from 'lucide-react';
 import { PRIORITY_STYLES, STATUS_BADGE_COLORS } from '../constants';
 import { canReceiveAndDerive } from '../src/lib/auth';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 
 type DisplayMode = 'kanban' | 'list';
 
+const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
+
 /**
- * Calcula si una fecha es mayor a 5 días hábiles respecto a hoy.
+ * Calcula si una fecha es mayor a 5 días hábiles respecto a `nowMs` en tiempo O(1) acotado.
  */
-const isOlderThan5BusinessDays = (dateStr: string): boolean => {
+const isOlderThan5BusinessDays = (dateStr: string, nowMs: number): boolean => {
   if (!dateStr) return false;
-  const finishedDate = new Date(dateStr);
-  if (isNaN(finishedDate.getTime())) return false;
-  const now = new Date();
-  
-  if (finishedDate > now) return false;
+  const finishedMs = Date.parse(dateStr);
+  if (isNaN(finishedMs) || finishedMs > nowMs) return false;
+  if (nowMs - finishedMs > TEN_DAYS_MS) return true;
 
   let businessDaysCount = 0;
-  let current = new Date(finishedDate);
+  const current = new Date(finishedMs);
 
-  // Avanzamos día a día hasta llegar a hoy
-  while (current < now) {
+  while (current.getTime() < nowMs) {
     current.setDate(current.getDate() + 1);
-    
-    // Si el día actual que estamos evaluando no es sábado (6) ni domingo (0)
     const dayOfWeek = current.getDay();
     if (dayOfWeek !== 0 && dayOfWeek !== 6) {
       businessDaysCount++;
+      if (businessDaysCount > 5) return true;
     }
   }
 
-  return businessDaysCount > 5;
+  return false;
 };
+
+const COLUMNS = [
+  { title: 'Bandeja Central', status: Status.RECIBIDO, icon: <Inbox size={18} strokeWidth={2.5}/>, color: 'bg-indigo-600', text: 'text-indigo-600', light: 'bg-indigo-50' },
+  { title: 'Derivación', status: Status.DERIVACION, icon: <GitPullRequest size={18} strokeWidth={2.5}/>, color: 'bg-orange-500', text: 'text-orange-600', light: 'bg-orange-50' },
+  { title: 'Ejecución', status: Status.EJECUCION, icon: <PlayCircle size={18} strokeWidth={2.5}/>, color: 'bg-amber-500', text: 'text-amber-600', light: 'bg-amber-50' },
+  { title: 'Finalizado', status: Status.FINALIZADO, icon: <CheckCircle2 size={18} strokeWidth={2.5}/>, color: 'bg-emerald-600', text: 'text-emerald-600', light: 'bg-emerald-50' }
+];
+
+const ResizeHandle: React.FC<{ index: number; onMouseDown: (index: number, e: React.MouseEvent) => void }> = React.memo(({ index, onMouseDown }) => (
+  <div 
+    onMouseDown={(e) => onMouseDown(index, e)}
+    className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-indigo-400/50 active:bg-indigo-600 transition-colors z-30"
+  />
+));
 
 export const Board: React.FC = () => {
   const { 
@@ -50,8 +60,8 @@ export const Board: React.FC = () => {
     updateStatus, 
     globalFilterArea, 
     setGlobalFilterArea, 
-    activeRole, 
     canUserSeeRequest, 
+    canUserTransition,
     setSelectedRequestId,
     organizationAreas,
     currentUser
@@ -67,7 +77,25 @@ export const Board: React.FC = () => {
   const [colWidths, setColWidths] = useState<number[]>([80, 380, 120, 120, 130, 130, 100, 140, 60]);
   const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
 
-  const handleMouseDown = (index: number, e: React.MouseEvent) => {
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!resizingRef.current) return;
+    const { index, startX, startWidth } = resizingRef.current;
+    const delta = e.clientX - startX;
+    setColWidths(prev => {
+      const next = [...prev];
+      next[index] = Math.max(50, startWidth + delta);
+      return next;
+    });
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    resizingRef.current = null;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'default';
+  }, [handleMouseMove]);
+
+  const handleMouseDown = useCallback((index: number, e: React.MouseEvent) => {
     e.preventDefault();
     resizingRef.current = {
       index,
@@ -77,57 +105,58 @@ export const Board: React.FC = () => {
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
     document.body.style.cursor = 'col-resize';
-  };
+  }, [colWidths, handleMouseMove, handleMouseUp]);
 
-  const handleMouseMove = (e: MouseEvent) => {
-    if (!resizingRef.current) return;
-    const { index, startX, startWidth } = resizingRef.current;
-    const delta = e.clientX - startX;
-    const newWidths = [...colWidths];
-    newWidths[index] = Math.max(50, startWidth + delta);
-    setColWidths(newWidths);
-  };
-
-  const handleMouseUp = () => {
-    resizingRef.current = null;
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
-    document.body.style.cursor = 'default';
-  };
+  useEffect(() => {
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'default';
+    };
+  }, [handleMouseMove, handleMouseUp]);
 
   const gridTemplate = useMemo(() => colWidths.map(w => `${w}px`).join(' '), [colWidths]);
 
   const filteredRequests = useMemo(() => {
+    const nowMs = Date.now();
+    const term = searchTerm.toLowerCase();
     return requests.filter(req => {
-      // 1. REGLA DE ARCHIVO: Si el requerimiento está eliminado/archivado, NO se muestra en el tablero
-      // independientemente de los permisos de visibilidad base.
       if (req.isDeleted) return false;
-
-      // 2. Verificación de visibilidad base (rol/área)
       if (!canUserSeeRequest(req)) return false;
 
-      // 3. Filtro de 5 días hábiles para Finalizados (Limpieza de tablero operativo)
       if (req.status === Status.FINALIZADO) {
         const dateToCheck = req.finishedAt || req.lastUpdated;
-        if (isOlderThan5BusinessDays(dateToCheck)) {
+        if (isOlderThan5BusinessDays(dateToCheck, nowMs)) {
           return false;
         }
       }
 
-      // 4. Búsqueda por texto
-      const term = searchTerm.toLowerCase();
-      const matchesSearch = searchTerm === '' || 
-          req.title.toLowerCase().includes(term) ||
+      if (globalFilterArea !== 'ALL' && req.area !== globalFilterArea) {
+        return false;
+      }
+
+      if (term === '') return true;
+      return req.title.toLowerCase().includes(term) ||
           req.id.toLowerCase().includes(term) ||
           req.requester.toLowerCase().includes(term) ||
           (req.assignedAnalyst && req.assignedAnalyst.toLowerCase().includes(term));
-
-      // 5. Filtro global de área
-      const matchesArea = globalFilterArea === 'ALL' || req.area === globalFilterArea;
-      
-      return matchesSearch && matchesArea;
     });
-  }, [requests, searchTerm, globalFilterArea, canUserSeeRequest, currentUser]);
+  }, [requests, searchTerm, globalFilterArea, canUserSeeRequest]);
+
+  const requestsByStatus = useMemo(() => {
+    const map: Record<Status, RequestCardType[]> = {
+      [Status.RECIBIDO]: [],
+      [Status.DERIVACION]: [],
+      [Status.EJECUCION]: [],
+      [Status.FINALIZADO]: []
+    };
+    for (const req of filteredRequests) {
+      if (map[req.status]) {
+        map[req.status].push(req);
+      }
+    }
+    return map;
+  }, [filteredRequests]);
 
   const handleDrop = async (e: React.DragEvent, targetStatus: Status) => {
     e.preventDefault();
@@ -140,6 +169,16 @@ export const Board: React.FC = () => {
     if (req.status === targetStatus) return;
 
     try {
+        if (targetStatus === Status.FINALIZADO && req.clientType === 'ONE_OFF' && req.paymentProportion !== 'FULL') {
+            const check = canUserTransition(req, Status.FINALIZADO);
+            if (!check.allowed) {
+                throw new Error(check.reason);
+            }
+            setSelectedRequestId(req.id);
+            setErrorToast('Confirme el pago total en el detalle del expediente para finalizarlo.');
+            setTimeout(() => setErrorToast(null), 4000);
+            return;
+        }
         await updateStatus(requestId, targetStatus);
     } catch (err: any) {
         setErrorToast(err.message);
@@ -147,9 +186,13 @@ export const Board: React.FC = () => {
     }
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     setIsExporting(true);
     try {
+      const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+        import('jspdf'),
+        import('jspdf-autotable')
+      ]);
       const doc = new jsPDF('landscape');
       
       doc.setFontSize(22);
@@ -162,7 +205,7 @@ export const Board: React.FC = () => {
       doc.text(`Total de Expedientes: ${filteredRequests.length}`, 14, 35);
 
       const tableData = filteredRequests.map(req => [
-        req.id.split('-')[1].toUpperCase(),
+        (req.id.split('-')[1] || req.id.substring(0, 6)).toUpperCase(),
         req.title.toUpperCase(),
         req.area.toUpperCase(),
         req.requester.toUpperCase(),
@@ -201,7 +244,7 @@ export const Board: React.FC = () => {
         }
       });
 
-      doc.save(`SISREQ_REPORT_${new Date().getTime()}.pdf`);
+      doc.save(`SISREQ_REPORT_${Date.now()}.pdf`);
     } catch (error) {
       console.error('Error generating PDF:', error);
     } finally {
@@ -212,7 +255,7 @@ export const Board: React.FC = () => {
   const handleExportCSV = () => {
     const headers = ['ID', 'TITULO', 'AREA', 'SOLICITANTE', 'ESTADO', 'RESPONSABLE', 'PRIORIDAD', 'CREADO', 'ULTIMA_ACTUALIZACION'];
     const rows = filteredRequests.map(req => [
-      req.id.split('-')[1].toUpperCase(),
+      (req.id.split('-')[1] || req.id.substring(0, 6)).toUpperCase(),
       `"${req.title.replace(/"/g, '""')}"`,
       `"${req.area.replace(/"/g, '""')}"`,
       `"${req.requester.replace(/"/g, '""')}"`,
@@ -232,26 +275,13 @@ export const Board: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `SISREQ_EXPORT_${new Date().getTime()}.csv`);
+    link.setAttribute('download', `SISREQ_EXPORT_${Date.now()}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
-
-  const COLUMNS = [
-    { title: 'Bandeja Central', status: Status.RECIBIDO, icon: <Inbox size={18} strokeWidth={2.5}/>, color: 'bg-indigo-600', text: 'text-indigo-600', light: 'bg-indigo-50' },
-    { title: 'Derivación', status: Status.DERIVACION, icon: <GitPullRequest size={18} strokeWidth={2.5}/>, color: 'bg-orange-500', text: 'text-orange-600', light: 'bg-orange-50' },
-    { title: 'Ejecución', status: Status.EJECUCION, icon: <PlayCircle size={18} strokeWidth={2.5}/>, color: 'bg-amber-500', text: 'text-amber-600', light: 'bg-amber-50' },
-    { title: 'Finalizado', status: Status.FINALIZADO, icon: <CheckCircle2 size={18} strokeWidth={2.5}/>, color: 'bg-emerald-600', text: 'text-emerald-600', light: 'bg-emerald-50' }
-  ];
-
-  const ResizeHandle = ({ index }: { index: number }) => (
-    <div 
-      onMouseDown={(e) => handleMouseDown(index, e)}
-      className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-indigo-400/50 active:bg-indigo-600 transition-colors z-30"
-    />
-  );
 
   return (
     <div className="flex flex-col h-full relative overflow-hidden">
@@ -364,18 +394,18 @@ export const Board: React.FC = () => {
                       {COLUMNS.map((col) => {
                           if (col.status === Status.RECIBIDO && !canReceiveAndDerive(currentUser || undefined)) return null;
                           
-                          const items = filteredRequests.filter(r => r.status === col.status);
+                          const items = requestsByStatus[col.status];
                           const isDragActive = dragOverColumn === col.status;
 
                           return (
                               <div 
-                                  key={`${col.status}-${searchTerm}`} 
+                                  key={col.status} 
                                   className={`flex-1 flex flex-col min-w-[300px] max-w-[380px] rounded-[2.5rem] transition-all duration-300 ease-in-out ${
                                     isDragActive 
                                     ? 'bg-indigo-50/40 shadow-[0_20px_50px_rgba(79,70,229,0.1)] ring-4 ring-indigo-500/20 scale-[1.03] translate-y-[-4px]' 
                                     : 'bg-transparent'
                                   }`} 
-                                  onDragOver={(e) => { e.preventDefault(); setDragOverColumn(col.status); }} 
+                                  onDragOver={(e) => { e.preventDefault(); if (dragOverColumn !== col.status) setDragOverColumn(col.status); }} 
                                   onDragLeave={() => setDragOverColumn(null)} 
                                   onDrop={(e) => handleDrop(e, col.status)}
                               >
@@ -390,14 +420,11 @@ export const Board: React.FC = () => {
                                       <span className={`px-3 py-1 rounded-xl text-[11px] font-black border transition-all duration-300 ${isDragActive ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>{items.length}</span>
                                   </div>
 
-                                  <div 
-                                    key={`list-${col.status}-${items.length}`}
-                                    className="flex-1 overflow-y-auto px-1 pb-20 hide-scrollbar space-y-5"
-                                  >
+                                  <div className="flex-1 overflow-y-auto px-1 pb-20 hide-scrollbar space-y-5">
                                       {items.map((req, idx) => (
                                           <div 
                                             key={req.id} 
-                                            style={{ animationDelay: `${idx * 40}ms` }} 
+                                            style={{ animationDelay: `${Math.min(idx, 10) * 30}ms` }} 
                                             className="animate-card-entry"
                                           >
                                             <RequestCard data={req} />
@@ -424,35 +451,35 @@ export const Board: React.FC = () => {
                       >
                           <div className="relative h-full flex items-center">
                             <Hash size={12} className="inline mr-1 text-slate-300"/> ID
-                            <ResizeHandle index={0} />
+                            <ResizeHandle index={0} onMouseDown={handleMouseDown} />
                           </div>
                           <div className="relative h-full flex items-center">
                             <FileStack size={12} className="inline mr-1 text-slate-300"/> Expediente Técnico
-                            <ResizeHandle index={1} />
+                            <ResizeHandle index={1} onMouseDown={handleMouseDown} />
                           </div>
                           <div className="relative h-full flex items-center">
                             <MapPin size={12} className="inline mr-1 text-slate-300"/> Área
-                            <ResizeHandle index={2} />
+                            <ResizeHandle index={2} onMouseDown={handleMouseDown} />
                           </div>
                           <div className="relative h-full flex items-center">
                             <Building2 size={12} className="inline mr-1 text-slate-300"/> Solicitante
-                            <ResizeHandle index={3} />
+                            <ResizeHandle index={3} onMouseDown={handleMouseDown} />
                           </div>
                           <div className="relative h-full flex items-center">
                             <GitPullRequest size={12} className="inline mr-1 text-slate-300"/> Fase Actual
-                            <ResizeHandle index={4} />
+                            <ResizeHandle index={4} onMouseDown={handleMouseDown} />
                           </div>
                           <div className="relative h-full flex items-center">
                             <User size={12} className="inline mr-1 text-slate-300"/> Responsable
-                            <ResizeHandle index={5} />
+                            <ResizeHandle index={5} onMouseDown={handleMouseDown} />
                           </div>
                           <div className="relative h-full flex items-center">
                             <AlertCircle size={12} className="inline mr-1 text-slate-300"/> Urgencia
-                            <ResizeHandle index={6} />
+                            <ResizeHandle index={6} onMouseDown={handleMouseDown} />
                           </div>
                           <div className="relative h-full flex items-center">
                             <BadgeDollarSign size={12} className="inline mr-1 text-slate-300"/> Modalidad
-                            <ResizeHandle index={7} />
+                            <ResizeHandle index={7} onMouseDown={handleMouseDown} />
                           </div>
                           <div className="text-right">Detalle</div>
                       </div>
@@ -463,7 +490,7 @@ export const Board: React.FC = () => {
                                   key={req.id} 
                                   onClick={() => setSelectedRequestId(req.id)}
                                   style={{ 
-                                    animationDelay: `${idx * 20}ms`,
+                                    animationDelay: `${Math.min(idx, 15) * 15}ms`,
                                     gridTemplateColumns: gridTemplate 
                                   }}
                                   className="grid gap-4 px-8 py-5 items-center hover:bg-indigo-50/30 transition-all group cursor-pointer animate-card-entry"

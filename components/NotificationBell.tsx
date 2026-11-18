@@ -127,12 +127,6 @@ export const NotificationBell: React.FC = () => {
                 </div>
             )}
           </div>
-          
-          <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 text-center">
-            <button className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:text-indigo-800 transition-colors">
-                Ver Historial de Operaciones
-            </button>
-          </div>
         </div>
       )}
 

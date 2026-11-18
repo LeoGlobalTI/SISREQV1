@@ -1,17 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import { useSisreq } from '../context/SisreqContext';
-import { Status, Area, Priority, UserRole, RequestCard } from '../types';
+import { Status, Priority } from '../types';
 import { SLA_THRESHOLDS } from '../constants';
 import { 
-    BarChart3, CheckCircle2, Clock, 
+    BarChart3, Clock, 
     Zap, Layers, Target, PieChart,
-    Users, Award, Search, X, UserCheck,
+    Award, X,
     Printer, Building, CheckCircle, FileSpreadsheet, AlertOctagon,
     ArrowUpRight, BadgeDollarSign
 } from 'lucide-react';
 
 export const ReportsView: React.FC = () => {
-  const { requests, users, setSelectedRequestId, organizationAreas } = useSisreq();
+  const { requests, users, organizationAreas } = useSisreq();
   const [timeRange, setTimeRange] = useState<'Semanal' | 'Mensual' | 'Anual' | 'Todo'>('Mensual');
   const [selectedArea, setSelectedArea] = useState<string>('ALL');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<Status | 'ALL'>('ALL');
@@ -19,144 +19,198 @@ export const ReportsView: React.FC = () => {
   // No more perspective state. We show everything in one Bento grid.
 
   const filteredRequests = useMemo(() => {
-    let list = requests.filter(r => !r.isDeleted && !r.deletedAt);
-    if (selectedArea !== 'ALL') {
-      list = list.filter(r => r.area === selectedArea);
-    }
-    if (selectedStatusFilter !== 'ALL') {
-      list = list.filter(r => r.status === selectedStatusFilter);
-    }
-    if (timeRange === 'Todo') return list;
-    const now = new Date();
-    return list.filter(r => {
-        const reqDate = new Date(r.createdAt);
-        const diffTime = Math.abs(now.getTime() - reqDate.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        if (timeRange === 'Semanal') return diffDays <= 7;
-        if (timeRange === 'Mensual') return diffDays <= 30;
-        if (timeRange === 'Anual') return diffDays <= 365;
-        return true;
+    const nowMs = Date.now();
+    const DAY_MS = 1000 * 60 * 60 * 24;
+    const maxDays = timeRange === 'Semanal' ? 7 : timeRange === 'Mensual' ? 30 : timeRange === 'Anual' ? 365 : Infinity;
+
+    return requests.filter(r => {
+      if (r.isDeleted || r.deletedAt) return false;
+      if (selectedArea !== 'ALL' && r.area !== selectedArea) return false;
+      if (selectedStatusFilter !== 'ALL' && r.status !== selectedStatusFilter) return false;
+      if (maxDays === Infinity) return true;
+      const reqTime = Date.parse(r.createdAt);
+      if (Number.isNaN(reqTime)) return false;
+      const diffMs = nowMs - reqTime;
+      if (diffMs < 0) return false;
+      const diffDays = Math.ceil(diffMs / DAY_MS);
+      return diffDays <= maxDays;
     });
   }, [requests, timeRange, selectedArea, selectedStatusFilter]);
 
-  const stats = useMemo(() => {
+  const { stats, areaBreakdown, userMetrics } = useMemo(() => {
     const total = filteredRequests.length;
-    const completed = filteredRequests.filter(r => r.status === Status.FINALIZADO).length;
+    const DAY_MS = 1000 * 60 * 60 * 24;
+    const nowMs = Date.now();
+
+    const statusCounts: Record<Status, number> = {
+      [Status.RECIBIDO]: 0,
+      [Status.DERIVACION]: 0,
+      [Status.EJECUCION]: 0,
+      [Status.FINALIZADO]: 0,
+    };
+    const priorityCounts: Record<Priority, number> = {
+      [Priority.HIGH]: 0,
+      [Priority.MEDIUM]: 0,
+      [Priority.LOW]: 0,
+    };
+    const areaStatsMap = new Map<string, { total: number; completed: number }>();
+    const analystMap = new Map<string, { total: number; completed: number; finishedDurationMs: number; finishedCount: number }>();
+
+    let completed = 0;
+    let totalDurationMs = 0;
+    let completedWithTimeCount = 0;
+    let withinSlaCount = 0;
+    const slaBottlenecks: { request: typeof filteredRequests[number]; ageDays: number; riskLevel: 'WARNING' | 'BREACHED' }[] = [];
+
+    let oneOffCount = 0;
+    let oneOffTotalRevenue = 0;
+    let oneOffCollected = 0;
+    let oneOffAdvance = 0;
+    let oneOffFull = 0;
+    let internalRoutineRequests = 0;
+
+    const userKeyByName = new Map<string, string>();
+    for (const u of users) {
+      userKeyByName.set(u.name.toLowerCase(), u.id);
+    }
+
+    for (const r of filteredRequests) {
+      if (statusCounts[r.status] !== undefined) statusCounts[r.status]++;
+      if (priorityCounts[r.priority] !== undefined) priorityCounts[r.priority]++;
+
+      const areaEntry = areaStatsMap.get(r.area) || { total: 0, completed: 0 };
+      areaEntry.total++;
+      if (r.status === Status.FINALIZADO) areaEntry.completed++;
+      areaStatsMap.set(r.area, areaEntry);
+
+      const createdMs = Date.parse(r.createdAt);
+
+      if (r.status === Status.FINALIZADO) {
+        completed++;
+        if (r.finishedAt) {
+          const durationMs = Math.max(0, Date.parse(r.finishedAt) - createdMs);
+          totalDurationMs += durationMs;
+          completedWithTimeCount++;
+          if (durationMs / DAY_MS <= SLA_THRESHOLDS.WARNING_DAYS) withinSlaCount++;
+        }
+      } else {
+        const ageDays = Number((Math.max(0, nowMs - createdMs) / DAY_MS).toFixed(1));
+        if (ageDays >= SLA_THRESHOLDS.WARNING_DAYS) {
+          slaBottlenecks.push({ request: r, ageDays, riskLevel: 'BREACHED' });
+        } else if (ageDays >= SLA_THRESHOLDS.NORMAL_DAYS) {
+          slaBottlenecks.push({ request: r, ageDays, riskLevel: 'WARNING' });
+        }
+      }
+
+      const analystKey = r.assignedAnalystId || (r.assignedAnalyst ? userKeyByName.get(r.assignedAnalyst.toLowerCase()) || r.assignedAnalyst.toLowerCase() : null);
+      if (analystKey) {
+        const uEntry = analystMap.get(analystKey) || { total: 0, completed: 0, finishedDurationMs: 0, finishedCount: 0 };
+        uEntry.total++;
+        if (r.status === Status.FINALIZADO) {
+          uEntry.completed++;
+          if (r.finishedAt) {
+            uEntry.finishedDurationMs += Math.max(0, Date.parse(r.finishedAt) - createdMs);
+            uEntry.finishedCount++;
+          }
+        }
+        analystMap.set(analystKey, uEntry);
+      }
+
+      if (r.clientType === 'ONE_OFF') {
+        oneOffCount++;
+        const reqTotal = r.totalAmount || 0;
+        const reqCollected = r.paymentProportion === 'FULL' ? (r.paymentAmount ?? reqTotal) : (r.paymentAmount || 0);
+        oneOffTotalRevenue += reqTotal;
+        oneOffCollected += reqCollected;
+        if (r.paymentProportion === 'ADVANCE') oneOffAdvance++;
+        else if (r.paymentProportion === 'FULL') oneOffFull++;
+      }
+
+      if (r.sourceType === 'INTERNAL_PROCESS') internalRoutineRequests++;
+    }
+
+    slaBottlenecks.sort((a, b) => b.ageDays - a.ageDays);
+
     const pending = total - completed;
     const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
     const byStatus = [Status.RECIBIDO, Status.DERIVACION, Status.EJECUCION, Status.FINALIZADO].map(status => {
-        const count = filteredRequests.filter(r => r.status === status).length;
-        const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
-        return { name: status, count, percentage };
+      const count = statusCounts[status];
+      return { name: status, count, percentage: total > 0 ? Math.round((count / total) * 100) : 0 };
     });
-    const completedItems = filteredRequests.filter(r => r.status === Status.FINALIZADO && r.finishedAt);
-    let avgDays = 0;
-    let withinSlaCount = 0;
-    if (completedItems.length > 0) {
-        const totalMs = completedItems.reduce((acc, curr) => {
-            const start = new Date(curr.createdAt).getTime();
-            const end = new Date(curr.finishedAt!).getTime();
-            const days = (end - start) / (1000 * 60 * 60 * 24);
-            if (days <= SLA_THRESHOLDS.WARNING_DAYS) withinSlaCount++;
-            return acc + (end - start);
-        }, 0);
-        avgDays = Number((totalMs / (1000 * 60 * 60 * 24) / completedItems.length).toFixed(1));
+    const avgDays = completedWithTimeCount > 0
+      ? Number(((totalDurationMs / DAY_MS) / completedWithTimeCount).toFixed(1))
+      : 0;
+    const slaComplianceRate = completedWithTimeCount > 0
+      ? Math.round((withinSlaCount / completedWithTimeCount) * 100)
+      : 100;
+    const byPriority = Object.values(Priority).map(p => ({ name: p, count: priorityCounts[p] }));
+
+    const allAreaNames = new Set<string>(organizationAreas);
+    for (const areaKey of areaStatsMap.keys()) {
+      if (areaKey) allAreaNames.add(areaKey);
     }
-    const slaComplianceRate = completedItems.length > 0 
-        ? Math.round((withinSlaCount / completedItems.length) * 100) 
-        : 100;
 
-    const byPriority = Object.values(Priority).map(p => ({
-        name: p,
-        count: filteredRequests.filter(r => r.priority === p).length
-    }));
-    
-    // SLA Bottlenecks for filtered requests
-    const now = Date.now();
-    const slaBottlenecks = filteredRequests
-      .filter(r => !r.isDeleted && r.status !== Status.FINALIZADO)
-      .map(r => {
-        const ageDays = Number(((now - new Date(r.createdAt).getTime()) / (1000 * 60 * 60 * 24)).toFixed(1));
-        let riskLevel: 'NORMAL' | 'WARNING' | 'BREACHED' = 'NORMAL';
-        if (ageDays >= SLA_THRESHOLDS.WARNING_DAYS) riskLevel = 'BREACHED';
-        else if (ageDays >= SLA_THRESHOLDS.NORMAL_DAYS) riskLevel = 'WARNING';
-        return { request: r, ageDays, riskLevel };
-      })
-      .filter(item => item.riskLevel !== 'NORMAL')
-      .sort((a, b) => b.ageDays - a.ageDays);
-
-    const oneOffRequests = filteredRequests.filter(r => r.clientType === 'ONE_OFF');
-    const oneOffTotalRevenue = oneOffRequests.reduce((sum, r) => sum + (r.totalAmount || 0), 0);
-    const oneOffCollected = oneOffRequests.reduce((sum, r) => sum + (r.paymentAmount || 0), 0);
-    const oneOffPending = oneOffTotalRevenue - oneOffCollected;
-    const oneOffAdvance = oneOffRequests.filter(r => r.paymentProportion === 'ADVANCE').length;
-    const oneOffFull = oneOffRequests.filter(r => r.paymentProportion === 'FULL').length;
-
-    const internalRoutineRequests = filteredRequests.filter(r => r.sourceType === 'INTERNAL_PROCESS').length;
-    
-    return { 
-        total, completed, pending, completionRate, byStatus, avgDays, 
-        slaComplianceRate, byPriority, slaBottlenecks,
-        internalRoutineRequests,
-        oneOff: { 
-            count: oneOffRequests.length, 
-            revenue: oneOffTotalRevenue, 
-            collected: oneOffCollected,
-            pending: oneOffPending,
-            advanceCount: oneOffAdvance, 
-            fullCount: oneOffFull 
-        }
-    };
-  }, [filteredRequests]);
-
-  // Desglose por Unidades Operativas
-  const areaBreakdown = useMemo(() => {
-    return organizationAreas.map(areaName => {
-      const areaRequests = filteredRequests.filter(r => r.area === areaName);
-      const completed = areaRequests.filter(r => r.status === Status.FINALIZADO).length;
-      const pending = areaRequests.length - completed;
-      const rate = areaRequests.length > 0 ? Math.round((completed / areaRequests.length) * 100) : 0;
+    const areaBreakdownList = Array.from(allAreaNames).map(areaName => {
+      const entry = areaStatsMap.get(areaName) || { total: 0, completed: 0 };
+      const areaPending = entry.total - entry.completed;
+      const rate = entry.total > 0 ? Math.round((entry.completed / entry.total) * 100) : 0;
       return {
         name: areaName,
-        total: areaRequests.length,
-        completed,
-        pending,
+        total: entry.total,
+        completed: entry.completed,
+        pending: areaPending,
         rate
       };
     }).sort((a, b) => b.total - a.total);
-  }, [organizationAreas, filteredRequests]);
 
-  // Métricas Específicas por Usuario
-  const userMetrics = useMemo(() => {
-    return users.map(user => {
-        const assigned = filteredRequests.filter(r => 
-            r.assignedAnalyst && r.assignedAnalyst.toLowerCase() === user.name.toLowerCase()
-        );
-        const assignedTotal = assigned.length;
-        const completed = assigned.filter(r => r.status === Status.FINALIZADO);
-        const assignedCompleted = completed.length;
-        const assignedActive = assignedTotal - assignedCompleted;
-        const completionRate = assignedTotal > 0 ? Math.round((assignedCompleted / assignedTotal) * 100) : 0;
-        
-        let avgDays = 0;
-        const finalizedWithTime = completed.filter(r => r.finishedAt);
-        if (finalizedWithTime.length > 0) {
-            const totalMs = finalizedWithTime.reduce((acc, curr) => {
-                return acc + (new Date(curr.finishedAt!).getTime() - new Date(curr.createdAt).getTime());
-            }, 0);
-            avgDays = Number((totalMs / (1000 * 60 * 60 * 24) / finalizedWithTime.length).toFixed(1));
+    const userMetricsList = users.reduce<Array<{
+      user: typeof users[number];
+      assignedTotal: number;
+      assignedCompleted: number;
+      assignedActive: number;
+      completionRate: number;
+      avgDays: number;
+    }>>((acc, user) => {
+      const entry = analystMap.get(user.id) || analystMap.get(user.name.toLowerCase());
+      if (!entry || entry.total === 0) return acc;
+      acc.push({
+        user,
+        assignedTotal: entry.total,
+        assignedCompleted: entry.completed,
+        assignedActive: entry.total - entry.completed,
+        completionRate: Math.round((entry.completed / entry.total) * 100),
+        avgDays: entry.finishedCount > 0 ? Number(((entry.finishedDurationMs / DAY_MS) / entry.finishedCount).toFixed(1)) : 0,
+      });
+      return acc;
+    }, [])
+      .sort((a, b) => b.assignedCompleted - a.assignedCompleted || b.assignedTotal - a.assignedTotal)
+      .slice(0, 5);
+
+    return {
+      stats: {
+        total,
+        completed,
+        pending,
+        completionRate,
+        byStatus,
+        avgDays,
+        slaComplianceRate,
+        byPriority,
+        slaBottlenecks,
+        internalRoutineRequests,
+        oneOff: {
+          count: oneOffCount,
+          revenue: oneOffTotalRevenue,
+          collected: oneOffCollected,
+          pending: Math.max(0, oneOffTotalRevenue - oneOffCollected),
+          advanceCount: oneOffAdvance,
+          fullCount: oneOffFull
         }
-
-        return {
-            user,
-            assignedTotal,
-            assignedCompleted,
-            assignedActive,
-            completionRate,
-            avgDays,
-        };
-    }).filter(u => u.assignedTotal > 0).sort((a, b) => b.assignedCompleted - a.assignedCompleted || b.assignedTotal - a.assignedTotal).slice(0, 5);
-  }, [users, filteredRequests]);
+      },
+      areaBreakdown: areaBreakdownList,
+      userMetrics: userMetricsList
+    };
+  }, [filteredRequests, organizationAreas, users]);
 
   // Exportación a CSV
   const handleExportCSV = () => {
@@ -179,9 +233,10 @@ export const ReportsView: React.FC = () => {
       'Dias_Transcurridos',
       'Cumple_SLA_ANSI'
     ];
+    const nowMs = Date.now();
     const rows = filteredRequests.map(r => {
-      const start = new Date(r.createdAt).getTime();
-      const end = r.finishedAt ? new Date(r.finishedAt).getTime() : Date.now();
+      const start = Date.parse(r.createdAt);
+      const end = r.finishedAt ? Date.parse(r.finishedAt) : nowMs;
       const days = ((end - start) / (1000 * 60 * 60 * 24)).toFixed(1);
       const compliesSla = r.status === Status.FINALIZADO 
         ? (Number(days) <= SLA_THRESHOLDS.WARNING_DAYS ? 'SI' : 'NO') 
@@ -189,8 +244,10 @@ export const ReportsView: React.FC = () => {
       const clientTypeLabel = r.clientType === 'ONE_OFF' ? 'Único' : 'Recurrente';
       const paymentRefLabel = r.clientType === 'ONE_OFF' ? (r.paymentProportion === 'ADVANCE' ? 'Anticipo' : 'Total') : 'N/A';
       const totalAmountVal = r.clientType === 'ONE_OFF' ? (r.totalAmount || 0) : 0;
-      const receivedAmountVal = r.clientType === 'ONE_OFF' ? (r.paymentAmount || 0) : 0;
-      const pendingAmountVal = totalAmountVal - receivedAmountVal;
+      const receivedAmountVal = r.clientType === 'ONE_OFF'
+        ? (r.paymentProportion === 'FULL' ? (r.paymentAmount ?? totalAmountVal) : (r.paymentAmount || 0))
+        : 0;
+      const pendingAmountVal = Math.max(0, totalAmountVal - receivedAmountVal);
       
       return [
         `"${r.id}"`,
@@ -222,6 +279,7 @@ export const ReportsView: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const hasActiveFilters = selectedArea !== 'ALL' || selectedStatusFilter !== 'ALL' || timeRange !== 'Mensual';

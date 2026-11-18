@@ -5,5 +5,5 @@ export const canReceiveAndDerive = (user?: User): boolean => {
 };
 
 export const canSupervise = (user?: User): boolean => {
-  return !!user?.canSupervise || user?.role === UserRole.ADMIN || user?.role === UserRole.SUPERADMIN;
+  return !!user?.canSupervise && user.role !== UserRole.ADMIN && user.role !== UserRole.SUPERADMIN;
 };

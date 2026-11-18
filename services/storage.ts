@@ -1,7 +1,9 @@
 /// <reference types="vite/client" />
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { RequestCard, User, Status, ScheduledProcess } from '../types';
+import { RequestCard, User, Status, ScheduledProcess, LogEntry } from '../types';
 import { INITIAL_USERS, INITIAL_REQUESTS } from '../constants';
+
+const SLIM_REQUEST_COLUMNS = 'id,title,detail,requester,area,status,priority,"responsibleHead","responsibleHeadId","assignedAnalyst","assignedAnalystId","createdAt","lastUpdated","finishedAt","isReturned","isDeleted","deletedAt","deletedBy","sourceType","clientType","paymentProportion","paymentAmount","totalAmount"';
 
 const RAW_SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://giwyowsqmgwsaliiduqi.supabase.co';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_Owy6oQHM50c9v1tNp1PCPg_TTSNIger';
@@ -23,6 +25,8 @@ export interface DbDiagnostic {
     errorDetails?: any;
 }
 
+let proxyDisabled = !import.meta.env.DEV;
+
 const createResilientFetch = () => {
     return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
         let originalUrl = '';
@@ -40,15 +44,19 @@ const createResilientFetch = () => {
             headers = headers || input.headers;
         }
 
-        // Si estamos en el navegador y la URL apunta a /supabase-proxy, intentamos vía proxy primero
+        // Si estamos en el navegador y la URL apunta a /supabase-proxy, intentamos vía proxy solo si está habilitado
         if (typeof window !== 'undefined' && originalUrl.includes('/supabase-proxy')) {
-            try {
-                const proxyRes = await fetch(input, init);
-                if (proxyRes.status !== 404 && proxyRes.status !== 502 && proxyRes.status !== 504) {
-                    return proxyRes;
+            if (!proxyDisabled) {
+                try {
+                    const proxyRes = await fetch(input, init);
+                    if (proxyRes.status !== 404 && proxyRes.status !== 502 && proxyRes.status !== 504) {
+                        return proxyRes;
+                    }
+                    proxyDisabled = true;
+                } catch (err) {
+                    proxyDisabled = true;
+                    console.warn('Proxy fetch no disponible, recurriendo a conexión directa:', err);
                 }
-            } catch (err) {
-                console.warn('Proxy fetch no disponible, recurriendo a conexión directa:', err);
             }
 
             // Fallback a conexión directa
@@ -61,8 +69,8 @@ const createResilientFetch = () => {
             });
         }
 
-        // Si la URL apunta directamente a supabase.co, intentamos el proxy local de Vite primero
-        if (typeof window !== 'undefined' && originalUrl.includes('supabase.co')) {
+        // Si la URL apunta directamente a supabase.co en desarrollo, intentamos el proxy local de Vite primero
+        if (typeof window !== 'undefined' && !proxyDisabled && originalUrl.includes('supabase.co')) {
             const proxyUrl = originalUrl.replace(/^https?:\/\/[^/]+/, `${window.location.origin}/supabase-proxy`);
             try {
                 const proxyRes = await fetch(proxyUrl, {
@@ -74,8 +82,9 @@ const createResilientFetch = () => {
                 if (proxyRes.status !== 404 && proxyRes.status !== 502 && proxyRes.status !== 504) {
                     return proxyRes;
                 }
+                proxyDisabled = true;
             } catch (err) {
-                // Si el proxy falla, proseguir con fetch directo
+                proxyDisabled = true;
             }
         }
 
@@ -85,9 +94,11 @@ const createResilientFetch = () => {
 
 class DatabaseService {
     private supabase: SupabaseClient;
+    private memoryCache = new Map<string, any>();
+    private cacheTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
     constructor() {
-        const effectiveUrl = typeof window !== 'undefined' && window.location?.origin
+        const effectiveUrl = typeof window !== 'undefined' && !proxyDisabled && window.location?.origin
             ? `${window.location.origin}/supabase-proxy`
             : RAW_SUPABASE_URL;
 
@@ -103,53 +114,91 @@ class DatabaseService {
     }
 
     private getCached<T>(key: string, fallback: T): T {
+        if (this.memoryCache.has(key)) {
+            return this.memoryCache.get(key) as T;
+        }
         try {
             if (typeof window === 'undefined') return fallback;
             const saved = localStorage.getItem(key);
-            return saved ? JSON.parse(saved) : fallback;
+            if (saved) {
+                const parsed = JSON.parse(saved) as T;
+                this.memoryCache.set(key, parsed);
+                return parsed;
+            }
+            return fallback;
         } catch {
             return fallback;
         }
     }
 
     private setCached<T>(key: string, value: T): void {
-        try {
-            if (typeof window !== 'undefined') {
+        this.memoryCache.set(key, value);
+        if (typeof window === 'undefined') return;
+
+        const existingTimer = this.cacheTimers.get(key);
+        if (existingTimer) clearTimeout(existingTimer);
+
+        this.cacheTimers.set(key, setTimeout(() => {
+            this.cacheTimers.delete(key);
+            try {
                 localStorage.setItem(key, JSON.stringify(value));
+            } catch (e) {
+                // Si se excede la cuota en requests, recortar respaldo offline a los últimos 150 registros
+                if (key === CACHE_REQUESTS && Array.isArray(value) && value.length > 150) {
+                    try {
+                        localStorage.setItem(key, JSON.stringify(value.slice(0, 150)));
+                        return;
+                    } catch {
+                        // ignorar si sigue sin espacio
+                    }
+                }
+                console.warn(`No se pudo almacenar caché para ${key}:`, e);
             }
-        } catch (e) {
-            console.warn(`No se pudo almacenar caché para ${key}:`, e);
-        }
+        }, 250));
     }
 
     public async init(): Promise<DbDiagnostic> {
         try {
-            const { error: userError } = await this.supabase
-                .from(STORE_USERS)
-                .select('id, "canSupervise", "canReceiveAndDerive"', { count: 'exact', head: true });
+            const [userCheck, reqCheck, areaCheck, processCheck] = await Promise.all([
+                this.supabase
+                    .from(STORE_USERS)
+                    .select('id, "canSupervise", "canReceiveAndDerive"', { count: 'exact', head: true }),
+                this.supabase
+                    .from(STORE_REQUESTS)
+                    .select('id, "responsibleHeadId", "assignedAnalystId"', { count: 'exact', head: true }),
+                this.supabase
+                    .from(STORE_AREAS)
+                    .select('id', { count: 'exact', head: true }),
+                this.supabase
+                    .from(STORE_PROCESSES)
+                    .select('id', { count: 'exact', head: true })
+            ]);
 
-            if (userError) {
-                const msg = userError.message || "";
-                if (msg.includes('Failed to fetch') || userError instanceof TypeError) {
+            if (userCheck.error) {
+                const msg = userCheck.error.message || "";
+                if (msg.includes('Failed to fetch') || userCheck.error instanceof TypeError) {
                     console.warn("Supabase no alcanzable directamente; activando modo resiliente con caché local.");
                     return { status: 'READY', message: 'Modo local de contingencia activo.' };
                 }
-                return this.diagnoseError(userError, STORE_USERS);
+                return this.diagnoseError(userCheck.error, STORE_USERS);
             }
 
-            const { error: reqError } = await this.supabase
-                .from(STORE_REQUESTS)
-                .select('id, "responsibleHeadId", "assignedAnalystId"', { count: 'exact', head: true });
-
-            if (reqError) {
-                const msg = reqError.message || "";
-                if (msg.includes('Failed to fetch') || reqError instanceof TypeError) {
+            if (reqCheck.error) {
+                const msg = reqCheck.error.message || "";
+                if (msg.includes('Failed to fetch') || reqCheck.error instanceof TypeError) {
                     return { status: 'READY', message: 'Modo local de contingencia activo.' };
                 }
-                return this.diagnoseError(reqError, STORE_REQUESTS);
+                return this.diagnoseError(reqCheck.error, STORE_REQUESTS);
             }
 
-            await this.seedData();
+            if (processCheck.error) {
+                const msg = processCheck.error.message || "";
+                if (!msg.includes('Failed to fetch') && !(processCheck.error instanceof TypeError)) {
+                    return this.diagnoseError(processCheck.error, STORE_PROCESSES);
+                }
+            }
+
+            await this.seedData(userCheck.count, reqCheck.count, areaCheck.error ? null : areaCheck.count);
             return { status: 'READY', message: 'Capa de persistencia verificada.' };
         } catch (error: any) {
             const msg = error?.message || "";
@@ -161,24 +210,23 @@ class DatabaseService {
         }
     }
 
-    private async seedData() {
+    private async seedData(uCount: number | null, rCount: number | null, aCount: number | null) {
         try {
-            const { count: uCount, error: uErr } = await this.supabase.from(STORE_USERS).select('*', { count: 'exact', head: true });
-            if (!uErr && uCount === 0) {
-                await this.supabase.from(STORE_USERS).insert(INITIAL_USERS);
+            const tasks: PromiseLike<any>[] = [];
+            if (uCount === 0) {
+                tasks.push(this.supabase.from(STORE_USERS).insert(INITIAL_USERS));
             }
-
-            const { count: rCount, error: rErr } = await this.supabase.from(STORE_REQUESTS).select('*', { count: 'exact', head: true });
-            if (!rErr && rCount === 0) {
-                await this.supabase.from(STORE_REQUESTS).insert(INITIAL_REQUESTS);
+            if (rCount === 0) {
+                tasks.push(this.supabase.from(STORE_REQUESTS).insert(INITIAL_REQUESTS));
             }
-
-            const { count: aCount, error: aErr } = await this.supabase.from(STORE_AREAS).select('*', { count: 'exact', head: true });
-            if (!aErr && aCount === 0) {
-                const initialAreas = Array.from(new Set(INITIAL_REQUESTS.map(r => r.area)));
-                for (const area of initialAreas) {
-                    await this.supabase.from(STORE_AREAS).insert({ name: area });
+            if (aCount === 0) {
+                const initialAreas = Array.from(new Set(INITIAL_REQUESTS.map(r => r.area))).map(name => ({ name }));
+                if (initialAreas.length > 0) {
+                    tasks.push(this.supabase.from(STORE_AREAS).insert(initialAreas));
                 }
+            }
+            if (tasks.length > 0) {
+                await Promise.all(tasks);
             }
         } catch (e) {
             console.warn("Aviso en verificación de semillas iniciales:", e);
@@ -241,16 +289,29 @@ class DatabaseService {
   name text UNIQUE NOT NULL
 );`;
 
+        const sqlTableProcesses = `CREATE TABLE IF NOT EXISTS public.scheduled_processes (
+  id uuid PRIMARY KEY,
+  "processName" text NOT NULL,
+  area text NOT NULL,
+  "globalStartDate" text NOT NULL,
+  "globalEndDate" text NOT NULL,
+  status text NOT NULL DEFAULT 'ACTIVE',
+  alerts jsonb DEFAULT '[]'::jsonb
+);`;
+
         const sqlRLS = `-- SEGURIDAD DE FILA (RLS)
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.organization_areas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.scheduled_processes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public Read" ON public.users FOR SELECT USING (true);
 CREATE POLICY "Public Read" ON public.requests FOR SELECT USING (true);
 CREATE POLICY "Public Read" ON public.organization_areas FOR SELECT USING (true);
+CREATE POLICY "Public Read" ON public.scheduled_processes FOR SELECT USING (true);
 CREATE POLICY "Public Write" ON public.requests FOR ALL USING (true);
 CREATE POLICY "Public Write" ON public.users FOR ALL USING (true);
-CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`;
+CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);
+CREATE POLICY "Public Write" ON public.scheduled_processes FOR ALL USING (true);`;
 
         if (code === '42703' || msg.includes('column')) {
             return {
@@ -272,7 +333,7 @@ CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`
             return {
                 status: 'SETUP_REQUIRED',
                 message: `Esquema no inicializado`,
-                sqlSuggestion: `${sqlTableUsers}\n\n${sqlTableRequests}\n\n${sqlTableAreas}\n\n${sqlRLS}`
+                sqlSuggestion: `${sqlTableUsers}\n\n${sqlTableRequests}\n\n${sqlTableAreas}\n\n${sqlTableProcesses}\n\n${sqlRLS}`
             };
         }
 
@@ -283,17 +344,24 @@ CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`
         try {
             const { data, error } = await this.supabase
                 .from(STORE_REQUESTS)
-                .select('*')
+                .select(SLIM_REQUEST_COLUMNS)
                 .order('lastUpdated', { ascending: false });
             if (error) {
                 console.warn('Aviso al obtener requerimientos desde Supabase:', error.message || error);
                 return this.getCached(CACHE_REQUESTS, INITIAL_REQUESTS);
             }
-            if (data && data.length > 0) {
-                this.setCached(CACHE_REQUESTS, data);
-                return data as RequestCard[];
+            const cachedById = new Map(this.getCached<RequestCard[]>(CACHE_REQUESTS, []).map(r => [r.id, r]));
+            const hydrated = (data || []).map((row: any) => {
+                const cachedRow = cachedById.get(row.id);
+                return {
+                    ...row,
+                    logs: Array.isArray(cachedRow?.logs) ? cachedRow.logs : []
+                } as RequestCard;
+            });
+            if (hydrated.length > 0) {
+                this.setCached(CACHE_REQUESTS, hydrated);
             }
-            return (data || []) as RequestCard[];
+            return hydrated;
         } catch (err) {
             console.warn('Excepción de red al consultar requerimientos, usando respaldo:', err);
             return this.getCached(CACHE_REQUESTS, INITIAL_REQUESTS);
@@ -361,103 +429,240 @@ CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`
         }
     }
 
+    public async renameAreaInRequests(oldName: string, newName: string): Promise<void> {
+        const cached = this.getCached<RequestCard[]>(CACHE_REQUESTS, []);
+        if (cached.length > 0) {
+            this.setCached(CACHE_REQUESTS, cached.map(r => r.area === oldName ? { ...r, area: newName } : r));
+        }
+        try {
+            const { error } = await this.supabase
+                .from(STORE_REQUESTS)
+                .update({ area: newName })
+                .eq('area', oldName);
+            if (error) console.warn('Aviso al renombrar área en requerimientos:', error.message);
+        } catch (e) {
+            console.warn('Excepción de red al renombrar área en requerimientos:', e);
+        }
+    }
+
+    public async renameUserInRequests(oldName: string, newName: string): Promise<void> {
+        const cached = this.getCached<RequestCard[]>(CACHE_REQUESTS, []);
+        if (cached.length > 0) {
+            this.setCached(CACHE_REQUESTS, cached.map(r => {
+                if (r.assignedAnalyst !== oldName && r.responsibleHead !== oldName) return r;
+                return {
+                    ...r,
+                    assignedAnalyst: r.assignedAnalyst === oldName ? newName : r.assignedAnalyst,
+                    responsibleHead: r.responsibleHead === oldName ? newName : r.responsibleHead,
+                };
+            }));
+        }
+        try {
+            const [resAnalyst, resHead] = await Promise.all([
+                this.supabase.from(STORE_REQUESTS).update({ assignedAnalyst: newName }).eq('assignedAnalyst', oldName),
+                this.supabase.from(STORE_REQUESTS).update({ responsibleHead: newName }).eq('responsibleHead', oldName)
+            ]);
+            if (resAnalyst.error) console.warn('Aviso al renombrar analista en requerimientos:', resAnalyst.error.message);
+            if (resHead.error) console.warn('Aviso al renombrar jefatura en requerimientos:', resHead.error.message);
+        } catch (e) {
+            console.warn('Excepción de red al renombrar usuario en requerimientos:', e);
+        }
+    }
+
     public async saveRequest(req: RequestCard): Promise<void> {
         const cached = this.getCached<RequestCard[]>(CACHE_REQUESTS, INITIAL_REQUESTS);
         const idx = cached.findIndex(r => r.id === req.id);
         const updated = idx >= 0 ? cached.map(r => r.id === req.id ? req : r) : [req, ...cached];
         this.setCached(CACHE_REQUESTS, updated);
 
-        try {
-            const { error } = await this.supabase.from(STORE_REQUESTS).upsert(req);
-            if (error) {
-                console.error('ERROR al guardar requerimiento en Supabase (Detalles):', {
-                    error: error.message,
-                    hint: error.hint,
-                    details: error.details,
-                    code: error.code,
-                    reqId: req.id,
-                    clientType: (req as any).clientType
-                });
-            }
-        } catch (e) {
-            console.error('Excepción crítica al guardar requerimiento:', e);
+        const { error } = await this.supabase.from(STORE_REQUESTS).upsert(req);
+        if (error) {
+            console.error('ERROR al guardar requerimiento en Supabase (Detalles):', {
+                error: error.message,
+                hint: error.hint,
+                details: error.details,
+                code: error.code,
+                reqId: req.id,
+                clientType: (req as any).clientType
+            });
+            throw new Error(error.message || 'No se pudo guardar el requerimiento.');
         }
     }
 
-    /**
-     * Añade un log de forma atómica (intento de mitigación de concurrencia)
-     * Si falla el intento inicial de guardado completo, intenta recuperar y mezclar logs.
-     */
-    public async appendRequestLog(requestId: string, newLog: any): Promise<RequestCard | null> {
+    public async insertRequestIfAbsent(req: RequestCard): Promise<void> {
+        const cached = this.getCached<RequestCard[]>(CACHE_REQUESTS, INITIAL_REQUESTS);
+        if (!cached.some(r => r.id === req.id)) {
+            this.setCached(CACHE_REQUESTS, [req, ...cached]);
+        }
         try {
-            // 1. Obtener estado actual del servidor
+            const { error } = await this.supabase
+                .from(STORE_REQUESTS)
+                .upsert(req, { onConflict: 'id', ignoreDuplicates: true });
+            if (error) {
+                console.warn('Aviso en inserción idempotente de rutina:', error.message);
+            }
+        } catch (e) {
+            console.warn('Excepción de red en inserción idempotente de rutina:', e);
+        }
+    }
+
+    public async updateRequestWithMergedLogs(
+        requestId: string,
+        patch: Partial<RequestCard>,
+        newLogs: LogEntry[]
+    ): Promise<RequestCard> {
+        const cached = this.getCached<RequestCard[]>(CACHE_REQUESTS, INITIAL_REQUESTS);
+        const existingCached = cached.find(r => r.id === requestId);
+        const mergeLogs = (base: LogEntry[], incoming: LogEntry[]) => {
+            const seen = new Set(base.map(l => l.id));
+            const merged = [...base];
+            for (const item of incoming) {
+                if (!seen.has(item.id)) {
+                    seen.add(item.id);
+                    merged.push(item);
+                }
+            }
+            return merged;
+        };
+
+        try {
+            const { data: current, error: fetchError } = await this.supabase
+                .from(STORE_REQUESTS)
+                .select('logs')
+                .eq('id', requestId)
+                .single();
+
+            if (!fetchError && current) {
+                const serverLogs = Array.isArray(current.logs) ? (current.logs as LogEntry[]) : [];
+                const mergedLogs = mergeLogs(serverLogs, newLogs);
+                const { data: updated, error: updateError } = await this.supabase
+                    .from(STORE_REQUESTS)
+                    .update({ ...patch, logs: mergedLogs })
+                    .eq('id', requestId)
+                    .select()
+                    .single();
+
+                if (updateError) {
+                    throw new Error(updateError.message || 'No se pudo actualizar el requerimiento.');
+                }
+
+                this.setCached(CACHE_REQUESTS, cached.map(r => r.id === requestId ? (updated as RequestCard) : r));
+                return updated as RequestCard;
+            }
+        } catch (e: any) {
+            if (e?.message && !e.message.includes('Failed to fetch')) {
+                throw e;
+            }
+        }
+
+        const fallbackLogs = mergeLogs(existingCached?.logs || [], newLogs);
+        const fallbackCard = { ...(existingCached || {}), ...patch, id: requestId, logs: fallbackLogs } as RequestCard;
+        this.setCached(CACHE_REQUESTS, cached.map(r => r.id === requestId ? fallbackCard : r));
+        return fallbackCard;
+    }
+
+    /**
+     * Añade un log fusionando contra el historial más reciente en servidor
+     */
+    public async appendRequestLog(requestId: string, newLog: LogEntry): Promise<RequestCard | null> {
+        const cached = this.getCached<RequestCard[]>(CACHE_REQUESTS, []);
+        const existingCached = cached.find(r => r.id === requestId);
+        const now = new Date().toISOString();
+
+        try {
             const { data: current, error: fetchError } = await this.supabase
                 .from(STORE_REQUESTS)
                 .select('*')
                 .eq('id', requestId)
                 .single();
-            
-            if (fetchError || !current) return null;
 
-            const currentLogs = Array.isArray(current.logs) ? current.logs : [];
-            
-            // 2. Verificar si el log ya existe (evitar duplicados por reintentos de red)
-            if (currentLogs.find((l: any) => l.id === newLog.id)) return current as RequestCard;
+            if (!fetchError && current) {
+                const currentLogs = Array.isArray(current.logs) ? current.logs : [];
+                if (currentLogs.find((l: any) => l.id === newLog.id)) return current as RequestCard;
 
-            const updatedLogs = [...currentLogs, newLog];
-            const now = new Date().toISOString();
+                const updatedLogs = [...currentLogs, newLog];
+                const { data: updated, error: updateError } = await this.supabase
+                    .from(STORE_REQUESTS)
+                    .update({
+                        logs: updatedLogs,
+                        lastUpdated: now
+                    })
+                    .eq('id', requestId)
+                    .select()
+                    .single();
 
-            // 3. Intentar actualizar con condición (Optimistic Locking simplificado)
-            // En Supabase REST, no hay un "check and set" nativo fácil sin RPC, 
-            // pero podemos usar el filtro para asegurar que no estamos pisando algo crítico 
-            // si tuviéramos un campo de versión.
-            const { data: updated, error: updateError } = await this.supabase
-                .from(STORE_REQUESTS)
-                .update({ 
-                    logs: updatedLogs,
-                    lastUpdated: now
-                })
-                .eq('id', requestId)
-                .select()
-                .single();
-
-            if (updateError) throw updateError;
-            
-            // Actualizar caché
-            const cached = this.getCached<RequestCard[]>(CACHE_REQUESTS, []);
-            this.setCached(CACHE_REQUESTS, cached.map(r => r.id === requestId ? updated : r));
-            
-            return updated as RequestCard;
-        } catch (e) {
-            console.error('Error atómico al añadir log:', e);
-            return null;
+                if (updateError) throw updateError;
+                this.setCached(CACHE_REQUESTS, cached.map(r => r.id === requestId ? (updated as RequestCard) : r));
+                return updated as RequestCard;
+            }
+        } catch (e: any) {
+            if (e?.message && !e.message.includes('Failed to fetch')) {
+                console.error('Error atómico al añadir log:', e);
+                throw new Error(e.message);
+            }
         }
+
+        if (!existingCached) return null;
+        const baseLogs = Array.isArray(existingCached.logs) ? existingCached.logs : [];
+        const localUpdated: RequestCard = {
+            ...existingCached,
+            lastUpdated: now,
+            logs: baseLogs.some(l => l.id === newLog.id) ? baseLogs : [...baseLogs, newLog]
+        };
+        this.setCached(CACHE_REQUESTS, cached.map(r => r.id === requestId ? localUpdated : r));
+        return localUpdated;
     }
 
-    public async deleteRequest(id: string, deletedBy: string): Promise<void> {
+    public async deleteRequest(id: string, deletedBy: string, newLogs?: LogEntry[]): Promise<void> {
+        const now = new Date().toISOString();
         const cached = this.getCached<RequestCard[]>(CACHE_REQUESTS, []);
-        const updated = cached.map(r => r.id === id ? {
+        const mergeLogs = (base: LogEntry[], incoming: LogEntry[] = []) => {
+            const seen = new Set(base.map(l => l.id));
+            const merged = [...base];
+            for (const item of incoming) {
+                if (!seen.has(item.id)) {
+                    seen.add(item.id);
+                    merged.push(item);
+                }
+            }
+            return merged;
+        };
+
+        const updatedCache = cached.map(r => r.id === id ? {
             ...r,
             isDeleted: true,
-            deletedAt: new Date().toISOString(),
+            deletedAt: now,
             deletedBy,
-            status: Status.FINALIZADO
+            status: Status.FINALIZADO,
+            lastUpdated: now,
+            logs: mergeLogs(r.logs || [], newLogs || [])
         } : r);
-        this.setCached(CACHE_REQUESTS, updated);
+        this.setCached(CACHE_REQUESTS, updatedCache);
 
-        try {
-            const { error } = await this.supabase
+        const payload: Record<string, any> = {
+            isDeleted: true,
+            deletedAt: now,
+            deletedBy: deletedBy,
+            status: Status.FINALIZADO,
+            lastUpdated: now
+        };
+
+        if (newLogs && newLogs.length > 0) {
+            const { data: current } = await this.supabase
                 .from(STORE_REQUESTS)
-                .update({ 
-                    isDeleted: true, 
-                    deletedAt: new Date().toISOString(),
-                    deletedBy: deletedBy,
-                    status: Status.FINALIZADO
-                })
-                .eq('id', id);
-            if (error) console.warn('Aviso al archivar requerimiento en Supabase:', error.message);
-        } catch (e) {
-            console.warn('Excepción de red al archivar requerimiento:', e);
+                .select('logs')
+                .eq('id', id)
+                .single();
+            const serverLogs = Array.isArray(current?.logs) ? (current.logs as LogEntry[]) : [];
+            payload.logs = mergeLogs(serverLogs, newLogs);
+        }
+
+        const { error } = await this.supabase
+            .from(STORE_REQUESTS)
+            .update(payload)
+            .eq('id', id);
+        if (error) {
+            throw new Error(error.message || 'No se pudo archivar el requerimiento en Supabase.');
         }
     }
 
@@ -502,6 +707,9 @@ CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`
                 .single();
 
             if (!error && data) {
+                if (data.status === 'INACTIVE') {
+                    throw new Error('Cuenta desactivada. Contacte al Administrador.');
+                }
                 const { password, ...safeUser } = data;
                 const areas = safeUser.area ? safeUser.area.split(',').map((a: string) => a.trim()).filter((a: string) => a.length > 0) : [];
                 return {
@@ -512,13 +720,17 @@ CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`
                     canReceiveAndDerive: safeUser.canReceiveAndDerive || false
                 } as User;
             }
-        } catch (e) {
+        } catch (e: any) {
+            if (e?.message?.includes('desactivada')) throw e;
             console.warn('Validación de usuario con Supabase fallida, comprobando respaldo local:', e);
         }
 
         const localUsers = this.getCached<User[]>(CACHE_USERS, INITIAL_USERS);
         const match = localUsers.find(u => u.email.toLowerCase() === email.trim().toLowerCase() && u.password === pass);
         if (match) {
+            if (match.status === 'INACTIVE') {
+                throw new Error('Cuenta desactivada. Contacte al Administrador.');
+            }
             const { password, ...safeUser } = match;
             return safeUser as User;
         }
@@ -600,22 +812,18 @@ CREATE POLICY "Public Write" ON public.organization_areas FOR ALL USING (true);`
         const idx = cached.findIndex(r => r.id === routine.id);
         const updated = idx >= 0 ? cached.map(r => r.id === routine.id ? routine : r) : [routine, ...cached];
         this.setCached(CACHE_PROCESSES, updated);
-        try {
-            const { error } = await this.supabase.from(STORE_PROCESSES).upsert(routine);
-            if (error) console.warn('Aviso al guardar rutina:', error.message);
-        } catch (e) {
-            console.warn('Excepción de red al guardar rutina:', e);
+        const { error } = await this.supabase.from(STORE_PROCESSES).upsert(routine);
+        if (error) {
+            throw new Error(error.message || 'No se pudo guardar la rutina.');
         }
     }
 
     public async deleteScheduledProcess(id: string): Promise<void> {
         const cached = this.getCached<ScheduledProcess[]>(CACHE_PROCESSES, []);
         this.setCached(CACHE_PROCESSES, cached.filter(r => r.id !== id));
-        try {
-            const { error } = await this.supabase.from(STORE_PROCESSES).delete().eq('id', id);
-            if (error) console.warn('Aviso al eliminar rutina:', error.message);
-        } catch (e) {
-            console.warn('Excepción de red al eliminar rutina:', e);
+        const { error } = await this.supabase.from(STORE_PROCESSES).delete().eq('id', id);
+        if (error) {
+            throw new Error(error.message || 'No se pudo eliminar la rutina.');
         }
     }
 
