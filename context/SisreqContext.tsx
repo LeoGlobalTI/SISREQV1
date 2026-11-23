@@ -748,10 +748,11 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const checkEditJurisdiction = useCallback((req: RequestCard): boolean => {
     if (activeRole === UserRole.SUPERADMIN || activeRole === UserRole.ADMIN) return true;
-    if (canReceiveAndDerive(currentUser || undefined) && req.status === Status.RECIBIDO) return true;
+    if (isSupervisorMode) return true;
+    if (canReceiveAndDerive(currentUser || undefined) && (req.status === Status.RECIBIDO || req.status === Status.DERIVACION)) return true;
     const userAreas = currentUser?.areas || (currentUser?.area ? [currentUser.area] : []);
     return userAreas.includes(req.area);
-  }, [activeRole, currentUser]);
+  }, [activeRole, currentUser, isSupervisorMode]);
 
   const canUserSeeRequest = useCallback((req: RequestCard): boolean => {
     if (!currentUser || !activeRole) return false;
@@ -759,7 +760,7 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (activeRole === UserRole.SUPERADMIN || activeRole === UserRole.ADMIN) return true;
     
     if (isSupervisorMode) return true;
-    if (canReceiveAndDerive(currentUser) && req.status === Status.RECIBIDO) return true;
+    if (canReceiveAndDerive(currentUser) && (req.status === Status.RECIBIDO || req.status === Status.DERIVACION)) return true;
 
     const userAreas = currentUser.areas || (currentUser.area ? [currentUser.area] : []);
     const isSameArea = userAreas.includes(req.area);
@@ -778,12 +779,12 @@ export const SisreqProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const rule = WORKFLOW_MATRIX.find(r => r.from === req.status && r.to === target);
     if (!rule) return { allowed: false, reason: 'Flujo operativo no permitido.' };
     
-    const isActingAsCentralReceiver = canReceiveAndDerive(currentUser) && req.status === Status.RECIBIDO && target === Status.DERIVACION;
-    const hasRoleAccess = rule.allowedRoles.includes(activeRole) || (isActingAsCentralReceiver && rule.allowedRoles.includes(UserRole.ADMIN));
+    const isCentralReceiverOrSupervisor = (canReceiveAndDerive(currentUser) || isSupervisorMode) && (req.status === Status.RECIBIDO || req.status === Status.DERIVACION);
+    const hasRoleAccess = rule.allowedRoles.includes(activeRole) || (isCentralReceiverOrSupervisor && (rule.allowedRoles.includes(UserRole.ADMIN) || rule.allowedRoles.includes(UserRole.HEAD)));
     
     if (!hasRoleAccess) return { allowed: false, reason: 'Nivel de privilegios insuficiente.' };
     
-    if (rule.checkAreaJurisdiction && ![UserRole.SUPERADMIN, UserRole.ADMIN].includes(activeRole) && !isActingAsCentralReceiver) {
+    if (rule.checkAreaJurisdiction && ![UserRole.SUPERADMIN, UserRole.ADMIN].includes(activeRole) && !isCentralReceiverOrSupervisor && !isSupervisorMode) {
         const userAreas = currentUser.areas || (currentUser.area ? [currentUser.area] : []);
         if (!userAreas.includes(req.area)) return { allowed: false, reason: 'El expediente no pertenece a su unidad orgánica.' };
     }
